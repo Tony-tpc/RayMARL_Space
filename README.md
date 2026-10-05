@@ -1,86 +1,77 @@
-# Ray RLlib 本地环境
+# RayMARL
 
-按[指定的 RLlib 文档](https://docs.rayai.org.cn/en/latest/rllib/)部署：Python 3.12 的 `venv`、Ray 2.59.0、PyTorch 和 Dashboard。这里提供的是 Windows 单机运行环境。
+为 RLlib 2.59 提供通用的多智能体联合 Critic、混合动作和集中 Value 扩展。
 
-## 运行示例
+```python
+import ray
+from raymarl import MAACConfig
 
-在 PowerShell 中执行（无需先激活虚拟环境）：
-
-```powershell
-cd D:\Yang\RayMARL
-.\.venv\Scripts\python.exe .\quickstart.py
+ray.init()
+config = (MAACConfig()
+    .environment(MyMultiAgentEnv)
+    .learners(num_learners=0, num_gpus_per_learner=0)
+    .training(hidden_dim=64, batch_size=128))
+algo = config.build_algo()
+result = algo.train()
+checkpoint = algo.save_to_path("./ray_results/checkpoint")
+algo.stop()
+ray.shutdown()
 ```
 
-示例沿用文档的 `Taxi-v3`、`PPOConfig` 和 `FlattenObservations`。为本机验证缩小了每次训练的采样批次、更新轮数和评估回合数；默认训练两次，CUDA 可用时使用一张 GPU，否则使用 CPU。可通过 `--gpus 0` 强制使用 CPU。
+`MyMultiAgentEnv` 由调用方提供，是固定智能体集合的 RLlib `MultiAgentEnv`。一次 `train()` 完成一个环境回合；返回的步数是联合环境步数。
 
-当前默认在本地采样、评估，减少 Windows 的进程和内存开销。内存充足时可用 `--env-runners 2` 启用文档中的两个并行采样进程；本次 GPU 验证采用本地采样。两个远程采样进程的 GPU 训练尝试曾发生内存分配失败，不视为验证通过。
+## 安装
 
 ```powershell
-.\.venv\Scripts\python.exe .\quickstart.py --iterations 10
+python -m pip install .
+python -m pip install '.[test]'
 ```
 
-输出保存在 `artifacts/quickstart-result.json` 和 `artifacts/checkpoint/`。少量迭代用于确认环境、训练、评估和保存链路可运行，不代表策略收敛。
+基础依赖不固定 CUDA 构建。GPU 用户先按 [PyTorch 官方安装方式](https://pytorch.org/get-started/locally/)安装对应 PyTorch，然后设置 `num_gpus_per_learner=1`。导入库不会启动 Ray、下载数据或启动模拟器。
 
-## 激活 venv
+## 算法与边界
+
+| Config | 行为 |
+| --- | --- |
+| `MAACConfig` | 私有 Actor、私有 Critic 编码器/头、共享注意力、反事实 baseline、score-function 更新 |
+| `MASACConfig` | 联合信息双 Q、连续路径导数、离散分支精确期望、固定温度 |
+| `MADDPGConfig` | 确定性连续 Actor、联合 Q、目标 Actor；只接受 Box 组合 |
+| `ISACConfig` | 独立局部软 Critic，复用混合动作和 score-function 核心 |
+| `MAPPOConfig` | 原生 RLlib PPO 更新，Actor 只读取 local，Value 读取训练用集中输入 |
+| `IPPOConfig` | 原生 RLlib PPO 更新，局部 Actor 和局部 Value |
+
+第一版支持异构向量观测、有限边界 Box、Discrete、MultiBinary、Dict/Tuple 组合动作。联合算法限定本地采样、一个本地 Learner、0 或 1 张 GPU，不支持动态智能体集合或提前独立终止。MAPPO/IPPO 使用 RLlib 原生 PPO 运行管理。
+
+历史观测可使用 `Dict(current=Box, history=Box[H,C], history_mask=Box[H])`，有效历史在前，零填充在后。长度由观测空间决定，不硬编码设备或价格。
+
+MAAC 是 Ye 等（2021）算法的一致性修订实现。原文缺少的网络和优化参数已明确补足，不宣称复现论文环境、成本下降比例、300 户结果、纳什收敛或正式隐私保证。共享注意力参数使整体计算随智能体数量线性扩展。
+
+## 推理与恢复
+
+联合算法支持回合边界 `save_to_path()` / `restore_from_path()`，包含在线/目标模型、优化器、Replay 和 RNG。仅加载可信的本地 checkpoint。
+
+```python
+from raymarl.inference import ActorBundle, export_actor_bundle
+
+export_actor_bundle(algo, "./ray_results/actors.pt")
+actors = ActorBundle("./ray_results/actors.pt", device="cpu")
+actions = actors.actions(local_observations)
+```
+
+PPO Actor 导出要求策略 ID 与智能体 ID 一一对应，导出不包含 Value/Critic。使用 `register_algorithms()` 显式注册 Tune 名称。
+
+## 主分支与实验
+
+主分支只包含 `src/raymarl`、核心测试、通用文档及打包配置。CityLearn、数据下载、机器安装配置、多种子实验和绘图代码在独立归档分支保存。原始数据、模型、日志和 venv 不入 Git。
+
+运行核心门禁：
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+python -m pytest -q
+python -m ruff check src tests
+python -m build --no-isolation
 python -m pip check
-python .\quickstart.py
-deactivate
+git diff --check
 ```
 
-如果当前 PowerShell 禁止执行激活脚本，可继续直接调用 `.venv\Scripts\python.exe`。
-
-## Ray Dashboard
-
-```powershell
-.\start-ray.ps1
-.\.venv\Scripts\python.exe .\quickstart.py --address auto
-```
-
-浏览器访问 <http://127.0.0.1:8265>。此节点配置四个 CPU 资源；训练完成后节点继续运行。独立运行示例时，示例创建的临时节点会自动关闭。
-
-Dashboard 开启 token 认证。如果页面提示登录，在本机 PowerShell 中执行 `Get-Content .\.ray\auth_token`，将结果粘贴到登录框；不要分享该文件。
-
-停止本机 Ray 节点（会停止本机其他 Ray 会话，请确认没有其他训练）：
-
-```powershell
-.\.venv\Scripts\ray.exe stop
-```
-
-## 重建环境
-
-```powershell
-.\setup.ps1
-```
-
-基础解释器当前使用 Codex 提供的 Python 3.12，路径记录在 `.venv/pyvenv.cfg`。移动到其他机器时重新创建 venv，并指定本机解释器：
-
-```powershell
-.\setup.ps1 -BasePython 'C:\Python312\python.exe'
-```
-
-`requirements.txt` 固定直接依赖；`requirements-lock.txt` 记录验证后的完整版本。
-
-Ray 的认证文件保存在 `.ray/auth_token`，运行临时文件保存在 `.tmp/ray`，均已加入 Git 忽略规则。脚本保留 token 认证，使用 `RAY_AUTH_TOKEN_PATH` 指向本地认证文件。Ray 2.59 的日志目录通过 `StorageContext` 指向工作区，避免向用户目录写入；该接口为版本相关的开发者 API，升级 Ray 时需要重新验证。
-
-## GPU
-
-当前安装官方 `torch 2.14.1+cu130`，CUDA 运行时为 13.0，使用 PyTorch 官方 CUDA wheel 索引。示例在 CUDA 可用时默认使用 GPU，也可显式传入 `--gpus 1`；它会检查 CUDA 可用性及 Learner 模型参数的实际设备。
-
-```powershell
-.\.venv\Scripts\python.exe .\quickstart.py --address auto --gpus 1
-```
-
-参考环境 `D:\Yang\BaseModel\MARL\.venv` 的包文件记录为 `torch 2.14.0+cu130`，适配 Python 3.11。该环境当前无法启动，因为 `pyvenv.cfg` 指向的基础 Python 3.11 不可用。当前环境是 Python 3.12，因此使用对应的官方 `cp312` 包独立安装。
-
-Ray 的 Windows 支持仍属 Beta，多节点 Windows 集群不在本次部署范围。参考[安装文档](https://docs.rayai.org.cn/en/latest/ray-overview/installation.html)。
-
-## 本次验证
-
-2026-10-05：Python 3.12.14，Ray 2.59.0，PyTorch 2.14.1+cu130，CUDA 13.0，Gymnasium 1.2.2，NVIDIA GeForce RTX 4060 Laptop GPU。`pip check` 无依赖冲突，CUDA 矩阵计算、前向/反向传播和 Adam 更新通过。
-
-连接本地节点的 PPO GPU 示例已完成两轮训练、评估和模型保存，共采样 1,024 步，Learner 模型参数设备为 `cuda:0`。CPU 版安装阶段曾验证独立启动及连接节点的训练链路。当前 Dashboard 首页及带认证的版本接口均返回 HTTP 200，`torch.cuda.is_available()` 为 True。
-
-Ray 自身仍输出新 API、内部 RLModule 弃用及 actor 重启提示。本次正常运行通过，未验证故障恢复或长期训练。
+详见 [算法审计](docs/algorithm-audit.md)、[验证记录](docs/validation.md)和[归档规则](docs/archive-policy.md)。

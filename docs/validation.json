@@ -1,0 +1,17 @@
+{
+  "core_tests": {
+    "passed": 25,
+    "cuda_executed": true,
+    "status": "passed"
+  },
+  "ruff": "passed",
+  "pip_check_training": "passed",
+  "pip_check_citylearn": "passed",
+  "wheel_inventory": "passed",
+  "sdist_inventory": "passed",
+  "isolated_wheel_import_build_train_restore": "passed",
+  "source_sha256": "234c8c80a391b5aff6f897616f9323fd2ff695c70efcada76096e93ef3bda099",
+  "citylearn_game_qualification": "passed",
+  "formal_comparison": "running_or_pending",
+  "archive_branch": "archive/ye2021-maac-validation"
+}

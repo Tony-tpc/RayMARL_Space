@@ -1,4 +1,16 @@
-.venv/
+.venv*/
+.runtimes/
+local_runtime/
+experiments/
+archives/
+datasets/
+outputs/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.worktrees/
 .tmp/
 .ray/
 *.log
