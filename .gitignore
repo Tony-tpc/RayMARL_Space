@@ -1,0 +1,8 @@
+.venv/
+.tmp/
+.ray/
+*.log
+__pycache__/
+*.pyc
+artifacts/
+ray_results/
