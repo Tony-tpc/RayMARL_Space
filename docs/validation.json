@@ -12,6 +12,12 @@
   "isolated_wheel_import_build_train_restore": "passed",
   "source_sha256": "234c8c80a391b5aff6f897616f9323fd2ff695c70efcada76096e93ef3bda099",
   "citylearn_game_qualification": "passed",
-  "formal_comparison": "running_or_pending",
-  "archive_branch": "archive/ye2021-maac-validation"
+  "formal_comparison": "running",
+  "archive_branch": "archive/ye2021-maac-validation",
+  "algorithm_commit": "ceae92bf0394de62cc56f7a55e8c7a67c53bc4c5",
+  "validation_archive_commit": "e8d3f10c6d4d7b286f7d5eb4e4718373f4b9998d",
+  "validation_archive_tag": "ye2021-validation-rc1",
+  "smoke_cases_passed": 13,
+  "pipeline_progress": "outputs/pipeline-progress.json",
+  "history_strategy": "fast-forward only; bootstrap history retained"
 }
