@@ -1,0 +1,200 @@
+{
+  "date": "2026-10-07",
+  "status": "passed",
+  "cases": [
+    {
+      "mode": "single",
+      "algorithm": "ppo",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 16,
+          "episode_return_mean": -2.4911170467211994,
+          "updates": null
+        }
+      ],
+      "evaluation_return": -2.618832014902056,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 32,
+        "episode_return_mean": -2.4908003533263647,
+        "updates": null
+      },
+      "inference": {
+        "steps": 8,
+        "return": -1.8437825115636939
+      }
+    },
+    {
+      "mode": "marl",
+      "algorithm": "maac",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 8,
+          "episode_return_mean": -16.059212405448914,
+          "updates": 1.0
+        }
+      ],
+      "evaluation_return": -11.347980581390061,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 16,
+        "episode_return_mean": -15.650112592165618,
+        "updates": 3.0
+      },
+      "inference": {
+        "steps": 8,
+        "returns": {
+          "house_0": -3.4181925999305554,
+          "house_1": -3.4181925999305554
+        }
+      }
+    },
+    {
+      "mode": "marl",
+      "algorithm": "masac",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 8,
+          "episode_return_mean": -11.069834263861242,
+          "updates": 1.0
+        }
+      ],
+      "evaluation_return": -10.647850255820842,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 16,
+        "episode_return_mean": -13.981869351512238,
+        "updates": 3.0
+      },
+      "inference": {
+        "steps": 8,
+        "returns": {
+          "house_0": -3.507304208439237,
+          "house_1": -3.507304208439237
+        }
+      }
+    },
+    {
+      "mode": "marl",
+      "algorithm": "maddpg",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 8,
+          "episode_return_mean": -7.828770277253189,
+          "updates": 1.0
+        }
+      ],
+      "evaluation_return": -8.957909655838497,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 16,
+        "episode_return_mean": -8.25521834076606,
+        "updates": 3.0
+      },
+      "inference": {
+        "steps": 8,
+        "returns": {
+          "house_0": -3.9641821492660414,
+          "house_1": -3.9641821492660414
+        }
+      }
+    },
+    {
+      "mode": "marl",
+      "algorithm": "isac",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 8,
+          "episode_return_mean": -17.775674725161302,
+          "updates": 1.0
+        }
+      ],
+      "evaluation_return": -11.48385046275403,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 16,
+        "episode_return_mean": -11.267157557144252,
+        "updates": 3.0
+      },
+      "inference": {
+        "steps": 8,
+        "returns": {
+          "house_0": -3.8753926261846683,
+          "house_1": -3.8753926261846683
+        }
+      }
+    },
+    {
+      "mode": "marl",
+      "algorithm": "mappo",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 16,
+          "episode_return_mean": -15.697435027996562,
+          "updates": null
+        }
+      ],
+      "evaluation_return": -16.82851005970867,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 32,
+        "episode_return_mean": -14.952022786912941,
+        "updates": null
+      },
+      "inference": {
+        "steps": 8,
+        "returns": {
+          "house_0": -4.028971448865374,
+          "house_1": -4.028971448865374
+        }
+      }
+    },
+    {
+      "mode": "marl",
+      "algorithm": "ippo",
+      "history": 4,
+      "training": [
+        {
+          "iteration": 1,
+          "env_steps": 16,
+          "episode_return_mean": -13.082740736761561,
+          "updates": null
+        }
+      ],
+      "evaluation_return": -10.168801050415482,
+      "resumed_training": {
+        "iteration": 2,
+        "env_steps": 32,
+        "episode_return_mean": -13.184562000425503,
+        "updates": null
+      },
+      "inference": {
+        "steps": 8,
+        "returns": {
+          "house_0": -3.9741771038857125,
+          "house_1": -3.9741771038857125
+        }
+      }
+    }
+  ],
+  "environment_checks": [
+    "Gymnasium single-agent check_env",
+    "observation/action interfaces",
+    "SOC/power limits",
+    "cooperative/individual reward accounting",
+    "history mask and finite-horizon termination"
+  ],
+  "temporary_validation_artifacts_removed": true
+}

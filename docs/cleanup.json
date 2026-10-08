@@ -1,0 +1,477 @@
+{
+  "date": "2026-10-06",
+  "baseline_commit": "9f6f568",
+  "targets": [
+    {
+      "path": "D:\\Yang\\RayMARL\\outputs",
+      "files": 4361,
+      "bytes": 12380855371
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\artifacts",
+      "files": 35,
+      "bytes": 4793132
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.pytest_cache",
+      "files": 5,
+      "bytes": 2463
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.ruff_cache",
+      "files": 4,
+      "bytes": 966
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\experiment-ray",
+      "files": 312,
+      "bytes": 45064625
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\paper-review",
+      "files": 7,
+      "bytes": 3162543
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-final-core",
+      "files": 74,
+      "bytes": 475741
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-full",
+      "files": 74,
+      "bytes": 531386
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-lifecycle",
+      "files": 74,
+      "bytes": 531552
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-release",
+      "files": 74,
+      "bytes": 476017
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-verified",
+      "files": 74,
+      "bytes": 531405
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\ray",
+      "files": 359,
+      "bytes": 40266716
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\test-ray",
+      "files": 274,
+      "bytes": 464674
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\wheel-installed",
+      "files": 25,
+      "bytes": 175744
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\wheel-sandbox",
+      "files": 43,
+      "bytes": 143074
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\wheels",
+      "files": 2,
+      "bytes": 2114721969
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\all-tests.log",
+      "files": 1,
+      "bytes": 585
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\central-reference.log",
+      "files": 1,
+      "bytes": 1287
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\core-tests.log",
+      "files": 1,
+      "bytes": 101
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\final-core.log",
+      "files": 1,
+      "bytes": 585
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\lifecycle.log",
+      "files": 1,
+      "bytes": 584
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\maac-city.log",
+      "files": 1,
+      "bytes": 883
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\preflight.log",
+      "files": 1,
+      "bytes": 683
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\release-tests.log",
+      "files": 1,
+      "bytes": 585
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\suite-final.log",
+      "files": 1,
+      "bytes": 4326
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\suite-smoke.log",
+      "files": 1,
+      "bytes": 4327
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\verified-tests.log",
+      "files": 1,
+      "bytes": 585
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\.tmp\\wheel-validation.log",
+      "files": 1,
+      "bytes": 598
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\quickstart-validation.log",
+      "files": 1,
+      "bytes": 1589
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\ray-start-validation.log",
+      "files": 1,
+      "bytes": 2409
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\requirements-validation.log",
+      "files": 1,
+      "bytes": 14586
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\src\\raymarl\\__pycache__",
+      "files": 9,
+      "bytes": 108903
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\tests\\__pycache__",
+      "files": 6,
+      "bytes": 71493
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\experiments\\ye2021_maac\\__pycache__",
+      "files": 8,
+      "bytes": 58883
+    },
+    {
+      "path": "D:\\Yang\\RayMARL\\__pycache__",
+      "files": 2,
+      "bytes": 7531
+    }
+  ],
+  "deleted_files": 5837,
+  "deleted_bytes": 14592477901,
+  "verification_cleanup": {
+    "targets": [
+      {
+        "path": "D:\\Yang\\RayMARL\\dist",
+        "files": 2,
+        "bytes": 47000
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.pytest_cache",
+        "files": 5,
+        "bytes": 4731
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.ruff_cache",
+        "files": 4,
+        "bytes": 3702
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\isolated-wheel",
+        "files": 107,
+        "bytes": 270812
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-build",
+        "files": 2,
+        "bytes": 80730
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-ray",
+        "files": 119,
+        "bytes": 285653
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\probe-results",
+        "files": 1,
+        "bytes": 0
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-final",
+        "files": 215,
+        "bytes": 888518
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-fragment",
+        "files": 1,
+        "bytes": 0
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\pytest-native",
+        "files": 215,
+        "bytes": 888526
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\test-ray",
+        "files": 579,
+        "bytes": 1677567
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\wheel-run",
+        "files": 465,
+        "bytes": 1717041
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\cleanup-authorized.ps1",
+        "files": 1,
+        "bytes": 2706
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\finish-native.py",
+        "files": 1,
+        "bytes": 4470
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\materialize-docs.py",
+        "files": 1,
+        "bytes": 11415
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\materialize-native.py",
+        "files": 1,
+        "bytes": 15297
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\materialize-tests.py",
+        "files": 1,
+        "bytes": 12730
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-build.log",
+        "files": 1,
+        "bytes": 233
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-dependencies.log",
+        "files": 1,
+        "bytes": 64
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-final.log",
+        "files": 1,
+        "bytes": 115
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-fragment.log",
+        "files": 1,
+        "bytes": 101
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-full.log",
+        "files": 1,
+        "bytes": 232
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-lifecycle.log",
+        "files": 1,
+        "bytes": 230
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-lint.log",
+        "files": 1,
+        "bytes": 20
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-probe.log",
+        "files": 1,
+        "bytes": 18254
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-results.xml",
+        "files": 1,
+        "bytes": 6011
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-unit.log",
+        "files": 1,
+        "bytes": 206
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\native-wheel.log",
+        "files": 1,
+        "bytes": 5550
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\record_native_validation.py",
+        "files": 1,
+        "bytes": 2517
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\strengthen-native.py",
+        "files": 1,
+        "bytes": 5817
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\verify_isolated_native.py",
+        "files": 1,
+        "bytes": 3758
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\verify_native.py",
+        "files": 1,
+        "bytes": 1332
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\__pycache__",
+        "files": 6,
+        "bytes": 38292
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\__pycache__",
+        "files": 1,
+        "bytes": 646
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\ippo\\__pycache__",
+        "files": 5,
+        "bytes": 3591
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\isac\\__pycache__",
+        "files": 5,
+        "bytes": 7841
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\maac\\__pycache__",
+        "files": 5,
+        "bytes": 9769
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\maddpg\\__pycache__",
+        "files": 5,
+        "bytes": 8839
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\mappo\\__pycache__",
+        "files": 5,
+        "bytes": 4179
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\masac\\__pycache__",
+        "files": 5,
+        "bytes": 6877
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\common\\__pycache__",
+        "files": 11,
+        "bytes": 85908
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\tests\\__pycache__",
+        "files": 9,
+        "bytes": 129649
+      }
+    ],
+    "deleted_files": 1792.0,
+    "deleted_bytes": 6250929.0,
+    "original_helper_scripts_preserved": [
+      "archive_snapshot.py",
+      "verify_wheel.py"
+    ]
+  },
+  "total_deleted_files": 7940.0,
+  "total_deleted_bytes": 14601054758.0,
+  "usage_example_cleanup": {
+    "date": "2026-10-07",
+    "targets": [
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\usage-validation",
+        "files": 207,
+        "bytes": 2030871
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\usage-example",
+        "files": 56,
+        "bytes": 98484
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\.tmp\\usage-validation.log",
+        "files": 1,
+        "bytes": 8566
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\docs\\examples\\__pycache__",
+        "files": 1,
+        "bytes": 16745
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\__pycache__",
+        "files": 4,
+        "bytes": 37537
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\__pycache__",
+        "files": 1,
+        "bytes": 646
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\ippo\\__pycache__",
+        "files": 5,
+        "bytes": 3591
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\isac\\__pycache__",
+        "files": 5,
+        "bytes": 7841
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\maac\\__pycache__",
+        "files": 5,
+        "bytes": 9854
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\maddpg\\__pycache__",
+        "files": 5,
+        "bytes": 8839
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\mappo\\__pycache__",
+        "files": 5,
+        "bytes": 4179
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\algorithms\\masac\\__pycache__",
+        "files": 5,
+        "bytes": 6877
+      },
+      {
+        "path": "D:\\Yang\\RayMARL\\src\\raymarl\\common\\__pycache__",
+        "files": 11,
+        "bytes": 91898
+      }
+    ],
+    "deleted_files": 311.0,
+    "deleted_bytes": 2325928.0
+  }
+}

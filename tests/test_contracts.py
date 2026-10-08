@@ -1,14 +1,12 @@
-import copy
-
 import gymnasium as gym
 import numpy as np
 import pytest
 import torch
 
-from raymarl import MAACConfig, MADDPGConfig, MASACConfig
+from raymarl import MAACConfig
+from raymarl.common.models import AttentionCritic
+from raymarl.common.targets import score_function_loss, soft_target, soft_update
 from raymarl.distributions import HybridDistribution, bound_distribution
-from raymarl.learner import JointTorchLearner, score_function_loss, soft_target, soft_update
-from raymarl.networks import AttentionCritic, JointModule
 from raymarl.replay import JointReplay
 from raymarl.spaces import ActionLayout, ObservationLayout
 
@@ -121,51 +119,7 @@ def test_joint_replay_alignment_and_snapshot():
         assert row[0]["b"][0] - row[0]["a"][0] == 100
 
 
-@pytest.mark.parametrize("config_cls", [MAACConfig, MASACConfig, MADDPGConfig])
-def test_learner_update_checkpoint_and_optimizer_ownership(config_cls):
-    torch.manual_seed(12)
-    o = gym.spaces.Box(-1, 1, (3,), np.float32)
-    a = gym.spaces.Box(-1, 1, (1,), np.float32)
-    c = config_cls().training(hidden_dim=8, baseline_samples=2, batch_size=4)
-    m = JointModule([o] * 2, [a] * 2, 8, c.critic_mode, twin=c.variant == "masac")
-    learner = JointTorchLearner(config=c, module=m)
-    learner.build()
-    actor_params = [{id(p) for p in actor.parameters()} for actor in m.actors]
-    critics = {id(p) for p in learner.critic_parameters}
-    assert not actor_params[0] & actor_params[1]
-    assert not critics & set.union(*actor_params)
-    obs = [ObservationLayout(o).tensor([np.zeros(3)] * 4, "cpu")] * 2
-    args = (obs, [torch.zeros(4, 1)] * 2, torch.ones(4, 2), obs, torch.zeros(4, 2))
-    learner.update_joint(*args)
-    state, rng = learner.get_state(), torch.get_rng_state()
-    learner.update_joint(*args)
-    expected = copy.deepcopy(m.get_state())
-    learner.set_state(state)
-    torch.set_rng_state(rng)
-    learner.update_joint(*args)
-    for key, values in expected["actors"].items():
-        for name, tensor in values.items():
-            assert torch.equal(tensor, m.get_state()["actors"][key][name])
-
-
 @pytest.mark.parametrize("key,value", [("actor_lr", float("nan")), ("tau", 2), ("batch_size", 0)])
 def test_config_rejects_invalid(key, value):
     with pytest.raises(ValueError):
         MAACConfig().training(**{key: value}).validate()
-
-
-def test_nonfinite_checkpoint_rejected_before_weight_changes():
-    o = gym.spaces.Box(-1, 1, (3,), np.float32)
-    a = gym.spaces.Box(-1, 1, (1,), np.float32)
-    config = MAACConfig().training(hidden_dim=8)
-    module = JointModule([o], [a], 8)
-    learner = JointTorchLearner(config=config, module=module)
-    learner.build()
-    state = learner.get_state()
-    before = copy.deepcopy(module.get_state())
-    key = next(iter(state["module"]["critic"]))
-    state["module"]["critic"][key].fill_(float("nan"))
-    with pytest.raises(ValueError, match="Non-finite"):
-        learner.set_state(state)
-    for k, v in before["critic"].items():
-        assert torch.equal(v, module.get_state()["critic"][k])

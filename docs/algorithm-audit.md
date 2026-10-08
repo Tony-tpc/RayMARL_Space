@@ -1,41 +1,38 @@
-# 算法一致性审计
+# 算法一致性审计：Ye 2021 路线
 
-来源：Ye 等，IEEE TSG 2021，DOI `10.1109/TSG.2021.3103917`；Iqbal 与 Sha，ICML 2019，以及其作者仓库 <https://github.com/shariqiqbal2810/MAAC>。
+## MAAC 来源与实现
 
-## 主线机制
+来源：Ye 等，IEEE TSG 2021，DOI [10.1109/TSG.2021.3103917](https://doi.org/10.1109/TSG.2021.3103917)。原始思想参照 [Iqbal 与 Sha 2019](https://proceedings.mlr.press/v97/iqbal19a.html)，本库 MAAC 的基准保持 Ye 能源论文。
 
-| 论文机制 | 实现 | 验收 |
-| --- | --- | --- |
-| 混合 Gaussian/Bernoulli 策略 | distributions.HybridDistribution | 分支概率、边界 Jacobian、饱和 log-prob |
-| 独立局部 Actor | networks.ActorModule | 参数所有权和局部推理 |
-| 私有一层 g_i 与两层 f_i | networks.AttentionCritic | 层次、异构输入和输出形状 |
-| 共享 Wq/Wk/Wv，屏蔽自身 | networks.AttentionCritic | 权重对角为零、归一化、N=1 |
-| 单 Q、目标 Actor、目标 Critic | learner.JointTorchLearner | TD target 和目标插值 |
-| 式 44 score-function | learner.score_function_loss | 手算期望梯度 |
-| 固定其他动作的反事实 baseline | learner.JointTorchLearner | 离散枚举、独立 MC 样本、恢复一致性 |
-| 联合 Replay | replay.JointReplay | 时间与智能体对齐、快照隔离 |
-| 局部执行 | inference.ActorBundle | 不创建 Critic 或环境 |
+| 机制 | 实现位置与语义 |
+| --- | --- |
+| Gaussian/Bernoulli 混合策略 | MAACRLModule + HybridDistribution；有界 Gaussian 使用稳定 Tanh 密度修正 |
+| 历史编码 | Actor/Critic 各自 Encoder 与 LSTM，历史右填充与 mask |
+| 私有 g_i / f_i | AttentionCritic 的一层状态-动作投影与两层 Q 头 |
+| 共享 Wq/Wk/Wv | 单头注意力，排除自身，不另加点积缩放 |
+| 单 Q 与目标策略/目标 Q | MAACCriticModule、MAACRLModule |
+| 式 44 策略梯度 | MAACTorchLearner；score-function 与停止梯度的反事实 baseline |
+| 联合经验 | 原生 MultiAgentEpisode 转换为完整联合 Replay 行 |
+| 局部执行 | 推理侧无 Critic；ActorBundle 仅构造局部策略 |
 
-Actor 和 Critic 使用各自的历史 LSTM，避免优化器所有权混淆。Critic 的历史输入先与当前局部特征拼接，再通过一层状态-动作投影 g_i。各 Actor 使用独立的两层 MLP；论文未给出该宽度，默认 64 属于补足参数。
+## 论文明确参数与项目补足参数
 
-## 原文矛盾及边界
+论文明确：RMSProp、gamma=0.99、软更新率 tau=0.001、batch=128、Replay 容量 100000、LSTM 历史特征。
 
-1. Algorithm 1 的 tau 系数与 tau=0.001 软更新率语义不一致。实现采用 `target=(1-tau)*target+tau*online`。
-2. 注意力求和排除自身，而式 42 分母包含自身。实现明确排除自身再归一化。
-3. 论文编码隐私并无正式泄露上界。此库实现训练信息流，不实现加密协议、差分隐私或真实分布式隐私保障。
-4. 共享注意力参数压缩输入并使总运算随智能体数线性扩展；实测性能仍需单独报告。
-5. CTDE 不证明消除全部学习非平稳性，也不证明纳什均衡。
-6. 充放电符号、Cost 与 reward 符号、EV 约束惩罚方向存在矛盾。环境不复现，故只记录。
-7. 能源论文未公开可核对的完整训练程序及所有超参数。不能声称与作者程序逐次更新完全相同。
+项目补足：hidden_dim=64、actor_lr=3e-4、critic_lr=1e-3、temperature=0.1、warmup=512、每四个环境步一次更新、baseline 连续采样数=8、Actor/Critic 梯度裁剪 0.5/50。Actor 与 Critic 的历史编码器分别管理。上述补足不得写成论文原始设置。
 
-## 已明确补足的参数
+原文 Algorithm 1 的 tau 系数与文字软更新率语义不一致，采用 `target=(1-tau)*target+tau*online`。注意力公式求和排除自身、分母却含自身，采用排除自身后归一化。补足参数及修订在库配置中明确，不宣称逐次更新等同作者代码。
 
-默认 actor/critic 学习率 3e-4/1e-3，RMSProp，gamma=0.99，tau=0.001，temperature=0.1，batch=128，均匀 Replay=100000，warmup=512，每四步更新，连续反事实样本=8。单头不缩放点积；Actor 梯度裁剪 0.5、联合 Critic 50。主线不额外缩放共享梯度。
+## 六种算法的边界
 
-MASAC 使用固定温度、双 Q、连续重参数化与离散精确期望；ISAC 使用局部软 Critic 与相同混合核。它们不是把现有库的注意力 SAC 改名后当成 MAAC。MADDPG 仅接受连续动作，其他 replay 动作保持固定。
+- MAAC：能源论文注意力单 Q 与反事实 score-function，不改成现代双 Q SAC。
+- MASAC：联合双 Q、连续重参数化、自身离散动作精确期望、固定温度；其他智能体动作作为无梯度上下文。
+- MADDPG：连续确定性 Actor；更新本 Actor 时固定其他 replay 动作，无熵项。
+- ISAC：每个策略自己的局部双 Q；当前策略产生下一动作；无目标 Actor、无 MAAC baseline；混合动作属于扩展。
+- MAPPO/IPPO：复用 RLlib PPO/GAE；集中与局部 Value 分别定义，Actor 都局部执行。
 
-## 公开环境的外推范围
+## 可验证结论的范围
 
-CityLearn 3.0.2 使用原生 MARL 奖励，而非论文 MMR 收益。原生小时分辨率下 48 步是 48 小时，不是论文的 24 小时。官方 168 个时间行实际产生 167 次转换；实验记录实际联合步数和回合完整性带来的预算超出。
+算法库不复现论文的能源设备、MMR 市场与奖励环境；不会自动发起 CityLearn 大型实验。现有实验脚本作为历史研究材料保留，其私有 API 使用需要单独迁移，不能把旧曲线当成新版本验证。
 
-原生 MARL 奖励可能不惩罚电器未服务，收益与服务指标同时报告。不得用少服务取得的低成本宣称算法更优，不用短跑收益排序证明机制完整或收敛。
+嵌入交换不提供正式隐私保证，原生 Ray 运行也不会自动建立论文的交易平台安全机制。CTDE 和训练稳定性不证明纳什均衡。单个 Critic 输入压缩不等同整体线性计算：全连接注意力有 N×N 配对成本。

@@ -1,15 +1,12 @@
 import gymnasium as gym
 import numpy as np
-import pytest
 import torch
 from ray.rllib.core.columns import Columns
 
-from raymarl import IPPOConfig, MAACConfig, MAPPOConfig
+from raymarl import IPPOConfig, MAPPOConfig
+from raymarl.common.models import ActorModule
 from raymarl.distributions import HybridDistribution
-from raymarl.learner import JointTorchLearner
-from raymarl.networks import ActorModule, JointModule
 from raymarl.ppo import PPOModule
-from raymarl.spaces import ActionLayout, ObservationLayout
 
 
 def test_mappo_actor_cannot_use_central_state():
@@ -56,37 +53,3 @@ def test_ppo_density_preserves_saturated_pre_tanh_sample():
 def test_ppo_does_not_double_transform_physical_actions():
     assert IPPOConfig().normalize_actions is False
     assert MAPPOConfig().normalize_actions is False
-
-
-@pytest.mark.cuda
-def test_cuda_history_hybrid_update():
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA unavailable")
-    o = gym.spaces.Dict(
-        {
-            "current": gym.spaces.Box(-1, 1, (3,), np.float32),
-            "history": gym.spaces.Box(-1, 1, (4, 2), np.float32),
-            "history_mask": gym.spaces.Box(0, 1, (4,), np.float32),
-        }
-    )
-    a = gym.spaces.Dict({"box": gym.spaces.Box(-1, 1, (1,), np.float32), "binary": gym.spaces.MultiBinary(1)})
-    cfg = (
-        MAACConfig()
-        .learners(num_learners=0, num_gpus_per_learner=1)
-        .training(hidden_dim=8, baseline_samples=2)
-    )
-    module = JointModule([o, o], [a, a], 8)
-    learner = JointTorchLearner(config=cfg, module=module)
-    learner.build()
-    raw = {
-        "current": np.zeros(3, np.float32),
-        "history": np.zeros((4, 2), np.float32),
-        "history_mask": np.ones(4, np.float32),
-    }
-    obs = [ObservationLayout(o).tensor([raw] * 4, "cuda")] * 2
-    actions = [torch.zeros(4, ActionLayout(a).feature_dim, device="cuda")] * 2
-    result = learner.update_joint(
-        obs, actions, torch.ones(4, 2, device="cuda"), obs, torch.zeros(4, 2, device="cuda")
-    )
-    assert np.isfinite(result["critic_loss"])
-    assert next(learner.module.actors[0].parameters()).is_cuda

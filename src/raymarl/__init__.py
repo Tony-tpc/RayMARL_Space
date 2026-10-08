@@ -1,36 +1,38 @@
 """Importing raymarl never starts Ray or loads environment data."""
 
-from .algorithms import ISACConfig, JointAlgorithm, MAACConfig, MADDPGConfig, MASACConfig
-from .ppo import IPPOConfig, MAPPOConfig
+from .algorithms import (
+    IPPO,
+    ISAC,
+    MAAC,
+    MADDPG,
+    MAPPO,
+    MASAC,
+    IPPOConfig,
+    ISACConfig,
+    MAACConfig,
+    MADDPGConfig,
+    MAPPOConfig,
+    MASACConfig,
+)
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 def register_algorithms():
-    """Explicit opt-in registration with Ray Tune."""
+    """Explicit opt-in registration of importable native Algorithm classes."""
     from ray.tune.registry import register_trainable
 
-    for name, config in (
-        ("MAAC", MAACConfig),
-        ("MASAC", MASACConfig),
-        ("MADDPG", MADDPGConfig),
-        ("ISAC", ISACConfig),
-    ):
-        cls = type(name, (JointAlgorithm,), {"get_default_config": classmethod(lambda c, f=config: f(c))})
-        register_trainable(name, cls)
-    from ray.rllib.algorithms.ppo import PPO
-
-    register_trainable(
-        "MAPPO",
-        type("MAPPO", (PPO,), {"get_default_config": classmethod(lambda cls: MAPPOConfig(algo_class=cls))}),
-    )
-    register_trainable(
-        "IPPO",
-        type("IPPO", (PPO,), {"get_default_config": classmethod(lambda cls: IPPOConfig(algo_class=cls))}),
-    )
+    for cls in (MAAC, MASAC, MADDPG, ISAC, MAPPO, IPPO):
+        register_trainable(cls.__name__, cls)
 
 
 __all__ = [
+    "IPPO",
+    "ISAC",
+    "MAAC",
+    "MADDPG",
+    "MAPPO",
+    "MASAC",
     "IPPOConfig",
     "ISACConfig",
     "MAACConfig",
