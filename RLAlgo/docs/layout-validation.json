@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-09",
+  "original_files_retained": 85,
+  "algorithm_package_files_sha256_unchanged": 51,
+  "energy_environment_sha256_unchanged": true,
+  "editable_import": "RLAlgo/src/raymarl/__init__.py",
+  "pytest": {
+    "passed": 46,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff": "passed",
+  "pip_check": "passed",
+  "python_and_powershell_syntax": "passed",
+  "build": {
+    "wheel": "passed",
+    "sdist": "passed",
+    "isolated_wheel_imports": "all six Config classes passed"
+  },
+  "example": {
+    "cwd": "RLAlgo",
+    "parameters": {
+      "iterations": 1,
+      "horizon": 8,
+      "batch": 16,
+      "history": 4
+    },
+    "cases": [
+      {
+        "algorithm": "ppo",
+        "mode": "single",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      },
+      {
+        "algorithm": "maac",
+        "mode": "marl",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      },
+      {
+        "algorithm": "masac",
+        "mode": "marl",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      },
+      {
+        "algorithm": "maddpg",
+        "mode": "marl",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      },
+      {
+        "algorithm": "isac",
+        "mode": "marl",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      },
+      {
+        "algorithm": "mappo",
+        "mode": "marl",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      },
+      {
+        "algorithm": "ippo",
+        "mode": "marl",
+        "train_evaluate_restore_export_infer": "passed",
+        "inference_steps": 8
+      }
+    ]
+  },
+  "limitations": [
+    "Short lifecycle validation, not convergence or paper-result reproduction",
+    "Existing large experiment workflows were not rerun"
+  ]
+}

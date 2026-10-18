@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sn-energy-market"
+version = "0.2.0"
+description = "Auditable v9 Stackelberg-Nash six-action energy market environment"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["numpy>=1.26", "PyYAML>=6", "gymnasium>=1.2,<1.3"]
+
+[project.optional-dependencies]
+rllib = ["ray[rllib]>=2.59,<2.60"]
+test = ["pytest>=8", "ruff>=0.9", "build>=1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/snmarket"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "configs", "tests", "docs", "README.md", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["integration: native RLlib episode/runner contract"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["snmarket"]

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "raymarl"
+version = "0.2.0"
+description = "Joint-critic and hybrid-action multi-agent extensions for RLlib"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["ray[rllib]>=2.59,<2.60", "torch>=2.14,<2.15", "numpy>=1.26", "gymnasium==1.2.2"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "build>=1", "ruff>=0.9"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/raymarl"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "docs", "examples", "README.md", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["cuda: requires a CUDA-capable PyTorch installation", "integration: RLlib lifecycle integration"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint.isort]
+known-first-party = ["raymarl", "environments"]

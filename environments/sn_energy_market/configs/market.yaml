@@ -1,0 +1,30 @@
+# Synthetic v9 validation parameters; not paper-calibrated data.
+mechanism_version: v9_announced_supply_adequacy
+der_bid_cap: 1.5
+dr_procurement_max_kw: 40.0
+shift_backlog_limit_kwh: 25.0
+shift_deadline_steps: 96
+dr_event_intervals:
+- - 68
+  - 80
+tier_thresholds_kwh:
+- 100.0
+- 200.0
+uc_flat_rates:
+- 0.4
+- 0.5
+- 0.6
+uc_high_rates:
+- 0.6
+- 0.7
+- 0.8
+uc_peak_rates:
+- 0.7
+- 0.8
+- 0.9
+uc_high_intervals_hours:
+- [9.0, 15.0]
+uc_peak_intervals_hours:
+- [20.0, 22.0]
+der_reference_rate_per_kwh: 0.3
+dr_incentive_per_kwh: 0.5

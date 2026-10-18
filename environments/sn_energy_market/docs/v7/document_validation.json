@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-10",
+  "documents": [
+    {
+      "name": "README.md",
+      "lines": 16,
+      "sha256": "442a15232183928ee456ec02ea16329395d7834989732d68a4ed26206a0f0685"
+    },
+    {
+      "name": "modeling_integrated_zh.md",
+      "lines": 1097,
+      "sha256": "6fd2a64b6318fdeef5a87953985866661ab7bc14fe30c4997b38afb6f79ea4b1"
+    },
+    {
+      "name": "modeling_audit_zh.md",
+      "lines": 231,
+      "sha256": "46ed428ad7e8ddff2963bdb472b855fd9827a47e2826c4a16f1af19c36eb3243"
+    }
+  ],
+  "checks": {
+    "local_links": "passed",
+    "code_fences": "passed",
+    "display_math_delimiters": "passed",
+    "numbered_equations": "1 through 53, unique and in source order",
+    "original_equation_10_quote": "corrected and visually checked against PDF page 4",
+    "atomic_reward_order": "reward computed before commit",
+    "sources_unchanged": true,
+    "source_snapshot_exact": true,
+    "verifier_hash_matches": true
+  },
+  "rendered_formula_count": 416,
+  "render": {
+    "results": [
+      {
+        "name": "modeling_integrated_zh.md",
+        "expected": 382,
+        "rendered": 382,
+        "errors": []
+      },
+      {
+        "name": "modeling_audit_zh.md",
+        "expected": 34,
+        "rendered": 34,
+        "errors": []
+      }
+    ],
+    "scriptErrors": []
+  },
+  "visual_spot_checks": [
+    "corrected equation 37 and source comparison",
+    "empty action domain table and withheld repayment counterexample"
+  ],
+  "scope": "Complete Markdown document structural checks and all formulas rendered; visual spot checks are not page-by-page PDF publishing QA.",
+  "status": "passed"
+}

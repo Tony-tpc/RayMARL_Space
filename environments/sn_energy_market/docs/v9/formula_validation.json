@@ -1,0 +1,222 @@
+{
+  "status": "passed",
+  "revision_date": "2026-10-14",
+  "seed": 9122026,
+  "document_sha256": "c3c1f0992c28c0440f037e7472945798aba0c8aa3a9461e641ba18fbb9da3958",
+  "unchanged_reference_sha256": "d732f140462839469c677fcab425f96aa70c9ab6cf2304f2fc6d425ef0ebed97",
+  "consumer_state_samples": 10000,
+  "interval_membership_checks": 30000,
+  "original_market_output_cases": 1000,
+  "scalar_comparisons": 345327,
+  "maximum_absolute_difference": 7.105427357601002e-15,
+  "retained_independent_bound_witnesses": [
+    {
+      "upper_bound": "movable_native",
+      "binding_value_kw": 1
+    },
+    {
+      "upper_bound": "flex_power",
+      "binding_value_kw": 1.0
+    },
+    {
+      "upper_bound": "queue_space",
+      "binding_value_kw": 1.0
+    },
+    {
+      "repay_bound": "flex_power",
+      "binding_value_kw": 1.0
+    },
+    {
+      "repay_bound": "task_balance",
+      "binding_value_kw": 1.0
+    }
+  ],
+  "terminal_reward_checks": [
+    {
+      "terminal": true,
+      "td_target": 4.0
+    },
+    {
+      "terminal": false,
+      "td_target": 10.9
+    }
+  ],
+  "document_checks": {
+    "numbered_equations": 30,
+    "chapters": 26,
+    "parts": 6,
+    "stale_power_aliases": [],
+    "code_examples_unchanged": true,
+    "power_notation_inventory": [
+      "\\bar p^{DR}",
+      "\\bar p^{PG}",
+      "\\bar p^{\\text{代号}",
+      "\\bar p^{ch}",
+      "\\bar p^{dis}",
+      "\\bar p_i^{flex}",
+      "p^{DER,cap}",
+      "p^{DER,sold}",
+      "p^{DER}",
+      "p^{DR,cap}",
+      "p^{DR,net}",
+      "p^{DR,target,orig}",
+      "p^{PG,exec}",
+      "p^{PG,offer}",
+      "p^{UC,cap}",
+      "p^{UC,req}",
+      "p^{UC,sold}",
+      "p^{\\text{代号}",
+      "p^{ch,DER}",
+      "p^{ch,PG}",
+      "p^{ch,int,DER}",
+      "p^{ch,int,PG}",
+      "p^{curt}",
+      "p^{cut}",
+      "p^{dis,avail}",
+      "p^{dis,exec}",
+      "p^{dis,offer}",
+      "p^{rem}",
+      "p^{spill}",
+      "p^{unsold}",
+      "p_i^{DER,nec}",
+      "p_i^{DER}",
+      "p_i^{DR,orig}",
+      "p_i^{DR}",
+      "p_i^{UC}",
+      "p_i^{base}",
+      "p_i^{cut,BR}",
+      "p_i^{cut}",
+      "p_i^{due}",
+      "p_i^{lost}",
+      "p_i^{native}",
+      "p_i^{nec}",
+      "p_i^{repay}",
+      "p_i^{req}",
+      "p_i^{rigid}",
+      "p_i^{serve}",
+      "p_i^{shift}"
+    ],
+    "latex_command_inventory_valid": true
+  },
+  "direct_dr_settlement": {
+    "seed": 9142026,
+    "random_samples": 10000,
+    "boundary_cases": [
+      {
+        "signed_responses_kw": [
+          0,
+          0
+        ],
+        "procurement_cap_kw": 4,
+        "direct_payments_yuan": [
+          0,
+          0
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          4,
+          -4
+        ],
+        "procurement_cap_kw": 4,
+        "direct_payments_yuan": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          3,
+          3
+        ],
+        "procurement_cap_kw": 4,
+        "direct_payments_yuan": [
+          0.25,
+          0.25
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          3,
+          1,
+          -2
+        ],
+        "procurement_cap_kw": 3,
+        "direct_payments_yuan": [
+          0.15000000000000002,
+          0.05,
+          0.0
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          4,
+          2
+        ],
+        "procurement_cap_kw": 3,
+        "direct_payments_yuan": [
+          0.25,
+          0.125
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          -2,
+          -1
+        ],
+        "procurement_cap_kw": 3,
+        "direct_payments_yuan": [
+          0,
+          0
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          2
+        ],
+        "procurement_cap_kw": 0,
+        "direct_payments_yuan": [
+          0.0
+        ]
+      },
+      {
+        "signed_responses_kw": [
+          2,
+          1
+        ],
+        "procurement_cap_kw": 3,
+        "direct_payments_yuan": [
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "intermediate_power_aliases_removed": 3,
+    "netting_and_procurement_and_shares_preserved": true
+  },
+  "whole_document_checks": {
+    "seed": 9142626,
+    "samples": 10000,
+    "discharge_min_simplification": "equivalent under charge/discharge exclusivity",
+    "ledger_cash_reuse": "equivalent",
+    "consumer_net_loss_expression": "equivalent explanatory option; not applied to main reward",
+    "simultaneous_charge_discharge_countercheck": "simplification is conditional on the current mutual-exclusion constraint"
+  },
+  "integrity": {
+    "protected_files_manifest.json": {
+      "files": 114,
+      "unchanged": true
+    },
+    "history_files_manifest.json": {
+      "files": 18,
+      "unchanged": true
+    }
+  },
+  "scope": "Equivalent consumer/DR formulas, mutual-exclusion discharge simplification and cash-ledger reuse; original market, physics, queue and economics retained. No production changes.",
+  "subsequent_u03_revision": {
+    "current_source_sha256": "5e80196788d368f7f530cc078eef857492d3f22f59eef386b9b2af935e658758",
+    "current_report": "u03_revision_validation.json",
+    "scope": "Historical record for its original source and reward. Current document reorganizes sections and equation numbers, updates UC observation/value input and replaces UC service assessment; historical numerical rewards are not current rewards."
+  },
+  "record_scope": "Historical validation for its recorded source; current validation is u03_revision_validation.json"
+}

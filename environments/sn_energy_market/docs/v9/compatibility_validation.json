@@ -1,0 +1,349 @@
+{
+  "status": "passed",
+  "created_utc": "2026-10-18T15:24:37.384029+00:00",
+  "scope": "Single current environment API, obsolete compatibility removal, and consolidated critical validation; no RL training.",
+  "sources": {
+    "combined_sha256": "3922705348260e167857110c3e326044cb2253e57bdcbf1be7bb2fd258022905",
+    "files": {
+      "environments/sn_energy_market/src/snmarket/__init__.py": "1a2f61a17ba26e681ce4c37cb2f90c51f679bb81ee09298d888006810486ef3c",
+      "environments/sn_energy_market/src/snmarket/action.py": "3621fae375958b06eedd3d36dad1ab8c275106070eab35e039822b8a20174d38",
+      "environments/sn_energy_market/src/snmarket/config.py": "995d25390588566157510c6a088eca3f78e12891f5efda932e010cd5256ae1a3",
+      "environments/sn_energy_market/src/snmarket/consumer.py": "a05c84bc432cdbeedbaaf2d670ecf67a76d210a0a1bd2a8650feda17a3217946",
+      "environments/sn_energy_market/src/snmarket/contracts.py": "e9739885a622dc8d16a61e6d0197b35f7e9a0ebb681bde73002421284d06cf36",
+      "environments/sn_energy_market/src/snmarket/dr.py": "a28430b6b5feee788f51c02808157e7ef9df5c687922ac8ba92fd37332096845",
+      "environments/sn_energy_market/src/snmarket/engine.py": "2f96239cc4cbfd2c6bd29f9024274041886e40b265f90686cabce83798740656",
+      "environments/sn_energy_market/src/snmarket/incentive.py": "2adec800e2ab8288fe01134f25a80149579be472f00f1b65642a039aa8850089",
+      "environments/sn_energy_market/src/snmarket/market.py": "9fca257d83668aa2b7d344a214a597faa689b5eabce6da2d6d9c134906dcfb42",
+      "environments/sn_energy_market/src/snmarket/metrics.py": "e871324bbf045e43bbe95e81281ab61333aa8f88c3f3cd7c60d0a4c1110afe65",
+      "environments/sn_energy_market/src/snmarket/observation.py": "c3f15abbeeb9200f4d507bec73cc1ba48c847983de34c130a853b1fc3c620936",
+      "environments/sn_energy_market/src/snmarket/physics.py": "07540bf9b4c285563993ac530c9b74a599e96f537d4d729179ea96f8e3a3189b",
+      "environments/sn_energy_market/src/snmarket/profiles.py": "ef31c5771873bda8160398ca00be660dc1a24c9c89cd634ccf07a26a66bd00d3",
+      "environments/sn_energy_market/src/snmarket/reward.py": "ffa53c36e6dbcc5c697b51cd90b3635d7f9e2fea93034d18a1a343200e874d87",
+      "environments/sn_energy_market/src/snmarket/rllib_env.py": "bc4a8b33adb39578a86a0e940da9a89fffd77dc49ac537ca74b486dfb3410669",
+      "environments/sn_energy_market/src/snmarket/settlement.py": "762b9f22466a080e4dabb556f97a4328820505a99de2e58383b14fe1b7e51cf1",
+      "environments/sn_energy_market/src/snmarket/tariff.py": "e9833deadd2327d89bb28f0b8f21cee60a11b912f1a98dbc5d63d81ce13e0e5e",
+      "environments/sn_energy_market/src/snmarket/uc.py": "cff819b7a144c25054feb38906979698245e363b154020da320b87d9cc1ed993",
+      "environments/sn_energy_market/configs/market.yaml": "ec93fe96fd2ca0c46714a5d0500a08a6e00326af5f41240f55cda07f952bcb38",
+      "environments/sn_energy_market/configs/rewards.yaml": "ede92cd31133aa0b08a29dd020f3c3313efa0d6bb795723e15fae692aed7085a",
+      "environments/sn_energy_market/configs/system.yaml": "af278dc433f81e5fd5bb1030f89c2e916b6d72cab76e13987060f95918666f7a",
+      "experiments/sn_energy_market/validate_v9.py": "9f96d91778a07f5c3f0e87d72a15856f08e8420f563e36334c04d05e52798598",
+      "experiments/sn_energy_market/validation_helpers.py": "330182a1ce65175a7af6c67e27236fa8eb8c91087c55869b1403fa40d64e24db",
+      "environments/sn_energy_market/tests/v9_oracle.py": "f0f1d59573923ee5a3e3f3c4b0dc81865a5a858f594b2d41fb3a54f424b17e86",
+      "environments/sn_energy_market/tests/v9_checks.py": "762bef5f02388972483cb1d19d9e93f5aab231da3e7bb84f0deca988274946d5",
+      "environments/sn_energy_market/docs/v9/modeling_complete_zh.md": "4575b430006878e64af1c43f01d7603caf5af15c6ef421d3765825fd17b6ba2d"
+    }
+  },
+  "test_sources": {
+    "environments/sn_energy_market/tests/conftest.py": "01764d6a8d4834a46536aee32c3a816a5c674c64e602ffa8d220971f490db19c",
+    "environments/sn_energy_market/tests/test_calendar_audit.py": "d3299656145727b25e11548066385add043ded722681dc11c7b8050b48b53d48",
+    "environments/sn_energy_market/tests/test_config_profiles.py": "66f84c615a0c2078484b3fe5b3d9e852988a0e50762bbc0a42566ac0c0eb1509",
+    "environments/sn_energy_market/tests/test_engine.py": "6160a04dcdd049602723cd8123da9be751becaf94783555ffadd434ee7e6b479",
+    "environments/sn_energy_market/tests/test_mechanisms.py": "6ffbc88df7beb5b817f38b189d5d75e87584c5f957389f8ca2a915386a17c617",
+    "environments/sn_energy_market/tests/test_rllib_env.py": "628b2feab71c5b8ed8f750db32e1f1fa237f2143dfdd22e21db8aa92351b3074",
+    "environments/sn_energy_market/tests/test_strategic_audit.py": "c3131fb99afe3404c58f327ec24866274edbb96a6e5bd163f0ed6869ab45c1a4",
+    "environments/sn_energy_market/tests/test_v5_rejection.py": "0db6d6721f2588f2203333e1817bcfd9c36a6a5db77ae4fd9d1b805ddfcfa79f",
+    "environments/sn_energy_market/tests/test_v9_extended_audit.py": "c2f9b269e86306cb4895b74729a86bf85db53c379699ad6bb8552495b079adc0",
+    "environments/sn_energy_market/tests/test_v9_metadata_contract.py": "b67d2124aca72364a75897f5a37af4741bb341c18317d91a162fe8820c6731e7",
+    "environments/sn_energy_market/tests/test_v9_oracle.py": "b8abd7eee5735a6b56edeaf5b65d3b7a4cd751e290ec065875d52277de74272b",
+    "environments/sn_energy_market/tests/test_v9_replay_inputs.py": "4b945d185ff7d4cb0a0829c90397a28b30abe0767cd51d38c4090c07388ec790",
+    "environments/sn_energy_market/tests/v9_checks.py": "762bef5f02388972483cb1d19d9e93f5aab231da3e7bb84f0deca988274946d5",
+    "environments/sn_energy_market/tests/v9_oracle.py": "f0f1d59573923ee5a3e3f3c4b0dc81865a5a858f594b2d41fb3a54f424b17e86"
+  },
+  "unit_tests": {
+    "tests": 207,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "xml_sha256": "4373f90230435bf1b788d4ca999df4f80137197459a363a6b0a4d7231e71cf59"
+  },
+  "current_stress_report": {
+    "status": "passed",
+    "completed_batches": 25,
+    "planned_batches": 25,
+    "successful_cases_by_kind": {
+      "static": 5000,
+      "invalid": 1000,
+      "episode": 100,
+      "long": 4,
+      "month": 2
+    },
+    "totals": {
+      "physical_periods": 24008,
+      "static_physical_periods": 5000,
+      "consumer_records": 324792,
+      "static_cases": 5000,
+      "invalid_cases": 1000,
+      "dynamic_physical_periods": 19008,
+      "episodes": 106
+    },
+    "coverage": {
+      "consumer_records": 324792,
+      "due_consumer_periods": 65407,
+      "due_over_capacity": 21888,
+      "early_repayment": 103458,
+      "shift_out": 114317,
+      "charge_periods": 5700,
+      "discharge_periods": 7083,
+      "idle_periods": 11225,
+      "negative_signed_DR": 1313,
+      "event_on": 8331,
+      "event_off": 15677,
+      "zero_price_event": 385,
+      "monthly_rollover": 457,
+      "true_terminal": 50,
+      "native_shortage": 6901,
+      "full_service": 17107,
+      "exact_bid_ties": 9005,
+      "tariff_band_flat": 16372,
+      "empty_tariff_schedule": 3556,
+      "multiple_tariff_intervals": 7104,
+      "fractional_tariff_hours": 3552,
+      "oracle_comparisons": 5000,
+      "snapshot_continuations": 257,
+      "size_1_episodes": 1020,
+      "retained_task_ids": 546645,
+      "new_task_ids": 114317,
+      "necessary_shortage_periods": 7214,
+      "tariff_band_high": 5476,
+      "tariff_band_peak": 2160,
+      "size_2_episodes": 1022,
+      "size_8_episodes": 2042,
+      "size_32_episodes": 919,
+      "size_128_episodes": 103,
+      "invalid_case_0": 84,
+      "invalid_case_1": 84,
+      "invalid_case_2": 84,
+      "invalid_case_3": 84,
+      "invalid_case_4": 83,
+      "invalid_case_5": 83,
+      "invalid_case_6": 83,
+      "invalid_case_7": 83,
+      "invalid_case_8": 83,
+      "invalid_case_9": 83,
+      "invalid_case_10": 83,
+      "invalid_case_11": 83,
+      "continuous_buffer_append": 92
+    },
+    "maximums": {
+      "energy_residual": 3.552713678800501e-15,
+      "power_residual": 2.2737367544323206e-13,
+      "queue_residual": 2.220446049250313e-15,
+      "cash_residual": 2.8421709430404007e-13,
+      "reward_residual": 0.0,
+      "oracle_maximum_absolute_residual": 2.2737367544323206e-13,
+      "oracle_compared_fields": 3610
+    },
+    "failures": [],
+    "coordinator_elapsed_seconds": 52.832503899990115,
+    "scope": "Production environment and independent arithmetic oracle; no RL training or equilibrium proof",
+    "full_workload": false
+  },
+  "current_stress_manifest_sha256": "110316f3750a48be6574de846c985a803bf39a70747afaaff3f5822da29fdabc",
+  "current_stress_report_sha256": "7b07f55fabed1a95d5f7f14327b9f057075fd82bba9f3800d8dfb43d0a626dd3",
+  "current_run_directory": "outputs/snmarket-validation/v9-compatibility-20261018/final-stress",
+  "historical_full_run_directory": "outputs/snmarket-validation/v9-20261018T131449Z",
+  "historical_full_run_is_current_source_validation": false,
+  "changes_since_first_migration": [
+    {
+      "path": "environments/sn_energy_market/src/snmarket/__init__.py",
+      "prior_sha256": "c2fb1c513048d7fdf98889372a54ce73ec73851eec70d1fe00eb5eaf7b225abc",
+      "current_sha256": "1a2f61a17ba26e681ce4c37cb2f90c51f679bb81ee09298d888006810486ef3c",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/action.py",
+      "prior_sha256": "75c8f7e622acada12f73cf5e34964cf6ae6fd01184418acb1b01352aa5531de9",
+      "current_sha256": "3621fae375958b06eedd3d36dad1ab8c275106070eab35e039822b8a20174d38",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/contracts.py",
+      "prior_sha256": "faa772ced1cd160e2aa21c9c3990be8f694cca7a390f84a01f36bc99c47c8e34",
+      "current_sha256": "e9739885a622dc8d16a61e6d0197b35f7e9a0ebb681bde73002421284d06cf36",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/dr.py",
+      "prior_sha256": "22fc57613b71831bbb5bff01be1b04a23e20a28835c5590eeba52f03bc932301",
+      "current_sha256": "a28430b6b5feee788f51c02808157e7ef9df5c687922ac8ba92fd37332096845",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/engine.py",
+      "prior_sha256": "dc6851b201174d088c89b4b98ea54bd4aca3ff3414180b3ea4b4ac3a8d2c9d37",
+      "current_sha256": "2f96239cc4cbfd2c6bd29f9024274041886e40b265f90686cabce83798740656",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/market.py",
+      "prior_sha256": "be4d0fe04ddf5aaec2e0b6b24252864913acc72833dfe28056fda5fe3cea61f2",
+      "current_sha256": "9fca257d83668aa2b7d344a214a597faa689b5eabce6da2d6d9c134906dcfb42",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/observation.py",
+      "prior_sha256": "1ecd55414b87cb600e29de8e98551c7a5c5c52133850bd72f76e11c873a021da",
+      "current_sha256": "c3f15abbeeb9200f4d507bec73cc1ba48c847983de34c130a853b1fc3c620936",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/reserve.py",
+      "prior_sha256": "27fbd37ee936d824113ba07c669aa39ae292d9452cefe59177a3d9af4da572db",
+      "current_sha256": null,
+      "deleted": true
+    },
+    {
+      "path": "environments/sn_energy_market/src/snmarket/settlement.py",
+      "prior_sha256": "0133aba0cb73456fb265067c773fba70d5b8aa73b06d66ae3827356f24b20dc2",
+      "current_sha256": "762b9f22466a080e4dabb556f97a4328820505a99de2e58383b14fe1b7e51cf1",
+      "deleted": false
+    },
+    {
+      "path": "experiments/sn_energy_market/validation_helpers.py",
+      "prior_sha256": "8df8a9d98b63d4e738428598ffe924cbac9913597632aa33c9dc015674245c46",
+      "current_sha256": "330182a1ce65175a7af6c67e27236fa8eb8c91087c55869b1403fa40d64e24db",
+      "deleted": false
+    },
+    {
+      "path": "environments/sn_energy_market/docs/v9/modeling_complete_zh.md",
+      "prior_sha256": "5e80196788d368f7f530cc078eef857492d3f22f59eef386b9b2af935e658758",
+      "current_sha256": "4575b430006878e64af1c43f01d7603caf5af15c6ef421d3765825fd17b6ba2d",
+      "deleted": false
+    }
+  ],
+  "raise_sites": {
+    "before": 122,
+    "after": 111,
+    "removed": 11,
+    "files": [
+      {
+        "path": "environments/sn_energy_market/src/snmarket/__init__.py",
+        "before": 0,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/action.py",
+        "before": 10,
+        "after": 10
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/config.py",
+        "before": 23,
+        "after": 23
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/consumer.py",
+        "before": 0,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/contracts.py",
+        "before": 0,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/dr.py",
+        "before": 4,
+        "after": 1
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/engine.py",
+        "before": 44,
+        "after": 44
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/incentive.py",
+        "before": 0,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/market.py",
+        "before": 5,
+        "after": 1
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/metrics.py",
+        "before": 1,
+        "after": 1
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/observation.py",
+        "before": 2,
+        "after": 1
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/physics.py",
+        "before": 2,
+        "after": 2
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/profiles.py",
+        "before": 13,
+        "after": 13
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/reserve.py",
+        "before": 1,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/reward.py",
+        "before": 0,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/rllib_env.py",
+        "before": 7,
+        "after": 7
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/settlement.py",
+        "before": 2,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/tariff.py",
+        "before": 0,
+        "after": 0
+      },
+      {
+        "path": "environments/sn_energy_market/src/snmarket/uc.py",
+        "before": 8,
+        "after": 8
+      }
+    ]
+  },
+  "critical_injected_failure_tests": [
+    "cash balance",
+    "queue balance",
+    "market capacity"
+  ],
+  "mathematical_payloads_identical_to_migration": true,
+  "math_payload_count": 541,
+  "html": {
+    "validation_sha256": "75f8d3625c3f67bfa6a162284b41ad074745af466eea821c0bd08075a26e43f3",
+    "html_sha256": "4f4841b87a7daf541b7b3f6985ba79ba000cfe7bb7c46afbf22723df72cc6c57",
+    "api_check": {
+      "status": "passed",
+      "action_types": [
+        "UCAction",
+        "ConsumerAction"
+      ],
+      "keyword_only": true,
+      "version_aliases": false,
+      "screenshot": "outputs/snmarket-validation/v9-compatibility-20261018/unified_action_api.png"
+    },
+    "api_screenshot_sha256": "7f90863e86771abe991a57d1f69e79e6ea4637a4bdb84a588aa87e3bd3e4ec93",
+    "api_visual_review": "passed"
+  },
+  "protected_algorithm_and_historical_document_files": 121,
+  "protected_files_unchanged": true,
+  "runtime_version_suffixed_definitions": [],
+  "reserve_module_present": false,
+  "remaining_model_properties": [
+    "U02",
+    "A01",
+    "A02",
+    "A03"
+  ]
+}

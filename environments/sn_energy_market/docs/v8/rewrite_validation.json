@@ -1,0 +1,89 @@
+{
+  "status": "passed",
+  "rewrite_type": "v5 six-part, 26-chapter presentation; v8 mechanism unchanged",
+  "original_v8_sha256": "35b6ea0c2e0ce8a7816ee3369aa0c2c5d54bf7d4594ba73300e9145f32b51f28",
+  "rewritten_v8_sha256": "0654ecc1109e0eb99d4a3688be0a012c33c13531a029bab547fdee3d4d134880",
+  "old_to_new_equation_numbers": {
+    "7": 1,
+    "8": 2,
+    "9": 3,
+    "10": 4,
+    "11": 5,
+    "14": 6,
+    "15": 7,
+    "16": 8,
+    "1": 9,
+    "3": 10,
+    "4": 11,
+    "5": 12,
+    "6": 13,
+    "17": 14,
+    "18": 15,
+    "28": 16,
+    "2": 17,
+    "12": 18,
+    "13": 19,
+    "19": 20,
+    "20": 21,
+    "21": 22,
+    "22": 23,
+    "23": 24,
+    "24": 25,
+    "25": 26,
+    "26": 27,
+    "27": 28,
+    "29": 29
+  },
+  "preserved_core_equations": 29,
+  "verifier_unchanged": true,
+  "verifier_sha256": "dbb0fca8ac92786bd2298f66c42b48ef77760c1d2431ead9bc5327e2276215c8",
+  "main_parts": 6,
+  "numbered_chapters": 26,
+  "lines": 1279,
+  "clarification_scope": [
+    "symbol definitions and input/action/execution distinctions",
+    "explicit observation field order and dimensions",
+    "six ordered clearing substeps and original worked example",
+    "separate cash, noncash utility, rewards and terminal values",
+    "training, data contracts, pseudocode and implementation boundaries"
+  ],
+  "coverage": [
+    {
+      "previous": "2-3 time, participants, stages",
+      "current": "1-2, 9, 18"
+    },
+    {
+      "previous": "4 actions and local feasibility",
+      "current": "4, 6-7"
+    },
+    {
+      "previous": "5-7 supply, clearing, physics and FIFO",
+      "current": "3-4, 7"
+    },
+    {
+      "previous": "8-10 DR, money, rewards and terminal",
+      "current": "8-9"
+    },
+    {
+      "previous": "11 information",
+      "current": "5, 12, 16"
+    },
+    {
+      "previous": "12 game, learning and interfaces",
+      "current": "10-14, 16-18, 21-22"
+    },
+    {
+      "previous": "13 worked example",
+      "current": "7.6, 8.8"
+    },
+    {
+      "previous": "1, 14 revision reasons and paper",
+      "current": "23, 26"
+    },
+    {
+      "previous": "15 engineering and validation",
+      "current": "15-20, 24-25"
+    }
+  ],
+  "limit": "Expression equality and document coverage check; not a proof of every explanatory sentence or a production implementation test."
+}

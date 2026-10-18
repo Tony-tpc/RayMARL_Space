@@ -1,0 +1,462 @@
+{
+  "status": "passed",
+  "date": "2026-10-14",
+  "revision": "Five minimal definition completions with fixed continuous feasible policy mapping",
+  "source_before_sha256": "542ebda36f829f1ea6a065598c96f65740b6fb0b34034c895baa9415b3d6178e",
+  "source_after_sha256": "c3c1f0992c28c0440f037e7472945798aba0c8aa3a9461e641ba18fbb9da3958",
+  "lines": 1685,
+  "parts": 6,
+  "chapters": 26,
+  "numbered_equations": 30,
+  "all_existing_formula_relations_preserved": true,
+  "original_numeric_results_identical": true,
+  "new_defining_displays": 5,
+  "definition_completion_validation": "definition_completion_validation.json",
+  "policy_output_validation": "policy_output_validation.json",
+  "cost_notation_validation": "cost_notation_validation.json",
+  "cost_unit_validation": "cost_units_validation.json",
+  "HTML_checks": {
+    "main_formulas": 516,
+    "main_tables": 40,
+    "main_sha256": "9583431870ba82d96d0d696cf92b7856fc4790089615312851aa26622abeeabd",
+    "review_formulas": 24,
+    "review_sha256": "15aa88a209495164af3305134fc92414e1ac93aa1bc2c496e3ab68bd34c24914",
+    "offline_desktop": {
+      "formulas": 516,
+      "svg": 516,
+      "scripts": 0,
+      "overflow": false,
+      "mathErrors": 0
+    },
+    "offline_mobile": {
+      "formulas": 516,
+      "svg": 516,
+      "scripts": 0,
+      "overflow": false,
+      "mathErrors": 0
+    },
+    "visual_sections": [
+      "3.2 设备参数与联合可行域",
+      "4.3 条件可行域：先削减，再移峰",
+      "6.2 价格和报价区间",
+      "10.1 各参与者的长期目标",
+      "11.2 UC 一次输出与联合可行行动",
+      "16.3 张量、掩码与任务结构",
+      "19.2 市场与成本配置",
+      "19.3 算法与运行配置",
+      "23.3 研究与工程状态"
+    ],
+    "visual_inspection": {
+      "checked": true,
+      "views": [
+        "all five new display formulas",
+        "finite-horizon due repayment",
+        "mobile policy output layer",
+        "implementation status table"
+      ]
+    }
+  },
+  "integrity": {
+    "protected_files_manifest.json": {
+      "files": 114,
+      "unchanged": true
+    },
+    "history_files_manifest.json": {
+      "files": 18,
+      "unchanged": true
+    }
+  },
+  "previous_review": {
+    "status": "passed",
+    "revision": "One neural-network forward pass with a policy-side feasible output layer; no mandatory discrete storage modes or fixed sampling order",
+    "date": "2026-10-14",
+    "source_before_sha256": "b2d8ee632bedf3c2bb5ab8c11c07395e0a6bbf25259c834909b0aea103bbbc92",
+    "source_after_sha256": "542ebda36f829f1ea6a065598c96f65740b6fb0b34034c895baa9415b3d6178e",
+    "all_existing_formula_relations_preserved": true,
+    "original_numeric_results_identical": true,
+    "lines": 1622,
+    "parts": 6,
+    "chapters": 26,
+    "numbered_equations": 30,
+    "policy_output_validation": "policy_output_validation.json",
+    "cost_notation_validation": "cost_notation_validation.json",
+    "cost_unit_validation": "cost_units_validation.json",
+    "HTML_checks": {
+      "main_formulas": 470,
+      "main_tables": 40,
+      "main_sha256": "78c301f88fe5af96f636010264098bfdea00a60c3939b145e3ab73c490f6e131",
+      "review_formulas": 24,
+      "review_sha256": "87e02da979e3102eb540dd47d2deba28c8b38957bf7b53bb7208a3d7300e93e1",
+      "offline_desktop": {
+        "formulas": 470,
+        "svg": 470,
+        "scripts": 0,
+        "overflow": false,
+        "mathErrors": 0
+      },
+      "offline_mobile": {
+        "formulas": 470,
+        "svg": 470,
+        "scripts": 0,
+        "overflow": false,
+        "mathErrors": 0
+      },
+      "visual_sections": [
+        "3.2 设备参数与联合可行域",
+        "11.1 网络结构与执行路径",
+        "11.2 UC 一次输出与联合可行行动",
+        "13.1 一个物理时段的轨迹",
+        "13.2 内层：固定 UC，学习消费者响应",
+        "16.3 张量、掩码与任务结构",
+        "17.2 边界与校验",
+        "23.2 本次公式与记号修订"
+      ],
+      "visual_inspection": {
+        "checked": true,
+        "views": [
+          "UC policy desktop",
+          "UC joint constraints",
+          "UC policy mobile",
+          "simplification review S11"
+        ]
+      }
+    },
+    "integrity": {
+      "protected_files_manifest.json": {
+        "files": 114,
+        "unchanged": true
+      },
+      "history_files_manifest.json": {
+        "files": 18,
+        "unchanged": true
+      }
+    },
+    "previous_review": {
+      "status": "passed",
+      "revision": "Unified C monetary notation and explicit named cost components",
+      "date": "2026-10-14",
+      "source_before_sha256": "8c4ea6df9e4cb22b904c49f14ddcee720ceabea95da1e781cce4e3bd426a5fae",
+      "source_after_sha256": "b2d8ee632bedf3c2bb5ab8c11c07395e0a6bbf25259c834909b0aea103bbbc92",
+      "all_existing_formula_relations_preserved": true,
+      "original_numeric_results_identical": true,
+      "lines": 1622,
+      "parts": 6,
+      "chapters": 26,
+      "numbered_equations": 30,
+      "cost_notation_validation": "cost_notation_validation.json",
+      "cost_unit_validation": "cost_units_validation.json",
+      "HTML_checks": {
+        "main_formulas": 478,
+        "main_tables": 40,
+        "main_sha256": "c58f9ea1509fd8389693689c3b0fa681563db91192b2f2246a6345d1c74dd0ff",
+        "review_formulas": 24,
+        "review_sha256": "5aa4ad12027443eba7b0c182a57c90c02e0041365039be100c8e067d1b15b8dc",
+        "offline_desktop": {
+          "formulas": 478,
+          "svg": 478,
+          "scripts": 0,
+          "overflow": false,
+          "mathErrors": 0
+        },
+        "offline_mobile": {
+          "formulas": 478,
+          "svg": 478,
+          "scripts": 0,
+          "overflow": false,
+          "mathErrors": 0
+        },
+        "visual_sections": [
+          "2.1 离散时间和物理单位",
+          "2.6 成本与奖励系数的统一单位",
+          "2.7 成本与收益的统一 C 记号",
+          "8.2 直接计算个人补偿",
+          "8.4 双边电费与失供赔偿",
+          "8.5 UC 现金利润",
+          "8.6 经营成本、服务考核和 UC 奖励",
+          "8.7 消费者成本与奖励",
+          "8.8 贯穿算例：从电费到个体回报",
+          "8.11 全部成本与奖励的步长核对",
+          "9.2 有限期终端与连续运行",
+          "10.1 各参与者的长期目标",
+          "13.2 内层：固定 UC，学习消费者响应",
+          "19.2 市场与成本配置",
+          "19.3 算法与运行配置",
+          "22.3 固定响应下的服务成本条件",
+          "22.4 连续削减的响应条件",
+          "26.2 DR 价值公式的来源与适配"
+        ]
+      },
+      "integrity": {
+        "protected_files_manifest.json": {
+          "files": 114,
+          "unchanged": true
+        },
+        "history_files_manifest.json": {
+          "files": 18,
+          "unchanged": true
+        }
+      },
+      "previous_review": {
+        "status": "passed",
+        "revision": "v9 cost, reward, coefficient and temporal-unit audit",
+        "date": "2026-10-14",
+        "source_before_sha256": "73551faf77c59af635bf7cea82b51e14c02fa1bf6d2720e8a141da991f2febd5",
+        "source_after_sha256": "8c4ea6df9e4cb22b904c49f14ddcee720ceabea95da1e781cce4e3bd426a5fae",
+        "lines": 1592,
+        "parts": 6,
+        "chapters": 26,
+        "numbered_equations": 30,
+        "all_original_display_formulas_unchanged": true,
+        "code_examples_unchanged": true,
+        "original_numeric_results_identical": true,
+        "cost_unit_checks": {
+          "report": "cost_units_validation.json",
+          "monetary_checks": 37,
+          "negative_controls": 6,
+          "different_step_probes": 5,
+          "coefficient_policy": {
+            "UC_overdue": "yuan/kWh per assessment, charged once per physical period",
+            "consumer_backlog_and_overdue": "yuan/(kWh*h), times end-of-period energy and duration",
+            "external_cash": "already integrated amount in yuan for the current period",
+            "terminal": "yuan/kWh times energy, appended once on true termination",
+            "source_formula_30": "historical reference only; not a current v9 settlement expression"
+          }
+        },
+        "formula_checks": {
+          "report": "formula_validation.json",
+          "scalar_comparisons": 345327,
+          "maximum_absolute_difference": 7.105427357601002e-15,
+          "latex_commands_valid": true
+        },
+        "html_checks": {
+          "source_sha256": "8c4ea6df9e4cb22b904c49f14ddcee720ceabea95da1e781cce4e3bd426a5fae",
+          "html_sha256": "6962cba8a8172f7255465363cd80449e947cd582f394dc080d4b4943cb9512ad",
+          "formulas": 448,
+          "tables": 39,
+          "numbered_equations": 30,
+          "offline_desktop": {
+            "formulas": 448,
+            "svg": 448,
+            "scripts": 0,
+            "overflow": false,
+            "mathErrors": 0
+          },
+          "offline_mobile": {
+            "formulas": 448,
+            "svg": 448,
+            "scripts": 0,
+            "overflow": false,
+            "mathErrors": 0
+          },
+          "external_requests": [],
+          "visual_sections": [
+            "2.1 离散时间和物理单位",
+            "2.6 成本与奖励系数的统一单位",
+            "8.2 直接计算个人补偿",
+            "8.4 双边电费与失供赔偿",
+            "8.5 UC 现金利润",
+            "8.6 经营成本、服务考核和 UC 奖励",
+            "8.7 消费者成本与奖励",
+            "8.8 贯穿算例：从电费到个体回报",
+            "8.11 全部成本与奖励的步长核对",
+            "9.2 有限期终端与连续运行",
+            "10.1 各参与者的长期目标",
+            "13.2 内层：固定 UC，学习消费者响应",
+            "19.2 市场与成本配置",
+            "19.3 算法与运行配置",
+            "22.3 固定响应下的服务成本条件",
+            "22.4 连续削减的响应条件",
+            "26.2 DR 价值公式的来源与适配"
+          ]
+        },
+        "integrity": {
+          "protected_files_manifest.json": {
+            "files": 114,
+            "unchanged": true
+          },
+          "history_files_manifest.json": {
+            "files": 18,
+            "unchanged": true
+          }
+        },
+        "local_links_checked": 59,
+        "broken_local_links": [],
+        "previous_review": {
+          "status": "passed",
+          "revision": "v9 whole-document simplification review, two equivalent formula edits and two prose/notation corrections",
+          "revision_date": "2026-10-14",
+          "source_before_sha256": "765e2b371c307ad4908826bceae93b1f706defd286b4cc570464ecd996c1a56d",
+          "source_after_sha256": "73551faf77c59af635bf7cea82b51e14c02fa1bf6d2720e8a141da991f2febd5",
+          "document_parts": 6,
+          "chapters": 26,
+          "numbered_equations": 30,
+          "lines": 1505,
+          "code_examples_unchanged": true,
+          "verifier_unchanged": true,
+          "verifier_sha256": "d732f140462839469c677fcab425f96aa70c9ab6cf2304f2fc6d425ef0ebed97",
+          "original_numeric_results_identical": true,
+          "removed_consumer_aliases": [
+            "f_i",
+            "s_i^+",
+            "r_i",
+            "s_i^{max}",
+            "r_i^{max}",
+            "v_i",
+            "z_i",
+            "V_i^{cap}"
+          ],
+          "preserved_model": [
+            "six UC actions with immutable offers and firm charging and planned curtailment",
+            "four consumer actions and H+24 observation fields",
+            "due-attempt reservation, rigid load and shared flexibility limits",
+            "signed defer/repay direction and finite-horizon closeout",
+            "necessary then early layers, source preference and DER rescue",
+            "actual-service FIFO, soft deadlines and capacity diagnostics",
+            "requested net DR, original payments, utility and terminal accounting",
+            "worked examples and retained U01-U05 economic findings"
+          ],
+          "additional_formula_clarifications": [
+            "UC pro-rata zero-request branch",
+            "TD target consumes reward including terminal append",
+            "curtailment is a power; multiply by duration for energy",
+            "quoted original DR value requires positive target denominator"
+          ],
+          "formula_checks": {
+            "report": "formula_validation.json",
+            "consumer_states": 10000,
+            "interval_membership_checks": 30000,
+            "market_output_cases": 1000,
+            "dr_randomized_payments": 10000,
+            "whole_document_equivalence_samples": 10000,
+            "scalar_comparisons": 345327,
+            "maximum_absolute_difference": 7.105427357601002e-15,
+            "all_latex_commands_valid": true
+          },
+          "html_checks": {
+            "report": "html_validation.json",
+            "formulas": 353,
+            "numbered_equations": 30,
+            "offline_desktop": {
+              "formulas": 353,
+              "svg": 353,
+              "scripts": 0,
+              "overflow": false,
+              "mathErrors": 0
+            },
+            "offline_mobile": {
+              "formulas": 353,
+              "svg": 353,
+              "scripts": 0,
+              "overflow": false,
+              "mathErrors": 0
+            },
+            "no_formula_errors": true,
+            "wide_desktop_formulas": [],
+            "visual_sections_reviewed": [
+              "3.1 六维动作及调度含义",
+              "3.4 市场成交落实为 PG 与 ESS 执行",
+              "4.1 可调整负荷和历史任务",
+              "4.3 条件可行域：先削减，再移峰",
+              "4.4 本期需求与服务优先级",
+              "4.5 服务分解与 FIFO 更新",
+              "5.1 决策所需的个人状态与公共条件",
+              "8.1 个人减载与全体净减载",
+              "8.2 直接计算个人补偿",
+              "8.5 UC 现金利润",
+              "10.1 各参与者的长期目标",
+              "23.2 本次公式与记号修订",
+              "26.2 DR 价值公式的来源与适配"
+            ]
+          },
+          "local_links_checked": 43,
+          "broken_local_links": [],
+          "integrity": {
+            "protected_files_manifest.json": {
+              "files": 114,
+              "unchanged": true
+            },
+            "history_files_manifest.json": {
+              "files": 18,
+              "unchanged": true
+            }
+          },
+          "previous_prose_revision": {
+            "revision": "v9 claim-forward prose edit, v5 six-part format",
+            "source_sha256": "d1a6d1e46f111793ef33367cea42b25bd8d2c1672fe521140531b525f46a10e8",
+            "analytic_clarification": {
+              "scope": "zero announced supply, zero procurement, fixed zero shift, positive baseline; curtailment subproblem only",
+              "checks": [
+                {
+                  "baseline": 4.0,
+                  "kappa": 0.75,
+                  "native_loss_value": 2.0,
+                  "compensation": 1.0,
+                  "analytic_best_curtailment": 2.6666666666666665,
+                  "cost": 0.6666666666666667,
+                  "dense_grid_min": 0.6666666674999999
+                },
+                {
+                  "baseline": 4.0,
+                  "kappa": 0.5,
+                  "native_loss_value": 2.0,
+                  "compensation": 1.0,
+                  "analytic_best_curtailment": 4.0,
+                  "cost": 0.5,
+                  "dense_grid_min": 0.5
+                },
+                {
+                  "baseline": 4.0,
+                  "kappa": 0.75,
+                  "native_loss_value": 1.0,
+                  "compensation": 2.0,
+                  "analytic_best_curtailment": 0.0,
+                  "cost": -1.0,
+                  "dense_grid_min": -1.0
+                }
+              ]
+            }
+          },
+          "removed_dr_aliases": [
+            "p^{DR,gross}",
+            "p^{DR,paid}",
+            "p_i^{DR,paid}"
+          ],
+          "direct_dr_formula": "Individual payment = total compensation amount times positive-response share; zero positive sum gives zero payments.",
+          "preserved_dr_mechanism": [
+            "signed requested response, including repayment offset independent of delivered service",
+            "event gating and aggregate net response",
+            "UC procurement cap remains the sixth UC action",
+            "positive response shares and zero contribution handling",
+            "unchanged consumer transfers and UC cash, book cost and service utility"
+          ],
+          "document_verifier_updated": {
+            "path": "verify_v9_formula_revision.py",
+            "reason": "Check discharge mutual-exclusion equivalence, cash reuse and corrected reward/cost prose",
+            "before_sha256": "01e73d68ffc74f714f90cc7f329a692bb251269cb7b1d71d00079cc86eb31ec8",
+            "after_sha256": "ecbc1640682d734490b4af1665236ba48aa0618468686188c89ced0a48b506af"
+          },
+          "previous_formula_revision": {
+            "revision_date": "2026-10-12",
+            "source_sha256": "c76479054284c1672ca0c431c56c96d8d40b5f4a08deb65cafe6139f90fb3841",
+            "consumer_equivalence_and_power_unification": "retained"
+          },
+          "whole_document_review": {
+            "report": "simplification_review_zh.md",
+            "validation": "simplification_validation.json",
+            "reviewed_chapters": 26,
+            "implemented_equivalent_simplifications": 2,
+            "corrected_prose_or_notation": 2,
+            "expression_proposals_not_applied": 8,
+            "conditional_options_not_applied": 3
+          }
+        }
+      }
+    }
+  },
+  "subsequent_u03_revision": {
+    "current_source_sha256": "5e80196788d368f7f530cc078eef857492d3f22f59eef386b9b2af935e658758",
+    "current_report": "u03_revision_validation.json",
+    "scope": "Historical record for its original source and reward. Current document reorganizes sections and equation numbers, updates UC observation/value input and replaces UC service assessment; historical numerical rewards are not current rewards."
+  },
+  "record_scope": "Historical validation for its recorded source; current validation is u03_revision_validation.json"
+}

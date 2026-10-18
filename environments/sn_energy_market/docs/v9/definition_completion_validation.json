@@ -1,0 +1,152 @@
+{
+  "status": "passed",
+  "date": "2026-10-14",
+  "seed": 10142026,
+  "source_before_sha256": "542ebda36f829f1ea6a065598c96f65740b6fb0b34034c895baa9415b3d6178e",
+  "source_after_sha256": "c3c1f0992c28c0440f037e7472945798aba0c8aa3a9461e641ba18fbb9da3958",
+  "numbered_equations": 30,
+  "original_display_formulas_unchanged": 45,
+  "new_display_formulas_checked_exactly": 5,
+  "code_examples_unchanged": true,
+  "six_physical_actions_and_joint_constraints_unchanged": true,
+  "no_mandatory_discrete_modes_or_sampling_order": true,
+  "decoder_random_samples": 10000,
+  "independent_legal_action_preimages": 10000,
+  "maximum_preimage_error_kw": 8.881784197001252e-16,
+  "boundary_cases": [
+    "zero supply and idle",
+    "full DER curtailment",
+    "two-source full charge",
+    "maximum discharge",
+    "empty battery",
+    "full battery",
+    "zero DER",
+    "zero PG",
+    "closed DR event",
+    "zero DR maximum",
+    "all physical domains zero"
+  ],
+  "negative_controls_rejected": [
+    "PG maximum",
+    "DER split",
+    "charging room",
+    "mutual exclusion",
+    "discharge maximum",
+    "DR maximum",
+    "closed DR event"
+  ],
+  "probability_checks": {
+    "samples": 1000,
+    "maximum_absolute_error": 1.734723475976807e-18,
+    "same_policy_ratio": 1.0,
+    "many_to_one_records_preserved": true,
+    "zero_physical_domain_keeps_latent_probability": true
+  },
+  "original_reference_market_and_physics_cases": 500,
+  "last_period_bounds": {
+    "due": {
+      "curtail": 0,
+      "attempt": 4.0,
+      "low": -4,
+      "high": -4.0,
+      "capacity_violation": 0
+    },
+    "no_due": {
+      "curtail": 0,
+      "attempt": 0.0,
+      "low": -4,
+      "high": 0.0,
+      "capacity_violation": 0
+    }
+  },
+  "continuous_discount_probes": [
+    {
+      "gamma": 0.0,
+      "constant_reward_value": 2.0,
+      "finite_prefix_tail": 0.0
+    },
+    {
+      "gamma": 0.5,
+      "constant_reward_value": 4.0,
+      "finite_prefix_tail": 1.221974545399842e-150
+    },
+    {
+      "gamma": 0.95,
+      "constant_reward_value": 39.999999999999964,
+      "finite_prefix_tail": 2.909796624575619e-10
+    },
+    {
+      "gamma": 0.99,
+      "constant_reward_value": 199.99999999999983,
+      "finite_prefix_tail": 1.3140966084829195
+    }
+  ],
+  "integrity": {
+    "protected_files_manifest.json": {
+      "files": 114,
+      "unchanged": true
+    },
+    "history_files_manifest.json": {
+      "files": 18,
+      "unchanged": true
+    }
+  },
+  "reference_verifier_unchanged": true,
+  "scope": "Independent documentation reference, source consistency, feasible-domain coverage and latent probability checks; production environment, network and Learner unchanged. No equilibrium or learning-convergence claim.",
+  "HTML": {
+    "main_formulas": 516,
+    "main_tables": 40,
+    "main_sha256": "9583431870ba82d96d0d696cf92b7856fc4790089615312851aa26622abeeabd",
+    "review_formulas": 24,
+    "review_sha256": "15aa88a209495164af3305134fc92414e1ac93aa1bc2c496e3ab68bd34c24914",
+    "offline_desktop": {
+      "formulas": 516,
+      "svg": 516,
+      "scripts": 0,
+      "overflow": false,
+      "mathErrors": 0
+    },
+    "offline_mobile": {
+      "formulas": 516,
+      "svg": 516,
+      "scripts": 0,
+      "overflow": false,
+      "mathErrors": 0
+    },
+    "visual_sections": [
+      "3.2 设备参数与联合可行域",
+      "4.3 条件可行域：先削减，再移峰",
+      "6.2 价格和报价区间",
+      "10.1 各参与者的长期目标",
+      "11.2 UC 一次输出与联合可行行动",
+      "16.3 张量、掩码与任务结构",
+      "19.2 市场与成本配置",
+      "19.3 算法与运行配置",
+      "23.3 研究与工程状态"
+    ],
+    "visual_inspection": {
+      "checked": true,
+      "views": [
+        "all five new display formulas",
+        "finite-horizon due repayment",
+        "mobile policy output layer",
+        "implementation status table"
+      ]
+    }
+  },
+  "local_links_checked": 73,
+  "broken_local_links": [],
+  "original_numeric_results_identical": true,
+  "new_verifier_sha256": "77ac9615af305c8c50e61dafa7c2612b28cd08be89e023096437f349a9179973",
+  "documentation_QA_program_changes": [
+    "verify_v9_formula_revision.py",
+    "verify_v9_cost_units.py"
+  ],
+  "QA_changes_scope": "Accept the new mathematical notation and independently check new definitions while preserving every original formula baseline.",
+  "subsequent_u03_revision": {
+    "current_source_sha256": "5e80196788d368f7f530cc078eef857492d3f22f59eef386b9b2af935e658758",
+    "current_report": "u03_revision_validation.json",
+    "scope": "Historical record for its original source and reward. Current document reorganizes sections and equation numbers, updates UC observation/value input and replaces UC service assessment; historical numerical rewards are not current rewards."
+  },
+  "record_scope": "Historical validation for its recorded source; current validation is u03_revision_validation.json"
+}

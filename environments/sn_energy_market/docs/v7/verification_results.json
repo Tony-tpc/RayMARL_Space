@@ -1,0 +1,862 @@
+{
+  "date": "2026-10-10",
+  "source_manifest": {
+    "specified_v7": {
+      "path": "C:\\Users\\ykq31\\Downloads\\Stackelberg_Nash_Dual_PAB_DR_Modeling_ZH_v7.md",
+      "sha256": "4ba344e0aa4d10e78f62356a4e6e982f954aab6ccae859423560b74768de38f5"
+    },
+    "workspace_v5": {
+      "path": "D:\\Yang\\RayMARL\\Stackelberg_Nash_Pay_as_Bid_Modeling_ZH_v5.md",
+      "sha256": "7f16b0600ee384ab1b72e09ea25eb083c57c852ce64fad618865660e406d93b6"
+    },
+    "paper": {
+      "path": "D:\\Yang\\论文\\论文\\Asynchronous_Multi-Agent_Reinforcement_Learning-Based_Framework_for_Bi-Level_Noncooperative_Game-Theoretic_Demand_Response(1).pdf",
+      "sha256": "12b9c1f9e30291b2cb8ef2bebac279a8dbdbbb6ea548fbed2ef3e412758c4183"
+    }
+  },
+  "verifier_sha256": "6b2ef4a9366bb36500c5abb64f5f30603fb8c2485ba7be1439bbff415993da49",
+  "meaning": "Assertions passed means described result reproduced; this is not environment or equilibrium certification.",
+  "limitations": [
+    "Independent static formula checker, not current snmarket v5 tests",
+    "No trained policies, full best responses, formal equilibrium proof, or forecast uncertainty"
+  ],
+  "cases": [
+    {
+      "id": "C01",
+      "description": "Same bid and same delivered energy: changing to backup costs UC more",
+      "kind": "repair_confirmed",
+      "data": {
+        "ordinary": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 4.0,
+              "backup": 0.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.4,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 4.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 4.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 0.4,
+          "dr_payment": 0.0,
+          "cash": -0.25,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": -0.25,
+          "power_residual": 0.0
+        },
+        "backup": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 0.0,
+              "backup": 4.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.4,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 0.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 4.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 0.4,
+          "dr_payment": 0.0,
+          "cash": -0.55,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": -0.55,
+          "power_residual": 0.0
+        }
+      }
+    },
+    {
+      "id": "C02",
+      "description": "Finite backup and total scarcity still allow a profitable bid reduction",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "high_bid": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 4.0,
+              "backup": 0.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.95,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 4.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "B": {
+              "der": 0.0,
+              "uc": 0.0,
+              "backup": 4.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.9,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 0.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "C": {
+              "der": 0.0,
+              "uc": 0.0,
+              "backup": 0.0,
+              "served": 0.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 4.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.0,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 0.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 8.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 1.85,
+          "dr_payment": 0.0,
+          "cash": 0.25000000000000006,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": 0.25000000000000006,
+          "power_residual": 0.0
+        },
+        "low_bid": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 0.0,
+              "backup": 4.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.8,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 0.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "B": {
+              "der": 0.0,
+              "uc": 4.0,
+              "backup": 0.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.9,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 4.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "C": {
+              "der": 0.0,
+              "uc": 0.0,
+              "backup": 0.0,
+              "served": 0.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 4.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.0,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 0.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 8.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 1.7000000000000002,
+          "dr_payment": 0.0,
+          "cash": 0.10000000000000014,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": 0.10000000000000014,
+          "power_residual": 0.0
+        }
+      }
+    },
+    {
+      "id": "C03",
+      "description": "Valid actions plus a supply failure lead to an empty action domain",
+      "kind": "counterexample_confirmed",
+      "data": [
+        {
+          "t": 0,
+          "queue": [],
+          "due_kwh": 0,
+          "repay_min_kw": 0.0,
+          "repay_max_kw": 0.0,
+          "feasible": true
+        },
+        {
+          "t": 1,
+          "queue": [
+            [
+              2,
+              1.0
+            ]
+          ],
+          "due_kwh": 0,
+          "repay_min_kw": 0.0,
+          "repay_max_kw": 4.0,
+          "feasible": true
+        },
+        {
+          "t": 2,
+          "queue": [
+            [
+              2,
+              1.0
+            ],
+            [
+              3,
+              1.0
+            ]
+          ],
+          "due_kwh": 1.0,
+          "repay_min_kw": 4.0,
+          "repay_max_kw": 4.0,
+          "feasible": true
+        },
+        {
+          "t": 3,
+          "queue": [
+            [
+              2,
+              1.0
+            ],
+            [
+              3,
+              1.0
+            ]
+          ],
+          "due_kwh": 2.0,
+          "repay_min_kw": 8.0,
+          "repay_max_kw": 4.0,
+          "feasible": false
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "description": "One consumer curtails while another repays: rewarded DR but zero net reduction",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "consumers": {
+          "A": {
+            "der": 0.0,
+            "uc": 0.0,
+            "backup": 0.0,
+            "served": 0.0,
+            "native_lost": 0.0,
+            "repay_served": 0.0,
+            "repay_unfilled": 0.0,
+            "signed_dr": 4.0,
+            "verified": 4.0,
+            "bill": 0.0,
+            "der_mandatory": 0.0,
+            "der_optional": 0.0,
+            "uc_mandatory": 0.0,
+            "uc_optional": 0.0,
+            "paid": 4.0,
+            "dr_payment": 0.2
+          },
+          "B": {
+            "der": 0.0,
+            "uc": 8.0,
+            "backup": 0.0,
+            "served": 8.0,
+            "native_lost": 0.0,
+            "repay_served": 4,
+            "repay_unfilled": 0,
+            "signed_dr": -4.0,
+            "verified": 0.0,
+            "bill": 1.6,
+            "der_mandatory": 0.0,
+            "der_optional": 0.0,
+            "uc_mandatory": 4.0,
+            "uc_optional": 4.0,
+            "paid": 0.0,
+            "dr_payment": 0.0
+          }
+        },
+        "pg": 8.0,
+        "discharge": 0.0,
+        "der_curtail": 0.0,
+        "verified": 4.0,
+        "paid": 4,
+        "signed_dr": 0.0,
+        "revenue": 1.6,
+        "dr_payment": 0.2,
+        "cash": 0.10000000000000003,
+        "benefit": 0.8,
+        "reward_before_service_and_other_costs": 0.9000000000000001,
+        "power_residual": 0.0
+      }
+    },
+    {
+      "id": "C05",
+      "description": "Withheld non-due repayment increases verified DR and UC one-step reward",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "full_service": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 8.0,
+              "backup": 0.0,
+              "served": 8.0,
+              "native_lost": 0.0,
+              "repay_served": 4,
+              "repay_unfilled": 0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 1.6,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 4.0,
+              "uc_optional": 4.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 8.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 1.6,
+          "dr_payment": 0.0,
+          "cash": 0.6000000000000001,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": 0.6000000000000001,
+          "power_residual": 0.0
+        },
+        "withheld_repayment": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 4.0,
+              "backup": 0.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 4.0,
+              "signed_dr": 4.0,
+              "verified": 4.0,
+              "bill": 0.8,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 4.0,
+              "uc_optional": 0.0,
+              "paid": 4.0,
+              "dr_payment": 0.2
+            }
+          },
+          "pg": 4.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 4.0,
+          "paid": 4,
+          "signed_dr": 4.0,
+          "revenue": 0.8,
+          "dr_payment": 0.2,
+          "cash": 0.10000000000000003,
+          "benefit": 0.8,
+          "reward_before_service_and_other_costs": 0.9000000000000001,
+          "power_residual": 0.0
+        },
+        "assumptions": "Not a complete dynamic best response: future/terminal costs omitted; due=0"
+      }
+    },
+    {
+      "id": "C06",
+      "description": "Buying identical pre-existing response improves utility but worsens cash",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "no_purchase": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 7.0,
+              "backup": 0.0,
+              "served": 7.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 3.0,
+              "verified": 3.0,
+              "bill": 1.4000000000000001,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 7.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "B": {
+              "der": 0.0,
+              "uc": 7.0,
+              "backup": 0.0,
+              "served": 7.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 3.0,
+              "verified": 3.0,
+              "bill": 1.4000000000000001,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 7.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 14.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 6.0,
+          "paid": 0,
+          "signed_dr": 6.0,
+          "revenue": 2.8000000000000003,
+          "dr_payment": 0.0,
+          "cash": 0.5250000000000004,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": 0.5250000000000004,
+          "power_residual": 0.0
+        },
+        "purchase": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 7.0,
+              "backup": 0.0,
+              "served": 7.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 3.0,
+              "verified": 3.0,
+              "bill": 1.4000000000000001,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 7.0,
+              "uc_optional": 0.0,
+              "paid": 2.0,
+              "dr_payment": 0.25
+            },
+            "B": {
+              "der": 0.0,
+              "uc": 7.0,
+              "backup": 0.0,
+              "served": 7.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 3.0,
+              "verified": 3.0,
+              "bill": 1.4000000000000001,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 7.0,
+              "uc_optional": 0.0,
+              "paid": 2.0,
+              "dr_payment": 0.25
+            }
+          },
+          "pg": 14.0,
+          "discharge": 0.0,
+          "der_curtail": 0.0,
+          "verified": 6.0,
+          "paid": 4,
+          "signed_dr": 6.0,
+          "revenue": 2.8000000000000003,
+          "dr_payment": 0.5,
+          "cash": 0.025000000000000355,
+          "benefit": 0.8,
+          "reward_before_service_and_other_costs": 0.8250000000000004,
+          "power_residual": 0.0
+        }
+      }
+    },
+    {
+      "id": "C07",
+      "description": "Optional DER use can coexist with another consumer native shortage",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "consumers": {
+          "A": {
+            "der": 4.0,
+            "uc": 0.0,
+            "backup": 0.0,
+            "served": 4.0,
+            "native_lost": 0.0,
+            "repay_served": 4,
+            "repay_unfilled": 0,
+            "signed_dr": -4.0,
+            "verified": 0.0,
+            "bill": 0.3,
+            "der_mandatory": 0.0,
+            "der_optional": 4.0,
+            "uc_mandatory": 0.0,
+            "uc_optional": 0.0,
+            "paid": 0.0,
+            "dr_payment": 0.0
+          },
+          "B": {
+            "der": 0.0,
+            "uc": 0.0,
+            "backup": 0.0,
+            "served": 0.0,
+            "native_lost": 4.0,
+            "repay_served": 0.0,
+            "repay_unfilled": 0.0,
+            "signed_dr": 0.0,
+            "verified": 0.0,
+            "bill": 0.0,
+            "der_mandatory": 0.0,
+            "der_optional": 0.0,
+            "uc_mandatory": 0.0,
+            "uc_optional": 0.0,
+            "paid": 0.0,
+            "dr_payment": 0.0
+          }
+        },
+        "pg": 0.0,
+        "discharge": 0.0,
+        "der_curtail": 0.0,
+        "verified": 0.0,
+        "paid": 0.0,
+        "signed_dr": -4.0,
+        "revenue": 0.3,
+        "dr_payment": 0.0,
+        "cash": 0.3,
+        "benefit": 0.0,
+        "reward_before_service_and_other_costs": 0.3,
+        "power_residual": 0.0
+      }
+    },
+    {
+      "id": "C08",
+      "description": "Supplied v7 example is arithmetically consistent under its stated omissions",
+      "kind": "example_confirmed",
+      "data": {
+        "consumers": {
+          "1": {
+            "der": 2.0,
+            "uc": 2.0,
+            "backup": 0.0,
+            "served": 4.0,
+            "native_lost": 0,
+            "repay_served": 0.0,
+            "repay_unfilled": 0.0,
+            "signed_dr": 2.0,
+            "verified": 2.0,
+            "bill": 0.8,
+            "der_mandatory": 2.0,
+            "der_optional": 0.0,
+            "uc_mandatory": 2.0,
+            "uc_optional": 0.0,
+            "paid": 1.3333333333333333,
+            "dr_payment": 0.06666666666666667
+          },
+          "2": {
+            "der": 2.0,
+            "uc": 2.0,
+            "backup": 0.0,
+            "served": 4.0,
+            "native_lost": 0.0,
+            "repay_served": 0.0,
+            "repay_unfilled": 0.0,
+            "signed_dr": 1.0,
+            "verified": 1.0,
+            "bill": 0.75,
+            "der_mandatory": 2.0,
+            "der_optional": 0.0,
+            "uc_mandatory": 2.0,
+            "uc_optional": 0.0,
+            "paid": 0.6666666666666666,
+            "dr_payment": 0.03333333333333333
+          },
+          "3": {
+            "der": 0.0,
+            "uc": 2.0,
+            "backup": 2.0,
+            "served": 4.0,
+            "native_lost": 0.0,
+            "repay_served": 0.0,
+            "repay_unfilled": 1.0,
+            "signed_dr": 0.0,
+            "verified": 0.0,
+            "bill": 0.8,
+            "der_mandatory": 0.0,
+            "der_optional": 0.0,
+            "uc_mandatory": 2.0,
+            "uc_optional": 0.0,
+            "paid": 0.0,
+            "dr_payment": 0.0
+          }
+        },
+        "pg": 8.0,
+        "discharge": 0.0,
+        "der_curtail": 0.0,
+        "verified": 3.0,
+        "paid": 2,
+        "signed_dr": 3.0,
+        "revenue": 2.35,
+        "dr_payment": 0.1,
+        "cash": 0.8,
+        "benefit": 0.2,
+        "reward_before_service_and_other_costs": 1.0,
+        "power_residual": 0.0
+      }
+    },
+    {
+      "id": "C09",
+      "description": "Positive DR value coefficient does not ensure positive procurement",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "low_beta": 0.1,
+        "low_argmax": 0.0,
+        "high_beta": 0.8,
+        "high_argmax": 4.0,
+        "endpoint_threshold_beta": 0.2,
+        "derivative_at_zero": -0.05
+      }
+    },
+    {
+      "id": "C10",
+      "description": "Small native-service penalty leaves profitable UC non-service",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "ordinary_reward": -0.25,
+        "unserved_reward": -0.1,
+        "penalty": 0.1
+      }
+    },
+    {
+      "id": "C11",
+      "description": "PDF equation (10) has denominator m, not m squared",
+      "kind": "source_mismatch_confirmed",
+      "data": {
+        "pdf_benefit": 0.8,
+        "supplied_v7_quote": 0.2
+      }
+    },
+    {
+      "id": "C12",
+      "description": "Resetting gifted ESS stock rewards selling it at the episode end",
+      "kind": "boundary_condition_example",
+      "data": {
+        "initial_stock_kwh": 1.0,
+        "residual_stock_kwh": 0,
+        "cash_receipt": 0.4,
+        "degradation": 0.01,
+        "objective_gain_without_terminal_stock_value": 0.39
+      }
+    },
+    {
+      "id": "C13",
+      "description": "Same proposed consumer observation hides different backup capability",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "shared_public_uc_capacity": 4,
+        "shared_backup_contract": 4,
+        "ess_supported": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 2.0,
+              "backup": 2.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.8,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 2.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "B": {
+              "der": 0.0,
+              "uc": 2.0,
+              "backup": 2.0,
+              "served": 4.0,
+              "native_lost": 0.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.8,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 2.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 4.0,
+          "discharge": 4,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 1.6,
+          "dr_payment": 0.0,
+          "cash": 0.6500000000000001,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": 0.6500000000000001,
+          "power_residual": 0.0
+        },
+        "pg_supported": {
+          "consumers": {
+            "A": {
+              "der": 0.0,
+              "uc": 2.0,
+              "backup": 0.0,
+              "served": 2.0,
+              "native_lost": 2.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.4,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 2.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            },
+            "B": {
+              "der": 0.0,
+              "uc": 2.0,
+              "backup": 0.0,
+              "served": 2.0,
+              "native_lost": 2.0,
+              "repay_served": 0.0,
+              "repay_unfilled": 0.0,
+              "signed_dr": 0.0,
+              "verified": 0.0,
+              "bill": 0.4,
+              "der_mandatory": 0.0,
+              "der_optional": 0.0,
+              "uc_mandatory": 2.0,
+              "uc_optional": 0.0,
+              "paid": 0.0,
+              "dr_payment": 0.0
+            }
+          },
+          "pg": 4.0,
+          "discharge": 0,
+          "der_curtail": 0.0,
+          "verified": 0.0,
+          "paid": 0.0,
+          "signed_dr": 0.0,
+          "revenue": 0.8,
+          "dr_payment": 0.0,
+          "cash": 0.15000000000000002,
+          "benefit": 0.0,
+          "reward_before_service_and_other_costs": 0.15000000000000002,
+          "power_residual": 0.0
+        }
+      }
+    },
+    {
+      "id": "C14",
+      "description": "Optional hard-native-load rule constrains curtailment but not deferral",
+      "kind": "counterexample_confirmed",
+      "data": {
+        "baseline": 4.0,
+        "hard_native": 2.0,
+        "curtail": 0.0,
+        "defer_allowed_by_equation_7": 4.0,
+        "remaining_native": 0.0
+      }
+    }
+  ],
+  "random_static_checks": {
+    "samples": 5000,
+    "seed": 7102026,
+    "max_power_residual": 1.7763568394002505e-14,
+    "max_cash_residual": 1.7763568394002505e-15,
+    "max_queue_residual": 0.0
+  },
+  "status": "all_assertions_passed"
+}

@@ -1,0 +1,7 @@
+# Preserve exact file bytes: validation manifests bind source/document SHA256.
+# Disable automatic line-ending conversion; text diff remains available.
+* -text
+# Preserve existing final blank lines and CRLF alongside validation hashes.
+# Markdown trailing spaces are intentional line breaks.
+* whitespace=blank-at-eol,space-before-tab,cr-at-eol,-blank-at-eof
+*.md whitespace=-blank-at-eol,-blank-at-eof,space-before-tab,cr-at-eol

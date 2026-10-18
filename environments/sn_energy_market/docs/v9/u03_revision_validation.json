@@ -1,0 +1,480 @@
+{
+  "status": "passed",
+  "date": "2026-10-14",
+  "seed": 10142026,
+  "source_before_sha256": "c3c1f0992c28c0440f037e7472945798aba0c8aa3a9461e641ba18fbb9da3958",
+  "source_after_sha256": "5e80196788d368f7f530cc078eef857492d3f22f59eef386b9b2af935e658758",
+  "document": {
+    "parts": 8,
+    "chapters": 26,
+    "numbered_equations": 30,
+    "display_formulas": 51,
+    "unchanged_numbered_relations": 28,
+    "unchanged_unnumbered_relations": 18,
+    "code_examples_preserved": 6,
+    "old_QA_programs_unchanged": 5,
+    "subject_order": [
+      "## 3. UC 的 Observation",
+      "## 4. UC 的 Action",
+      "## 5. UC 的 Reward",
+      "## 6. Consumer 的 Observation",
+      "## 7. Consumer 的 Action",
+      "## 8. Consumer 的 Reward",
+      "## 9. 市场",
+      "## 10. 环境"
+    ],
+    "local_links_checked": 81,
+    "number_map": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "24": 4,
+      "25": 5,
+      "26": 6,
+      "22": 7,
+      "27": 8,
+      "16": 9,
+      "17": 10,
+      "8": 11,
+      "9": 12,
+      "10": 13,
+      "11": 14,
+      "12": 15,
+      "13": 16,
+      "20": 17,
+      "21": 18,
+      "23": 19,
+      "28": 20,
+      "18": 21,
+      "19": 22,
+      "4": 23,
+      "5": 24,
+      "6": 25,
+      "7": 26,
+      "14": 27,
+      "15": 28,
+      "29": 29,
+      "30": 30
+    }
+  },
+  "incentives": {
+    "original_binary_U03_rechecked": [
+      {
+        "supply": 0,
+        "DR_cap": 0,
+        "cut": 4.0,
+        "consumer_cost": 0.75,
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 0.0,
+        "credited_DR_kw": 0,
+        "capacity_gap_kw": 4.0,
+        "capacity_assessment": 0.5,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.5,
+        "reward": -0.5,
+        "cash": 0.0
+      },
+      {
+        "supply": 0,
+        "DR_cap": 4,
+        "cut": 4.0,
+        "consumer_cost": 0.25,
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 0.0,
+        "credited_DR_kw": 4,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -0.5,
+        "cash": -0.5
+      },
+      {
+        "supply": 4,
+        "DR_cap": 0,
+        "cut": 0.0,
+        "consumer_cost": 0.4,
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 4.0,
+        "credited_DR_kw": 0,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -0.25,
+        "cash": -0.25
+      },
+      {
+        "supply": 4,
+        "DR_cap": 4,
+        "cut": 4.0,
+        "consumer_cost": 0.25,
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 4.0,
+        "credited_DR_kw": 4,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -0.5,
+        "cash": -0.5
+      }
+    ],
+    "rate_scan": [
+      {
+        "rate": 0,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": 0.0
+      },
+      {
+        "rate": 0.1,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": -0.1
+      },
+      {
+        "rate": 0.249,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": -0.249
+      },
+      {
+        "rate": 0.25,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": -0.25
+      },
+      {
+        "rate": 0.251,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": -0.251
+      },
+      {
+        "rate": 0.5,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": -0.5
+      },
+      {
+        "rate": 2,
+        "normal_reward": -0.25,
+        "unpaid_withholding_reward": -2.0
+      }
+    ],
+    "positive_value_can_restore_advantage": {
+      "supply": 0,
+      "DR_cap": 0.0,
+      "cut": 4.0,
+      "consumer_cost": 0.75,
+      "baseline_kw": 4,
+      "due_kw": 0.0,
+      "announced_capacity_kw": 0.0,
+      "credited_DR_kw": 0.0,
+      "capacity_gap_kw": 4.0,
+      "capacity_assessment": 0.5,
+      "late_energy_kwh": 0.0,
+      "service_cost": 0.5,
+      "reward": -0.09999999999999998,
+      "cash": 0.0
+    },
+    "bounded_high_cost_value_comparison": {
+      "supplied": {
+        "supply": 4,
+        "DR_cap": 0.0,
+        "cut": 0.0,
+        "consumer_cost": 0.4,
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 4.0,
+        "credited_DR_kw": 0.0,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -1.2999999999999998,
+        "cash": -1.2999999999999998
+      },
+      "withheld": {
+        "supply": 0,
+        "DR_cap": 0.0,
+        "cut": 4.0,
+        "consumer_cost": 0.75,
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 0.0,
+        "credited_DR_kw": 0.0,
+        "capacity_gap_kw": 4.0,
+        "capacity_assessment": 2.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 2.0,
+        "reward": -1.6,
+        "cash": 0.0
+      }
+    },
+    "continuous_response_grid": {
+      "leader_candidates": 10201,
+      "kappa": 0.5,
+      "old_best": [
+        0.0,
+        [
+          0.0,
+          0.0,
+          4.0
+        ]
+      ],
+      "new_best": [
+        -0.15000000000000002,
+        [
+          4.0,
+          0.0,
+          1.6
+        ]
+      ],
+      "scope": "Analytical scalar consumer response, finite leader grid, single-period no-DER/ESS/queue case"
+    },
+    "A01_existing_response_purchased": [
+      {
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 0.0,
+        "credited_DR_kw": 0,
+        "capacity_gap_kw": 4.0,
+        "capacity_assessment": 2.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 2.0,
+        "reward": -2.0,
+        "cash": 0.0
+      },
+      {
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 0.0,
+        "credited_DR_kw": 4,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -0.5,
+        "cash": -0.5
+      }
+    ],
+    "A02_due_extra_reservation": {
+      "baseline_kw": 4,
+      "due_kw": 2,
+      "announced_capacity_kw": 2.0,
+      "credited_DR_kw": 2,
+      "capacity_gap_kw": 2.0,
+      "capacity_assessment": 1.0,
+      "late_energy_kwh": 0.0,
+      "service_cost": 1.0,
+      "reward": -1.375,
+      "cash": -0.375
+    },
+    "A03_capacity_flat_region": [
+      {
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 4.0,
+        "credited_DR_kw": 0.0,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -0.125,
+        "cash": -0.125
+      },
+      {
+        "baseline_kw": 4,
+        "due_kw": 0.0,
+        "announced_capacity_kw": 8.0,
+        "credited_DR_kw": 0.0,
+        "capacity_gap_kw": 0.0,
+        "capacity_assessment": 0.0,
+        "late_energy_kwh": 0.0,
+        "service_cost": 0.0,
+        "reward": -0.125,
+        "cash": -0.125
+      }
+    ],
+    "positive_price_and_event_gating": "passed",
+    "adequate_capacity_unpaid_voluntary_DR_cost": 0.0
+  },
+  "physics_cash_and_queue": {
+    "static_samples": 5000,
+    "continuous_episodes": 100,
+    "physical_periods": 9600,
+    "consumer_periods": 38400,
+    "reward_expansion_equivalence_samples": 10000,
+    "maximum_power_residual_kw": 5.662137425588298e-15,
+    "maximum_cash_residual_yuan": 3.552713678800501e-15,
+    "maximum_queue_residual_kwh": 4.440892098500626e-16,
+    "original_actions_and_firm_execution_preserved": true
+  },
+  "units_and_observations": {
+    "time_factor_checks": [
+      {
+        "dt_h": 0.125,
+        "cost": 1.0
+      },
+      {
+        "dt_h": 0.25,
+        "cost": 2.0
+      },
+      {
+        "dt_h": 0.5,
+        "cost": 4.0
+      },
+      {
+        "dt_h": 1,
+        "cost": 8
+      }
+    ],
+    "W_Wh_conversion": "passed",
+    "UC_observation_dimension": 28,
+    "heterogeneous_due_counterexample": {
+      "sum_local_due_kw": 0.0,
+      "invalid_min_of_aggregates_kw": 4.0
+    },
+    "worked_example": {
+      "baseline_kw": 15,
+      "due_kw": 0.0,
+      "announced_capacity_kw": 9.0,
+      "credited_DR_kw": 2,
+      "capacity_gap_kw": 4.0,
+      "capacity_assessment": 2.0,
+      "late_energy_kwh": 0.0,
+      "service_cost": 2.0,
+      "reward": -1.8600000000000003,
+      "cash": -0.025000000000000244
+    },
+    "expanded_supply_example": {
+      "baseline_kw": 15,
+      "due_kw": 0.0,
+      "announced_capacity_kw": 14.0,
+      "credited_DR_kw": 2,
+      "capacity_gap_kw": 0.0,
+      "capacity_assessment": 0.0,
+      "late_energy_kwh": 0.0,
+      "service_cost": 0.0,
+      "reward": 1.5125000000000002,
+      "cash": 1.3125000000000002
+    }
+  },
+  "integrity": {
+    "protected_files_manifest.json": {
+      "files": 114,
+      "unchanged": true
+    },
+    "history_files_manifest.json": {
+      "files": 18,
+      "unchanged": true
+    }
+  },
+  "production_imports": false,
+  "reference_verifier_unchanged": true,
+  "remaining_findings": [
+    "A01 compensation can purchase existing response without additionality",
+    "A02 due reference yields conservative extra reservation",
+    "A03 free announcement capacity produces flat regions",
+    "A04 coefficient/value/physical-resource/baseline/dynamic conditions"
+  ],
+  "scope": "Independent documentation reference, current reward arithmetic, physical/cash invariants and stated response candidates. Production environment, algorithms and tests unchanged; general equilibrium and learning performance require separate experiments.",
+  "HTML_delivery": {
+    "main": {
+      "source_sha256": "5e80196788d368f7f530cc078eef857492d3f22f59eef386b9b2af935e658758",
+      "html_sha256": "a6b39facda1e1d947e924b8ecedde0555ce000c308ab1db89bad4b1be1c6ba6a",
+      "html_bytes": 4525999,
+      "formulas": 541,
+      "numbered_equations": 30,
+      "tables": 41,
+      "code_blocks": 7,
+      "offline_desktop": {
+        "formulas": 541,
+        "svg": 541,
+        "scripts": 0,
+        "overflow": false,
+        "mathErrors": 0
+      },
+      "offline_mobile": {
+        "formulas": 541,
+        "svg": 541,
+        "scripts": 0,
+        "overflow": false,
+        "mathErrors": 0
+      },
+      "external_requests": []
+    },
+    "changed_sections_checked": [
+      "3.2 聚合观测清单",
+      "4.1 六维动作及调度含义",
+      "5.3 公告供给充足性考核",
+      "5.4 DR 服务估值与 UC 本期奖励",
+      "6.1 决策所需的个人状态与公共条件",
+      "7.4 条件可行域：先削减，再移峰",
+      "8.4 消费者成本与奖励",
+      "9.2 第一层：原生需求与到期回补",
+      "11.2 贯穿算例：从电费到个体回报",
+      "13.5 两阶段状态价值",
+      "25.3 U03：公告供给责任与新增激励审查",
+      "25.6 模型公式与机制的简化审查"
+    ],
+    "new_formula_spot_checks": [
+      {
+        "marker": "o_t^U=[",
+        "index": 0,
+        "client": 1018,
+        "scroll": 1018
+      },
+      {
+        "marker": "C^{UC,service}={}",
+        "index": 6,
+        "client": 1018,
+        "scroll": 1018
+      },
+      {
+        "marker": "R_U=C^{cash}",
+        "index": 8,
+        "client": 1018,
+        "scroll": 1018
+      }
+    ],
+    "manual_visual_review": [
+      "UC observation",
+      "UC capacity assessment and reward",
+      "Consumer reward",
+      "new U03 incentives",
+      "model formula simplification",
+      "updated worked example",
+      "UC Value information boundary",
+      "mobile assessment"
+    ],
+    "simplification_review": {
+      "source_sha256": "8297dbdc1c8b8fe1afa88162f575f173469876de4eba849a1d1c6141acbdca83",
+      "html_sha256": "656b209bbcc52a590739e82b668439db35c33cad5f1a5931bf40205fda9cccb5",
+      "formulas": 27,
+      "offline_desktop": {
+        "formulas": 27,
+        "svg": 27,
+        "scripts": 0,
+        "overflow": false,
+        "mathErrors": 0
+      },
+      "offline_mobile": {
+        "formulas": 27,
+        "svg": 27,
+        "scripts": 0,
+        "overflow": false,
+        "mathErrors": 0
+      }
+    }
+  },
+  "model_formula_review": {
+    "equivalent_simplification_applied": "UC reward expands book profit into cash minus named costs",
+    "optional_objective_identified": "DR service value; zero in base economic scenario, positive preference comparison retained",
+    "unresolved_quantity_issue": "Due reference plus rebound-offset net DR can reserve extra capacity",
+    "no_new_contract_or_market_stage": true,
+    "six_actions_and_legal_domain_unchanged": true,
+    "automatic_action_overrides": false,
+    "UC_private_raw_observation_access": false
+  }
+}

@@ -1,85 +1,71 @@
-# RayMARL
+# RayMARL 工作区
 
-基于 **RLlib 2.59 原生新 API 栈**的多智能体算法库。MAAC 按 **Ye 2021 能源论文**定义；其他算法有各自独立的配置、模型和学习器。
-
-## 从算法目录开始阅读
+算法库集中在 `RLAlgo`，环境集中在 `environments`。主目录用于组织算法、环境、实验、数据和输出。
 
 ```text
-src/raymarl/
-  algorithms/
-    maac/       # Ye 2021，注意力单 Q 与反事实策略梯度
-    masac/      # 联合双 Q SAC
-    maddpg/     # 确定性连续策略与联合 Q
-    isac/       # 局部双 Q SAC
-    mappo/      # 局部 Actor、集中 Value
-    ippo/       # 局部 Actor、局部 Value
-  common/       # 可复用网络、连接器、回放、优化器与运行管理
-  distributions.py
-  spaces.py
-  inference.py
+RayMARL/
+  RLAlgo/
+    src/raymarl/
+      algorithms/       # MAAC、MASAC、MADDPG、ISAC、MAPPO、IPPO
+      common/           # 网络、连接器、回放与运行管理
+    tests/              # 算法测试
+    docs/               # 架构、算法审计与验证记录
+    examples/           # 训练、评估、保存恢复与推理入口
+    local_runtime/      # 本机安装与 Ray 启动辅助脚本
+    archives/           # 本地历史归档工具与记录
+    pyproject.toml      # 算法库的安装、打包与检查配置
+    README.md
+  environments/         # 独立环境及环境适配器
+    energy_env.py       # 单住户 / 多住户电池教学环境
+    sn_energy_market/   # v9 六维 UC / DER PAB 两阶段环境项目
+  experiments/          # 实验配置与对照流程
+  datasets/             # 本地数据集
+  outputs/              # 训练结果与 checkpoint
+  README.md
+  .gitignore
 ```
 
-每个算法目录包含 `algorithm.py`、`config.py`、`rl_module.py`、`learner.py`。公共层不根据算法名称选择损失或 Critic 模式。
+虚拟环境及运行状态沿用主目录下的 `.venv*`、`.runtimes`、`.ray`、`.tmp`，避免已有运行环境的路径失效。数据集、输出、机器运行脚本和归档仍按原有规则排除在 Git 提交之外。
 
-## 安装与训练
+## 安装与运行
+
+在 `D:\Yang\RayMARL` 执行：
 
 ```powershell
-python -m pip install .
-python -m pip install '.[test]'
+# 安装当前算法源码；Python 中继续使用 from raymarl import MAPPOConfig 等接口
+.\.venv\Scripts\python.exe -m pip install -e .\RLAlgo --no-deps --no-build-isolation
+
+# 单智能体 PPO 与双住户 MAAC 的完整生命周期示例
+.\.venv\Scripts\python.exe .\RLAlgo\examples\train_compare.py
+
+# 算法测试与静态检查
+.\.venv\Scripts\python.exe -m pytest -c .\RLAlgo\pyproject.toml .\RLAlgo\tests
+.\.venv\Scripts\python.exe -m ruff check --config .\RLAlgo\pyproject.toml --cache-dir .\RLAlgo\.ruff_cache .\RLAlgo\src .\RLAlgo\tests .\RLAlgo\examples .\environments
 ```
 
-```python
-import ray
-from raymarl import MAACConfig
+## 放入自己的环境
 
-ray.init()
-config = (
-    MAACConfig()
-    .environment(MyMultiAgentEnv)
-    .env_runners(num_env_runners=0, rollout_fragment_length=4)
-    .learners(num_learners=0, num_gpus_per_learner=0)
-    .rl_module(model_config={"hidden_dim": 64})
-    .training(batch_size=128)
-)
-algo = config.build_algo()
-result = algo.train()
-checkpoint = algo.save_to_path()  # 当前运行自己的 checkpoint 目录，默认保留最新两个
-algo.restore_from_path(checkpoint)
-algo.export_actors("./actors.pt")
-algo.stop()
-ray.shutdown()
+将环境文件或完整环境项目放到 `environments/`。例如 `environments/aaa.py` 中定义类 `aaa` 后，可运行：
+
+```powershell
+.\.venv\Scripts\python.exe .\RLAlgo\examples\train_aaa.py
 ```
 
-`MyMultiAgentEnv` 由调用方提供，遵守 RLlib `MultiAgentEnv` 契约。固定智能体 ID 存放于 `possible_agents`；默认自动为每个智能体建立独立策略。也可显式配置一一对应的 `.multi_agent(...)` 映射。
+该入口从 `environments.aaa` 导入环境，并用 MAPPO 训练。环境接口与目录约定见 [环境说明](environments/README.md)。
 
-一次 `train()` 按配置采样批量推进，可跨回合，也可只产生回合片段。联合环境步数和智能体步数使用 RLlib 原生指标；回报指标采用原生口径。
+算法说明见 [RLAlgo/README.md](RLAlgo/README.md)，完整教学流程见 [运行示例](RLAlgo/examples/README.md)，本次整理验证见 [目录整理记录](RLAlgo/docs/layout.md)。
 
-## 六种算法的区别
+新版博弈环境的安装、接口和验证方法见 [sn_energy_market 环境说明](environments/sn_energy_market/README.md)，逐项依据见 [v9 完整建模](environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。环境已采用六维 UC、四维 Consumer 物理动作；非学习验证由独立入口执行，集中 Critic 和双层训练另行实施。
 
-| 算法 | Actor 更新 | 训练用价值网络 | 信息边界 |
-| --- | --- | --- | --- |
-| MAAC | 熵正则 score-function + 反事实 baseline | 注意力单 Q + 目标 Actor/Critic | Actor 局部，Critic 联合 |
-| MASAC | 连续重参数化、离散枚举期望 | 联合双 Q + 目标双 Q | Actor 局部，Critic 联合 |
-| MADDPG | 确定性策略梯度 | 联合 Q + 目标 Actor/Critic | Actor 局部，其他 replay 动作固定 |
-| ISAC | 连续重参数化、离散枚举期望 | 各策略私有局部双 Q + 目标双 Q | Actor/Critic 都局部 |
-| MAPPO | 原生 PPO、GAE | 集中 Value | Actor 只读 local |
-| IPPO | 原生 PPO、GAE | 局部 Value | Actor/Value 都局部 |
+## 本地版本管理
 
-MAAC 是 Ye 2021 的算法实现与明确修订，包含有界 Gaussian/Bernoulli 策略和历史编码。通用 Discrete、Dict/Tuple 动作属于库扩展。ISAC 已改为独立 SAC，不再复用 MAAC 的反事实 baseline 或目标 Actor。
+整个工作区由根目录的 Git 仓库统一管理，保留既有算法历史。环境基线位于 `版本管理/环境建模基线` 分支，使用 `环境建模基线-20261018` 标签定位。代码、配置、测试、建模文档、HTML 和文档内的验证摘要均纳入版本；虚拟环境、数据集、运行输出、机器专用脚本及旧实验归档按 `.gitignore` 排除。本次新建分支、标签和提交说明均使用中文。
 
-## 支持边界与输出
+`.gitattributes` 保持文件当前字节，避免自动换行转换使验证清单中的 SHA256 失效。完整压力测试输出保留在本地 `outputs/snmarket-validation/`，可用已纳入版本的验证入口重新生成。当前仓库仅用于本地版本管理，尚未配置远程仓库。
 
-- 联合算法采用原生本地 EnvRunnerGroup 和本地 LearnerGroup；CPU 或一个 GPU。动态智能体、异步行动、提前独立终止和多 Learner 不在本轮支持范围。
-- 支持异构向量观测、有限边界 Box、Discrete、MultiBinary 和 Dict/Tuple 组合。MADDPG 仅支持连续 Box 组合。
-- 历史观测支持 `Dict(current=Box, history=Box[H,C], history_mask=Box[H])`，有效历史在前、零填充在后。精确离散枚举最多 256 种组合。
-- 默认输出位于 `outputs/raymarl/<算法>-<唯一运行ID>`，保存精简指标，每 10 次训练自动保存 checkpoint，最多保留两个。用 `checkpoint_interval=0` 关闭自动保存；`detailed_outputs=True` 开启完整结果日志。
-- `save_to_path()` 使用受控保留策略；显式指定路径的 checkpoint 由调用方管理，库不会删除。
-- 新格式 checkpoint 包含模型、目标网络、注册优化器、联合回放、RNG 和计数。旧 v0.1 checkpoint 明确拒绝恢复。通用模拟器的内部状态没有统一序列化接口，恢复训练会重新开始环境回合，不保证复现未完成回合的逐步轨迹。
-- `from raymarl import ...Config` 保持有效；旧 `training(hidden_dim=...)` 发出弃用提示，与新模型参数冲突时拒绝构建。原有私有 `JointModule/update_joint/critic_mode` 接口已移除。
-- ActorBundle 导出包含局部 Actor 权重，不创建 Critic、Value 或环境。使用 `register_algorithms()` 显式注册具名 Tune 算法。
-
-本库不包含能源论文的原始交易环境，不宣称复现论文收益、300 户结果、纳什收敛或正式隐私保证。注意力压缩单个 Critic 的输入；全连接两两注意力的总计算仍随智能体数量呈二次增长。
-
-详见 [架构](docs/architecture.md)、[算法审计](docs/algorithm-audit.md)、[验证记录](docs/validation.md)和[清理记录](docs/cleanup.json)。
-
-从环境定义到训练、评估、保存恢复及推理的完整代码，见 [单智能体与 MARL 运行示例](docs/examples/README.md)。
+```powershell
+git status --short
+git diff
+git log --oneline --decorate -5
+git show 环境建模基线-20261018 --stat
+```
