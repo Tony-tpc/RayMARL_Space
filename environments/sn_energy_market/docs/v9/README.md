@@ -1,5 +1,7 @@
 # v9 六维 UC 调度环境与建模
 
+提交 `33f27b7` 的[完整规模复验与一致性审查](full_validation_current_commit_zh.md)已完成：207 项测试、100,000 组静态独立对照、10,000 组非法输入、1,094,400 个动态物理时段全部通过；未发现 v5 兼容运行分支，三处文档接口名称／引用差异单独列明。[机器汇总](full_validation_current_commit.json)绑定此次提交、来源及全部批次哈希。
+
 当前运行接口与关键校验的最新调整见[兼容性与简化审查](compatibility_audit_zh.md)：只保留 `UCAction`、`ConsumerAction`，按字段名构造，不保留旧机制兼容层。
 
 v9 环境已按完整建模文档实现，保留 UC 六维物理行动、Consumer 四维行动、联合可行域、一次公告与两层市场。正文按 UC 的 Observation—Action—Reward、Consumer 的 Observation—Action—Reward、市场和环境执行组织，保留八部分 26 章的详细论述。
