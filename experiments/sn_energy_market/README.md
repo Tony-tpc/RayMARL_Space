@@ -1,5 +1,7 @@
 # 能源市场实验入口
 
+当前进展、最新实验与下一步连续采样改造见 [项目交接文档](HANDOFF.md)。
+
 本目录组织能源市场的场景、训练、评价和环境验证。算法实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg`；市场执行、结算和状态转移位于 `environments/sn_energy_market/src/snmarket`。
 
 `train.py` 运行双层训练：消费者适应、UC 候选生成、重新适应后的匹配评价、候选选择与冻结测试。完整调用和实验协议见 [训练说明](TRAINING.md)。
