@@ -177,7 +177,9 @@ class StackelbergConfig(AlgorithmConfig):
         if self.scenario_factory is None:
             raise ValueError("Configure a scenario factory and separate train/validation/test seeds")
         splits = (self.train_seeds, self.validation_seeds, self.test_seeds)
-        if any(not seeds or len(set(seeds)) != len(seeds) for seeds in splits):
+        if not self.train_seeds or not self.validation_seeds:
+            raise ValueError("Training and validation scenario splits must be nonempty")
+        if any(len(set(seeds)) != len(seeds) for seeds in splits):
             raise ValueError("Each scenario split needs distinct seeds")
         if any(set(splits[i]) & set(splits[j]) for i in range(3) for j in range(i + 1, 3)):
             raise ValueError("Training, validation and test scenarios must be disjoint")

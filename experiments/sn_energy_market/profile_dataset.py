@@ -34,15 +34,20 @@ class ProfileDataset:
 
     NPZ files contain measured ``loads_kw``, ``der_kw`` and interval-start
     ``timestamps``. Flexible capacity and procurement prices are separate scenario
-    assumptions. Resource calibration uses only the training split.
+    assumptions. Resource calibration uses only the training split. Only selected
+    split files are opened; the complete manifest remains part of the data contract.
     """
 
-    def __init__(self, manifest_path):
+    def __init__(self, manifest_path, *, splits=("train", "validation", "test")):
         self.path = Path(manifest_path).resolve()
         self.manifest = json.loads(self.path.read_text(encoding="utf-8"))
         self.manifest_sha256 = hashlib.sha256(self.path.read_bytes()).hexdigest()
         self.name = self.manifest["dataset"]
         self.time_policy = self.manifest["time_policy"]
+        split_order = ("train", "validation", "test")
+        self.splits = tuple(split for split in split_order if split in splits)
+        if not self.splits or len(self.splits) != len(splits):
+            raise ValueError("Select distinct train, validation or test splits")
         if any(
             self.manifest["units"][field] != "kW" for field in ("loads_kw", "der_kw")
         ):
@@ -56,8 +61,18 @@ class ProfileDataset:
         ):
             raise ValueError("Dataset household identities must be nonempty and unique")
         self._arrays, self._windows = {}, {}
-        ranges = []
-        for split in ("train", "validation", "test"):
+        ranges = [
+            tuple(
+                datetime.fromisoformat(self.manifest["splits"][split][field])
+                for field in ("start_datetime", "end_datetime")
+            )
+            for split in split_order
+        ]
+        if any(left[1] > right[0] for left, right in pairwise(ranges)):
+            raise ValueError(
+                "Training, validation and test dates must be ordered and disjoint"
+            )
+        for split in self.splits:
             entry = self.manifest["splits"][split]
             path = self.path.parent / entry["file"]
             if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
@@ -100,7 +115,6 @@ class ProfileDataset:
                 raise ValueError(
                     f"Dataset end_datetime must be the exclusive boundary: {split}"
                 )
-            ranges.append((start, end))
             windows = []
             offset, cursor = 0, start
             while cursor < end:
@@ -131,10 +145,6 @@ class ProfileDataset:
             for array in arrays.values():
                 array.flags.writeable = False
             self._arrays[split] = arrays
-        if any(left[1] > right[0] for left, right in pairwise(ranges)):
-            raise ValueError(
-                "Training, validation and test dates must be ordered and disjoint"
-            )
 
     def windows(self, split):
         return self._windows[split]
@@ -273,6 +283,8 @@ class DatasetEnvFactory:
             )
         self.seed_splits, self._by_seed = {}, {}
         for index, split in enumerate(("train", "validation", "test")):
+            if split not in dataset.splits:
+                continue
             windows = dataset.windows(split)
             seeds = tuple(
                 range(seed + index * 10000, seed + index * 10000 + len(windows))
@@ -297,6 +309,7 @@ class DatasetEnvFactory:
         contract = {
             "type": f"{type(self).__module__}.{type(self).__qualname__}",
             "manifest_sha256": self.dataset.manifest_sha256,
+            "loaded_splits": self.dataset.splits,
             "household_ids": self.dataset.household_ids,
             "config": self.config.to_dict(),
             "resource_calibration": {

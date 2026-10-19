@@ -114,7 +114,10 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
 
     def evaluate_pair(self, seeds=None, *, deterministic=False):
         """Frozen policy performance; default split is the held-out test set."""
-        rows = self._evaluate(self.config.test_seeds if seeds is None else seeds, deterministic)
+        seeds = tuple(self.config.test_seeds if seeds is None else seeds)
+        if not seeds:
+            raise ValueError("No test scenarios configured; pass explicit nonempty evaluation seeds")
+        rows = self._evaluate(seeds, deterministic)
         return {"rows": rows, "summary": summarize_evaluation(rows), "deterministic": deterministic}
 
     def search_deviations(self):

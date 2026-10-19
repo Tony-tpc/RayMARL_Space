@@ -87,6 +87,37 @@ def test_all_months_and_fixed_household_order_with_leap_year(dataset_path):
         factory(12345)
 
 
+def test_training_and_validation_work_without_loading_test_data(dataset_path, tmp_path):
+    selected = tmp_path / "selected"
+    selected.mkdir()
+    for name in ("manifest.json", "train.npz", "validation.npz"):
+        shutil.copy2(dataset_path.parent / name, selected / name)
+    dataset = ProfileDataset(selected / "manifest.json", splits=("validation", "train"))
+    factory = DatasetEnvFactory(dataset, seed=80)
+    assert dataset.splits == ("train", "validation")
+    assert set(dataset.manifest["splits"]) == {"train", "validation", "test"}
+    assert factory.seed_splits == {
+        "train": tuple(range(80, 92)),
+        "validation": tuple(range(10080, 10092)),
+    }
+    for split, seeds in factory.seed_splits.items():
+        env = factory(seeds[0])
+        env.reset(seeds[0])
+        assert env.engine.profiles.metadata["split"] == split
+    contract = factory.get_contract()
+    assert contract["loaded_splits"] == ["train", "validation"]
+    assert (
+        contract["manifest_sha256"]
+        == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    )
+    with pytest.raises(KeyError):
+        dataset.windows("test")
+    with pytest.raises(KeyError):
+        factory(20080)
+    with pytest.raises(FileNotFoundError):
+        ProfileDataset(selected / "manifest.json")
+
+
 def test_thirty_minute_conversion_preserves_physical_durations_and_coefficients(
     dataset_path,
 ):

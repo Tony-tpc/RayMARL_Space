@@ -45,6 +45,11 @@ def arguments(argv=None):
         action="store_true",
         help="Verify data and experiment contracts without importing Ray or training",
     )
+    parser.add_argument(
+        "--skip-test",
+        action="store_true",
+        help="Load only training/validation data and reserve the test set for final evaluation",
+    )
     parser.add_argument("--consumers", type=int)
     parser.add_argument("--horizon", type=int)
     parser.add_argument("--deadline", type=int)
@@ -67,13 +72,22 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
+def load_dataset(args):
+    if not args.dataset:
+        return None
+    splits = (
+        ("train", "validation") if args.skip_test else ("train", "validation", "test")
+    )
+    return ProfileDataset(args.dataset, splits=splits)
+
+
 def experiment_settings(args, dataset=None):
     base = (
         EnvironmentConfig.from_directory(args.config_dir)
         if args.config_dir
         else EnvironmentConfig()
     )
-    dataset = dataset or (ProfileDataset(args.dataset) if args.dataset else None)
+    dataset = dataset or load_dataset(args)
     count = (
         args.consumers
         if args.consumers is not None
@@ -158,14 +172,14 @@ def experiment_settings(args, dataset=None):
     }
     if dataset is not None:
         splits = DatasetEnvFactory(dataset, config, seed=args.seed).seed_splits
+    if args.skip_test:
+        splits.pop("test", None)
     return config, budget, splits
 
 
 def scenario_factory(args, config, splits, dataset=None):
     if args.dataset:
-        return DatasetEnvFactory(
-            dataset or ProfileDataset(args.dataset), config, seed=args.seed
-        )
+        return DatasetEnvFactory(dataset or load_dataset(args), config, seed=args.seed)
     return MarketEnvFactory(config, seed_splits=splits)
 
 
@@ -239,19 +253,24 @@ def provenance(config, budget, splits, factory, args, learning_contract):
         "resume": args.resume,
         "normalization": "fixed signed_log1p observations; per-batch advantage normalization",
         "candidate_protocol": "same reference Consumer snapshot, response budget and validation scenarios",
-        "test_protocol": "frozen final policies evaluated only after selection",
+        "test_protocol": (
+            "reserved; no test profiles loaded or evaluated"
+            if args.skip_test
+            else "frozen final policies evaluated only after selection"
+        ),
     }
 
 
 def main(argv=None):
     args = arguments(argv)
-    dataset = ProfileDataset(args.dataset) if args.dataset else None
+    dataset = load_dataset(args)
     environment, budget, splits = experiment_settings(args, dataset)
     factory = scenario_factory(args, environment, splits, dataset)
     if args.validate_data:
         report = {
             "status": "data_contract_validated",
             "training_started": False,
+            "test_reserved": args.skip_test,
             "environment": environment.to_dict(),
             "budget": budget,
             "scenario_contract": factory.get_contract(),
@@ -324,7 +343,7 @@ def main(argv=None):
                 factory,
                 train_seeds=splits["train"],
                 validation_seeds=splits["validation"],
-                test_seeds=splits["test"],
+                test_seeds=splits.get("test", ()),
             )
             .debugging(seed=args.seed)
             .rl_module(model_config={"hidden_dim": budget["hidden_dim"]})
@@ -377,13 +396,19 @@ def main(argv=None):
                 )
                 if algorithm.last_round["stop_recommended"]:
                     break
-        evaluation = algorithm.evaluate_pair()
+        evaluation_split = "validation" if args.skip_test else "test"
+        evaluation = algorithm.evaluate_pair(splits[evaluation_split])
         deviations = (
             {"searched": False, "reason": "frozen_evaluation"}
             if args.evaluate_only
             else algorithm.last_round["consumer_deviations_selected_pair"]
         )
-        write_json(output / "held_out_evaluation.json", evaluation)
+        evaluation_file = (
+            "validation_evaluation.json"
+            if args.skip_test
+            else "held_out_evaluation.json"
+        )
+        write_json(output / evaluation_file, evaluation)
         write_json(output / "deviation_search.json", deviations)
         checkpoint = algorithm.save_to_path(str(output / "final-checkpoint"))
         algorithm.export_actors(str(output / "actors"))
@@ -394,6 +419,8 @@ def main(argv=None):
                 "outer_rounds": algorithm.iteration,
                 "checkpoint": checkpoint,
                 "evaluation": evaluation,
+                "evaluation_split": evaluation_split,
+                "test_reserved": args.skip_test,
                 "deviation_search": deviations,
             },
         )

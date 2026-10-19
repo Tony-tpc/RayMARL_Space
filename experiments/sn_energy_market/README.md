@@ -6,6 +6,8 @@
 
 真实数据的候选比较见 [数据选型调研](DATASETS.md)。当前已接入 Ausgrid 30 分钟负荷与光伏；下载清洗、固定住户、年度划分、参数与验证命令见 [Ausgrid 实验说明](AUSGRID.md)。`--dataset` 选择数据清单，省略时使用合成场景；`--validate-data` 仅检查数据与配置，不启动训练。
 
+真实数据的小规模训练入口为 `pilot.py`，采样、梯度、奖励、更新隔离及检查点的检查说明见 [小规模训练验证](PILOT.md)。它只加载训练集和验证集。通用入口的 `--skip-test` 同样保留测试集，并将结束评价写入 `validation_evaluation.json`。
+
 `MarketEnvFactory.get_contract()` 自动记录市场配置、种子切分与合成场景函数源码哈希。checkpoint 恢复保持学习目标和数据协议一致，设备与输出目录可以改变。
 
 ```powershell

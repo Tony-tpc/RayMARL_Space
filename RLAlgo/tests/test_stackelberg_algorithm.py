@@ -5,13 +5,14 @@ import json
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
 
 from raymarl.algorithms.stackelberg import StackelbergConfig
-from raymarl.algorithms.stackelberg.algorithm import paired_gain, select_candidate
+from raymarl.algorithms.stackelberg.algorithm import Stackelberg, paired_gain, select_candidate
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -70,6 +71,56 @@ def test_disjoint_scenario_splits_and_continuous_contract(tmp_path):
     cfg.validation_seeds = (2,)
     with pytest.raises(ValueError, match="disjoint"):
         cfg.validate()
+
+
+def test_training_and_validation_allow_reserved_test_split(tmp_path):
+    cfg = configuration(tmp_path)
+    cfg.scenarios(
+        cfg.scenario_factory,
+        train_seeds=(2, 3),
+        validation_seeds=(11, 12),
+        test_seeds=(),
+    )
+    cfg.validate()
+    assert cfg.learning_contract()["test_seeds"] == []
+    for field in ("train_seeds", "validation_seeds"):
+        invalid = cfg.copy(copy_frozen=False)
+        setattr(invalid, field, ())
+        with pytest.raises(ValueError, match="nonempty"):
+            invalid.validate()
+    cfg.test_seeds = (21, 21)
+    with pytest.raises(ValueError, match="distinct"):
+        cfg.validate()
+
+
+def test_reserved_test_requires_explicit_evaluation_seeds():
+    calls = []
+
+    def evaluate(seeds, deterministic):
+        calls.append((seeds, deterministic))
+        return [
+            {
+                "seed": seed,
+                "returns": {"uc": 1.0},
+                "physical_periods": 2,
+                "metrics": {},
+                "bootstrap_used": False,
+            }
+            for seed in seeds
+        ]
+
+    algorithm = SimpleNamespace(config=SimpleNamespace(test_seeds=()), _evaluate=evaluate)
+    with pytest.raises(ValueError, match="explicit nonempty evaluation seeds"):
+        Stackelberg.evaluate_pair(algorithm)
+    with pytest.raises(ValueError, match="explicit nonempty evaluation seeds"):
+        Stackelberg.evaluate_pair(algorithm, ())
+    assert calls == []
+    result = Stackelberg.evaluate_pair(algorithm, (11, 12))
+    assert result["summary"]["scenarios"] == 2
+    assert calls == [((11, 12), False)]
+    algorithm.config.test_seeds = (21, 22)
+    Stackelberg.evaluate_pair(algorithm)
+    assert calls[-1] == ((21, 22), False)
 
 
 def test_learning_contract_tracks_targets_and_scenarios_not_output_path(tmp_path):
