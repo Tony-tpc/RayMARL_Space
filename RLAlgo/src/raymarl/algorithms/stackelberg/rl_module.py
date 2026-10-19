@@ -1,5 +1,7 @@
 """Local policies and decision-time values for the two-stage energy game."""
 
+import math
+
 import torch
 from ray.rllib.core.columns import Columns
 from ray.rllib.core.rl_module.apis.inference_only_api import InferenceOnlyAPI
@@ -61,13 +63,32 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         if self.role not in {"uc", "consumer"}:
             raise ValueError("Policy role must be uc or consumer")
         hidden = self.model_config.get("hidden_dim", 64)
+        scale = self.model_config.get("value_scale", 1.0)
+        self.value_scale = float(scale[self.role] if isinstance(scale, dict) else scale)
+        if not math.isfinite(self.value_scale) or self.value_scale <= 0:
+            raise ValueError("value_scale must be finite and positive")
         obs_dim = self.observation_space.shape[0]
         self.actor = nn.ModuleDict({"encoder": mlp(obs_dim, hidden)})
         if self.role == "uc":
             self.actor["head"] = nn.Linear(hidden, 12)
+            initial_mean = torch.as_tensor(
+                self.model_config.get("uc_initial_mean", [0.5, 0.5, 0.5, 0.5, 0.0, 0.5])
+            )
+            initial_std = torch.as_tensor(self.model_config.get("uc_initial_std", math.exp(-0.5)))
+            if (
+                initial_mean.shape != (6,)
+                or initial_std.shape not in ((), (6,))
+                or not torch.isfinite(initial_mean).all()
+                or not torch.isfinite(initial_std).all()
+                or (initial_std <= 0).any()
+            ):
+                raise ValueError(
+                    "UC initialization requires six finite means and positive scalar/six-vector std"
+                )
             with torch.no_grad():
-                self.actor["head"].bias[:6].copy_(torch.tensor([0.5, 0.5, 0.5, 0.5, 0.0, 0.5]))
-                self.actor["head"].bias[6:].fill_(-0.5)
+                self.actor["head"].weight.mul_(self.model_config.get("uc_head_scale", 1.0))
+                self.actor["head"].bias[:6].copy_(initial_mean)
+                self.actor["head"].bias[6:].copy_(initial_std.log().expand(6))
         else:
             self.actor["cut"] = nn.Linear(hidden, 2)
             self.actor["shift"] = nn.Linear(hidden + 1, 2)
@@ -202,8 +223,9 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         return self._consumer_logp_entropy(features, controls, intervals)[1]
 
     def compute_values(self, batch, embeddings=None):
+        """Return original reward units; only the network's output unit is scaled."""
         inputs = batch[Columns.OBS] if self.role == "uc" else batch["critic_obs"]
-        return self.value(signed_log1p(inputs.float())).squeeze(-1)
+        return self.value(signed_log1p(inputs.float())).squeeze(-1) * self.value_scale
 
     def _forward(self, batch, **kwargs):
         return self.draw(batch[Columns.OBS], batch.get("bounds"))

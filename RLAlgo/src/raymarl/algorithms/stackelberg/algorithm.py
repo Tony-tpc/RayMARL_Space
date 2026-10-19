@@ -83,6 +83,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             measured = {
                 "policy_loss",
                 "value_loss",
+                "value_rmse",
+                "value_explained_variance",
                 "total_loss",
                 "entropy",
                 "clip_fraction",

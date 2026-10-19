@@ -8,6 +8,8 @@
 
 真实数据的小规模训练入口为 `pilot.py`，采样、梯度、奖励、更新隔离及检查点的检查说明见 [小规模训练验证](PILOT.md)。它只加载训练集和验证集。通用入口的 `--skip-test` 同样保留测试集，并将结束评价写入 `validation_evaluation.json`。
 
+修正训练日期覆盖、UC 初始化和 Critic 拟合后的固定小规模入口为 `calibrated_pilot.py`。它先用训练集的完整终止轨迹预热 Value，再执行 3 轮 PPO；结果区分初始化改善与训练增益，见[修正后对照报告](CALIBRATED_PILOT.md)。
+
 `MarketEnvFactory.get_contract()` 自动记录市场配置、种子切分与合成场景函数源码哈希。checkpoint 恢复保持学习目标和数据协议一致，设备与输出目录可以改变。
 
 ```powershell

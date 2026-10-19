@@ -28,6 +28,19 @@ from experiments.sn_energy_market.profile_dataset import (
 )
 from experiments.sn_energy_market.training_env import MarketEnvFactory
 
+TRAINING_START_DAYS = (1, 11, 21, -1)
+
+
+def model_settings(hidden_dim):
+    """Experiment priors and value units; physical actions remain freely sampled."""
+    return {
+        "hidden_dim": hidden_dim,
+        "uc_initial_mean": [0.95, 0.02, 0.5, 0.5, 0.0, 0.5],
+        "uc_initial_std": [0.08, 0.05, 0.2, 0.2, 0.1, 0.2],
+        "uc_head_scale": 0.01,
+        "value_scale": {"uc": 20.0, "consumer": 10.0},
+    }
+
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -171,7 +184,9 @@ def experiment_settings(args, dataset=None):
         "test": tuple(range(args.seed + 20_000, args.seed + 20_000 + evaluation_count)),
     }
     if dataset is not None:
-        splits = DatasetEnvFactory(dataset, config, seed=args.seed).seed_splits
+        splits = DatasetEnvFactory(
+            dataset, config, seed=args.seed, training_start_days=TRAINING_START_DAYS
+        ).seed_splits
     if args.skip_test:
         splits.pop("test", None)
     return config, budget, splits
@@ -179,7 +194,12 @@ def experiment_settings(args, dataset=None):
 
 def scenario_factory(args, config, splits, dataset=None):
     if args.dataset:
-        return DatasetEnvFactory(dataset or load_dataset(args), config, seed=args.seed)
+        return DatasetEnvFactory(
+            dataset or load_dataset(args),
+            config,
+            seed=args.seed,
+            training_start_days=TRAINING_START_DAYS,
+        )
     return MarketEnvFactory(config, seed_splits=splits)
 
 
@@ -232,7 +252,10 @@ def provenance(config, budget, splits, factory, args, learning_contract):
         split: [
             {
                 "seed": seed,
-                "sha256": (p := factory(seed).engine.profiles).fingerprint(),
+                "sha256": (p := (
+                    factory.profiles_for_seed(seed) if args.dataset
+                    else factory(seed).engine.profiles
+                )).fingerprint(),
                 "metadata": p.metadata,
             }
             for seed in seeds
@@ -284,7 +307,10 @@ def main(argv=None):
                         "metadata": profiles.metadata,
                     }
                     for seed in seeds
-                    for profiles in [factory(seed).engine.profiles]
+                    for profiles in [
+                        factory.profiles_for_seed(seed) if args.dataset
+                        else factory(seed).engine.profiles
+                    ]
                 ]
                 for split, seeds in splits.items()
             },
@@ -346,7 +372,7 @@ def main(argv=None):
                 test_seeds=splits.get("test", ()),
             )
             .debugging(seed=args.seed)
-            .rl_module(model_config={"hidden_dim": budget["hidden_dim"]})
+            .rl_module(model_config=model_settings(budget["hidden_dim"]))
             .learners(num_learners=0, num_gpus_per_learner=int(args.device == "cuda"))
             .training(
                 gamma=budget["gamma"],

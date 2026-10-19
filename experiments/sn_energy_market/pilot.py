@@ -93,6 +93,7 @@ class TrainingAudit:
         self.phase = "setup"
         self.coverage, self.maximums = Counter(), {}
         self.samples, self.updates, self.optimizer_steps = [], [], []
+        self.sampled_dates = defaultdict(set)
         self.reward_stats = defaultdict(
             lambda: {"count": 0, "sum": 0.0, "min": math.inf, "max": -math.inf}
         )
@@ -113,6 +114,11 @@ class TrainingAudit:
             before = runner.env.engine.state
             samples, result = original_period(**kwargs)
             record = runner.env.engine.latest_record
+            if (
+                self.phase.startswith(("round_", "critic_collect"))
+                and runner._scenario_seed in runner.config.train_seeds
+            ):
+                self.sampled_dates[self.phase].add(record.timestamp.isoformat())
             check_record(
                 runner.env.engine,
                 before,
@@ -200,14 +206,17 @@ class TrainingAudit:
                     rows["zero_width_mask"].sum()
                 )
                 self.coverage["sampled_agent_rows"] += len(rows["rewards"])
-                assert not rows["terminateds"].any()
-                assert rows["truncateds"][-1]
+                assert rows["truncateds"][-1] == (not rows["terminateds"][-1])
+                assert (rows["next_vf_preds"][rows["terminateds"]] == 0).all()
             assert seeds <= set(runner.config.train_seeds), seeds
             self.samples.append(
                 {
                     "phase": self.phase,
                     "periods": batch.count,
                     "seeds": sorted(seeds),
+                    "terminated_rows": int(
+                        batch.policy_batches["uc"]["terminateds"].sum()
+                    ),
                     "metrics": dict(runner.last_metrics),
                 }
             )
@@ -383,6 +392,9 @@ class TrainingAudit:
             "updates": self.updates,
             "gradients": gradient_summary,
             "reward_statistics": dict(self.reward_stats),
+            "sampled_dates": {
+                phase: sorted(dates) for phase, dates in self.sampled_dates.items()
+            },
         }
 
 

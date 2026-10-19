@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from snmarket import EnvironmentConfig, Profiles
+from snmarket.contracts import ConsumerAction
 
 from experiments.sn_energy_market.training_env import MarketTrainingEnv
 
@@ -269,11 +270,24 @@ class ProfileDataset:
 
 
 class DatasetEnvFactory:
-    """The existing generic scenario protocol, with each seed bound to one month."""
+    """Bind scenario seeds to complete months and optional training start dates.
 
-    def __init__(self, dataset, config=None, *, seed=42):
+    Positive start days count from the beginning of a month; -1 means its last day,
+    -2 its penultimate day. A fixed, nonlearning rule runs from month start to each
+    selected date. Its actual state/history is the reset state, and termination
+    remains at month end. Validation and test scenarios always start on day one.
+    """
+
+    def __init__(self, dataset, config=None, *, seed=42, training_start_days=(1,)):
         self.dataset = dataset
         self.config = config or dataset.environment_config()
+        self.training_start_days = tuple(training_start_days)
+        if (
+            not self.training_start_days
+            or len(set(self.training_start_days)) != len(self.training_start_days)
+            or any(type(day) is not int or day == 0 for day in self.training_start_days)
+        ):
+            raise ValueError("Training start days must be distinct nonzero integers")
         if (
             self.config.system.num_consumers != len(dataset.household_ids)
             or self.config.system.resolution_minutes != dataset.resolution_minutes
@@ -281,16 +295,43 @@ class DatasetEnvFactory:
             raise ValueError(
                 "Experiment configuration must match dataset identities and resolution"
             )
-        self.seed_splits, self._by_seed = {}, {}
+        self.seed_splits, self._by_seed, self._start_periods = {}, {}, {}
+        self._initial_snapshots = {}
         for index, split in enumerate(("train", "validation", "test")):
             if split not in dataset.splits:
                 continue
             windows = dataset.windows(split)
+            start_days = self.training_start_days if split == "train" else (1,)
+            scenarios = []
+            for window in windows:
+                days = window.periods // self.config.system.steps_per_day
+                for requested_day in start_days:
+                    day = requested_day if requested_day > 0 else days + requested_day + 1
+                    if not 1 <= day <= days:
+                        raise ValueError(f"Training start day {requested_day} is outside {window.name}")
+                    scenarios.append((window, (day - 1) * self.config.system.steps_per_day))
             seeds = tuple(
-                range(seed + index * 10000, seed + index * 10000 + len(windows))
+                range(seed + index * 10000, seed + index * 10000 + len(scenarios))
             )
             self.seed_splits[split] = seeds
-            self._by_seed.update(zip(seeds, windows))
+            self._by_seed.update((key, value[0]) for key, value in zip(seeds, scenarios))
+            self._start_periods.update((key, value[1]) for key, value in zip(seeds, scenarios))
+            if split == "train":
+                # Traverse the year first, rotating the within-month start stratum.
+                width = len(start_days)
+                self.seed_splits[split] = tuple(
+                    seeds[month * width + (month + cycle) % width]
+                    for cycle in range(width)
+                    for month in range(len(windows))
+                )
+
+    def __getstate__(self):
+        # A cache speeds repeated scenario resets, but is not experiment state.
+        return {**vars(self), "_initial_snapshots": {}}
+
+    def profiles_for_seed(self, seed):
+        """Read scenario data without constructing a training reset state."""
+        return self.dataset.profiles(self._by_seed[seed], self.config)
 
     def __call__(self, seed):
         window = self._by_seed[seed]
@@ -302,7 +343,24 @@ class DatasetEnvFactory:
                 start_datetime=window.start_datetime,
             ),
         )
-        return MarketTrainingEnv(config, self.dataset.profiles(window, config))
+        profiles = self.profiles_for_seed(seed)
+        start_period = self._start_periods[seed]
+        if start_period and seed not in self._initial_snapshots:
+            env = MarketTrainingEnv(config, profiles)
+            env.reset(seed)
+            action = ConsumerAction(
+                curtail_kw=0.0,
+                signed_shift_kw=0.0,
+                der_preference_fraction=1.0,
+                der_bid_per_kwh=config.market.der_reference_rate_per_kwh,
+            )
+            for _ in range(start_period):
+                env.publish([1, 0, 0, 0, 0, 0])
+                env.step(dict.fromkeys(env.consumer_ids, action))
+            self._initial_snapshots[seed] = env.get_state()
+        return MarketTrainingEnv(
+            config, profiles, initial_snapshot=self._initial_snapshots.get(seed)
+        )
 
     def get_contract(self):
         """Portable data, identity, calendar and assumption hashes for checkpoints."""
@@ -336,7 +394,23 @@ class DatasetEnvFactory:
             },
             "cadence_assumption": "UC overdue assessments preserve hourly strength; energy rates, hourly rates and already specified per-period amounts unchanged",
             "seed_windows": {
-                seed: vars(window) for seed, window in self._by_seed.items()
+                seed: {
+                    **vars(window),
+                    "start_period": self._start_periods[seed],
+                    "start_day": self._start_periods[seed] // self.config.system.steps_per_day + 1,
+                    "sampling_start_datetime": (
+                        datetime.fromisoformat(window.start_datetime)
+                        + timedelta(minutes=self._start_periods[seed] * self.dataset.resolution_minutes)
+                    ).isoformat(),
+                }
+                for seed, window in self._by_seed.items()
+            },
+            "training_start_days": self.training_start_days,
+            "initial_state_rule": {
+                "uc_controls": [1, 0, 0, 0, 0, 0],
+                "consumer": "zero cut/shift; DER fraction one; DER floor bid",
+                "state": "actual monthly UC energy and history; empty queues; configured initial ESS",
+                "warmup": "fixed-rule state construction, excluded from learning samples",
             },
             "source_sha256": {
                 name: hashlib.sha256(
@@ -344,6 +418,6 @@ class DatasetEnvFactory:
                 ).hexdigest()
                 for name in ("profile_dataset.py", "training_env.py")
             },
-            "episode_boundary": "complete month; empty initial queue; configured initial ESS; terminal valuation once",
+            "episode_boundary": "complete month; optional fixed-rule warm start; terminal valuation once at month end",
         }
         return json.loads(json.dumps(contract, sort_keys=True, allow_nan=False))

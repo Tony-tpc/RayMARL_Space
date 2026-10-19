@@ -27,7 +27,8 @@ def test_skip_test_keeps_only_train_and_validation_scenarios(selected_dataset):
     args = train.arguments(["--dataset", str(selected_dataset), "--skip-test"])
     config, budget, splits = train.experiment_settings(args)
     assert set(splits) == {"train", "validation"}
-    assert all(len(seeds) == 12 for seeds in splits.values())
+    assert len(splits["train"]) == 48
+    assert len(splits["validation"]) == 12
     factory = train.scenario_factory(args, config, splits)
     assert factory.dataset.splits == ("train", "validation")
     report = train.provenance(config, budget, splits, factory, args, {})

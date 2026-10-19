@@ -1,5 +1,7 @@
 # Ausgrid 小规模训练验证
 
+本文保留首次小规模运行的设置与结果。训练日期、策略初始化及 Critic 拟合修正后的对照见 [CALIBRATED_PILOT.md](CALIBRATED_PILOT.md)。
+
 本入口检查真实数据进入采样、PPO 反向传播、策略更新和验证集评价的完整链路。算法继续使用 `RLAlgo` 中的通用实现；诊断和数据选择位于 `experiments`。
 
 ## 数据与预算

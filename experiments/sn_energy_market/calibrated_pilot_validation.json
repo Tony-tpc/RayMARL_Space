@@ -1,0 +1,687 @@
+{
+  "status": "passed_with_remaining_value_generalization_issue",
+  "date": "2026-10-19",
+  "baseline_commit": "ab3477ad5594b8db7355a8634cf992c4faaad7d0",
+  "formal_training": false,
+  "test_loaded": false,
+  "test_evaluated": false,
+  "environment_source_unchanged": true,
+  "train_seeds": [
+    43,
+    56,
+    69
+  ],
+  "validation_seeds": [
+    10042,
+    10045,
+    10048,
+    10051
+  ],
+  "counts": {
+    "rounds": 3,
+    "ppo_physical_periods": 1536,
+    "critic_mc_physical_periods": 1584,
+    "critic_prefit_optimizer_steps": 13600,
+    "all_observed_optimizer_steps_including_rolled_back_branches": 15952,
+    "unique_ppo_timestamps": 304,
+    "unique_mc_timestamps": 1584,
+    "unique_combined_learning_timestamps": 1584,
+    "main_run_audited_physical_periods": 8512,
+    "main_run_validation_physical_periods": 5376,
+    "checkpoint_replay_physical_periods": 16,
+    "additional_frozen_full_month_validation_periods": 5904,
+    "independent_oracle_periods": 181,
+    "frozen_optimizer_checks": 912,
+    "warmup_state_construction_excluded": true
+  },
+  "retained_adam_steps": {
+    "uc_actor": [
+      16
+    ],
+    "uc_value": [
+      816
+    ],
+    "consumer_0_actor": [
+      48
+    ],
+    "consumer_0_value": [
+      848
+    ],
+    "consumer_1_actor": [
+      48
+    ],
+    "consumer_1_value": [
+      848
+    ],
+    "consumer_2_actor": [
+      48
+    ],
+    "consumer_2_value": [
+      848
+    ],
+    "consumer_3_actor": [
+      48
+    ],
+    "consumer_3_value": [
+      848
+    ],
+    "consumer_4_actor": [
+      48
+    ],
+    "consumer_4_value": [
+      848
+    ],
+    "consumer_5_actor": [
+      48
+    ],
+    "consumer_5_value": [
+      848
+    ],
+    "consumer_6_actor": [
+      48
+    ],
+    "consumer_6_value": [
+      848
+    ],
+    "consumer_7_actor": [
+      48
+    ],
+    "consumer_7_value": [
+      848
+    ],
+    "consumer_8_actor": [
+      48
+    ],
+    "consumer_8_value": [
+      848
+    ],
+    "consumer_9_actor": [
+      48
+    ],
+    "consumer_9_value": [
+      848
+    ],
+    "consumer_10_actor": [
+      48
+    ],
+    "consumer_10_value": [
+      848
+    ],
+    "consumer_11_actor": [
+      48
+    ],
+    "consumer_11_value": [
+      848
+    ],
+    "consumer_12_actor": [
+      48
+    ],
+    "consumer_12_value": [
+      848
+    ],
+    "consumer_13_actor": [
+      48
+    ],
+    "consumer_13_value": [
+      848
+    ],
+    "consumer_14_actor": [
+      48
+    ],
+    "consumer_14_value": [
+      848
+    ],
+    "consumer_15_actor": [
+      48
+    ],
+    "consumer_15_value": [
+      848
+    ]
+  },
+  "old_trained_sampled_validation": {
+    "uc_discounted_return": -182.998554845646,
+    "mean_consumer_discounted_return": -7.507697785802356,
+    "consumer_total_cost": 288.59650008617626,
+    "uc_cash_profit": -101.97082918065726,
+    "native_service_rate": 0.6824907589822085
+  },
+  "initial_validation": {
+    "sampled": {
+      "native_service_rate": 0.9977191145303903,
+      "uc_cash_profit": 32.52430583189857,
+      "uc_book_profit": 19.76359415597198,
+      "uc_discounted_return": 4.758361442982736,
+      "consumer_total_cost": 208.80060758642009,
+      "native_lost_kwh": 0.9614176963862511,
+      "native_requested_kwh": 421.5107287042992
+    },
+    "mean": {
+      "native_service_rate": 0.9988392814622442,
+      "uc_cash_profit": 33.6953304120164,
+      "uc_book_profit": 21.2791389869453,
+      "uc_discounted_return": 6.735192838788664,
+      "consumer_total_cost": 203.14234471546848,
+      "native_lost_kwh": 0.49818936630865096,
+      "native_requested_kwh": 429.207727888868
+    }
+  },
+  "final_validation": {
+    "sampled": {
+      "native_service_rate": 0.9993010664394334,
+      "uc_cash_profit": 33.44150488514629,
+      "uc_book_profit": 20.699987987704557,
+      "uc_discounted_return": 6.785085055837032,
+      "consumer_total_cost": 208.49786638455558,
+      "native_lost_kwh": 0.2938363115453106,
+      "native_requested_kwh": 420.4066425242004
+    },
+    "mean": {
+      "native_service_rate": 0.9992894703495873,
+      "uc_cash_profit": 34.251320995090445,
+      "uc_book_profit": 21.802417282969834,
+      "uc_discounted_return": 7.768698523123074,
+      "consumer_total_cost": 202.72133732855858,
+      "native_lost_kwh": 0.30462711162813516,
+      "native_requested_kwh": 428.7324412868594
+    }
+  },
+  "new_training_gain_sampled": {
+    "native_service_rate": 0.001581951909043089,
+    "uc_cash_profit": 0.9171990532477139,
+    "uc_book_profit": 0.9363938317325768,
+    "uc_discounted_return": 2.0267236128542967,
+    "consumer_total_cost": -0.3027412018645066,
+    "native_lost_kwh": -0.6675813848409404,
+    "native_requested_kwh": -1.1040861800988182
+  },
+  "critic_training_fit": [
+    {
+      "modules": {
+        "uc": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 34.84175491333008,
+          "rmse_after": 11.553587913513184,
+          "explained_variance_after": 0.4307994842529297,
+          "maximum_unclipped_grad_norm": 2.8268136978149414
+        },
+        "consumer_0": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 8.048750877380371,
+          "rmse_after": 1.4479302167892456,
+          "explained_variance_after": 0.9755386710166931,
+          "maximum_unclipped_grad_norm": 7.1893815994262695
+        },
+        "consumer_1": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 8.763833999633789,
+          "rmse_after": 1.5163861513137817,
+          "explained_variance_after": 0.921677827835083,
+          "maximum_unclipped_grad_norm": 4.327273368835449
+        },
+        "consumer_2": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 2.540374755859375,
+          "rmse_after": 1.1918370723724365,
+          "explained_variance_after": 0.7721706032752991,
+          "maximum_unclipped_grad_norm": 2.090477466583252
+        },
+        "consumer_3": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 10.508522987365723,
+          "rmse_after": 1.3112950325012207,
+          "explained_variance_after": 0.9362671971321106,
+          "maximum_unclipped_grad_norm": 5.566269874572754
+        },
+        "consumer_4": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 9.677404403686523,
+          "rmse_after": 1.1830434799194336,
+          "explained_variance_after": 0.9182767271995544,
+          "maximum_unclipped_grad_norm": 6.915470123291016
+        },
+        "consumer_5": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 14.218857765197754,
+          "rmse_after": 1.4357340335845947,
+          "explained_variance_after": 0.9050065279006958,
+          "maximum_unclipped_grad_norm": 8.444336891174316
+        },
+        "consumer_6": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 9.929057121276855,
+          "rmse_after": 1.0147740840911865,
+          "explained_variance_after": 0.8843438625335693,
+          "maximum_unclipped_grad_norm": 6.6788153648376465
+        },
+        "consumer_7": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 15.778401374816895,
+          "rmse_after": 1.9663608074188232,
+          "explained_variance_after": 0.8619791269302368,
+          "maximum_unclipped_grad_norm": 7.359749794006348
+        },
+        "consumer_8": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 11.605266571044922,
+          "rmse_after": 0.9526250958442688,
+          "explained_variance_after": 0.7735447287559509,
+          "maximum_unclipped_grad_norm": 5.306288719177246
+        },
+        "consumer_9": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 18.786651611328125,
+          "rmse_after": 2.559185028076172,
+          "explained_variance_after": 0.7251126766204834,
+          "maximum_unclipped_grad_norm": 13.468257904052734
+        },
+        "consumer_10": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 7.447484970092773,
+          "rmse_after": 1.8959078788757324,
+          "explained_variance_after": 0.8417770862579346,
+          "maximum_unclipped_grad_norm": 3.2495687007904053
+        },
+        "consumer_11": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 12.468714714050293,
+          "rmse_after": 0.7978765964508057,
+          "explained_variance_after": 0.9256106615066528,
+          "maximum_unclipped_grad_norm": 6.793243885040283
+        },
+        "consumer_12": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 19.24542999267578,
+          "rmse_after": 2.2311153411865234,
+          "explained_variance_after": 0.8814183473587036,
+          "maximum_unclipped_grad_norm": 10.335628509521484
+        },
+        "consumer_13": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 4.661542892456055,
+          "rmse_after": 0.42241257429122925,
+          "explained_variance_after": 0.9556471109390259,
+          "maximum_unclipped_grad_norm": 1.5017015933990479
+        },
+        "consumer_14": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 6.003072261810303,
+          "rmse_after": 1.2070101499557495,
+          "explained_variance_after": 0.8560903668403625,
+          "maximum_unclipped_grad_norm": 3.315843105316162
+        },
+        "consumer_15": {
+          "samples": 1584,
+          "epochs": 32,
+          "optimizer_steps": 800,
+          "rmse_before": 7.49603796005249,
+          "rmse_after": 0.7129111886024475,
+          "explained_variance_after": 0.9463891983032227,
+          "maximum_unclipped_grad_norm": 4.515569686889648
+        }
+      },
+      "optimizer_steps": 13600
+    }
+  ],
+  "critic_prefit_actor_changes": {
+    "uc": 0.0,
+    "consumer_0": 0.0,
+    "consumer_1": 0.0,
+    "consumer_2": 0.0,
+    "consumer_3": 0.0,
+    "consumer_4": 0.0,
+    "consumer_5": 0.0,
+    "consumer_6": 0.0,
+    "consumer_7": 0.0,
+    "consumer_8": 0.0,
+    "consumer_9": 0.0,
+    "consumer_10": 0.0,
+    "consumer_11": 0.0,
+    "consumer_12": 0.0,
+    "consumer_13": 0.0,
+    "consumer_14": 0.0,
+    "consumer_15": 0.0
+  },
+  "ppo_parameter_changes": {
+    "uc": {
+      "actor": 0.11253731763731033,
+      "value": 0.1561654483431335
+    },
+    "consumer_0": {
+      "actor": 0.2190671986632158,
+      "value": 0.8035835603524014
+    },
+    "consumer_1": {
+      "actor": 0.22808471996490617,
+      "value": 0.42138629376354925
+    },
+    "consumer_2": {
+      "actor": 0.18272407330289697,
+      "value": 0.4977656606596808
+    },
+    "consumer_3": {
+      "actor": 0.22352791236283465,
+      "value": 0.3541840114472926
+    },
+    "consumer_4": {
+      "actor": 0.1947674069241638,
+      "value": 0.7980492032044871
+    },
+    "consumer_5": {
+      "actor": 0.29216688129894114,
+      "value": 0.39708520025481514
+    },
+    "consumer_6": {
+      "actor": 0.18892978413097297,
+      "value": 0.5961283495323948
+    },
+    "consumer_7": {
+      "actor": 0.21908937924021926,
+      "value": 0.23623706609689646
+    },
+    "consumer_8": {
+      "actor": 0.22112460090286584,
+      "value": 0.4119358370150923
+    },
+    "consumer_9": {
+      "actor": 0.2409446643398318,
+      "value": 0.36789626938011594
+    },
+    "consumer_10": {
+      "actor": 0.23198726274803955,
+      "value": 0.6272739191709411
+    },
+    "consumer_11": {
+      "actor": 0.20395982222221967,
+      "value": 0.401019339489939
+    },
+    "consumer_12": {
+      "actor": 0.17465546091902803,
+      "value": 0.59307216798785
+    },
+    "consumer_13": {
+      "actor": 0.17490316266612063,
+      "value": 0.478768018394802
+    },
+    "consumer_14": {
+      "actor": 0.2058846764915499,
+      "value": 0.7304045981821294
+    },
+    "consumer_15": {
+      "actor": 0.22067848577378785,
+      "value": 0.8591164886060539
+    }
+  },
+  "critic_validation_initial": {
+    "rows": [
+      {
+        "seed": 10042,
+        "prediction": -4.832278251647949,
+        "following_96_step_return": 1.547490984120674,
+        "sample_error": -6.379769235768624
+      },
+      {
+        "seed": 10045,
+        "prediction": -4.956173896789551,
+        "following_96_step_return": 16.116182610623078,
+        "sample_error": -21.07235650741263
+      },
+      {
+        "seed": 10048,
+        "prediction": -5.040389060974121,
+        "following_96_step_return": 10.301910163257292,
+        "sample_error": -15.342299224231413
+      },
+      {
+        "seed": 10051,
+        "prediction": -4.830859661102295,
+        "following_96_step_return": 2.6737796136033425,
+        "sample_error": -7.504639274705637
+      }
+    ],
+    "truncated_sample_rmse": 13.932438950220284,
+    "note": "Single truncated MC sample per state; diagnostic, not exact expected value."
+  },
+  "critic_validation_final": {
+    "rows": [
+      {
+        "seed": 10042,
+        "prediction": 23.13072395324707,
+        "following_96_step_return": 4.876315868943391,
+        "sample_error": 18.25440808430368
+      },
+      {
+        "seed": 10045,
+        "prediction": 32.35805892944336,
+        "following_96_step_return": 14.311262640492107,
+        "sample_error": 18.046796288951253
+      },
+      {
+        "seed": 10048,
+        "prediction": 27.548545837402344,
+        "following_96_step_return": 13.024275189876644,
+        "sample_error": 14.5242706475257
+      },
+      {
+        "seed": 10051,
+        "prediction": 29.131467819213867,
+        "following_96_step_return": 3.744786757631811,
+        "sample_error": 25.386681061582056
+      }
+    ],
+    "truncated_sample_rmse": 19.457314074457077,
+    "note": "Single truncated MC sample per state; diagnostic, not exact expected value."
+  },
+  "critic_validation_full_terminal": {
+    "status": "passed",
+    "test_loaded": false,
+    "training_updates": 0,
+    "validation_periods": 5904,
+    "weights_unchanged": true,
+    "original_96_step_values_reproduced": true,
+    "rows": [
+      {
+        "seed": 10042,
+        "prediction": 23.13072395324707,
+        "following_periods_to_true_terminal": 1392,
+        "first_96_return": 4.876315868943394,
+        "discounted_tail": 0.502764930070526,
+        "full_terminal_return": 5.379080799013918,
+        "sample_error": 17.75164315423315
+      },
+      {
+        "seed": 10045,
+        "prediction": 32.35805892944336,
+        "following_periods_to_true_terminal": 1392,
+        "first_96_return": 14.311262640492108,
+        "discounted_tail": 0.860239637047723,
+        "full_terminal_return": 15.17150227753983,
+        "sample_error": 17.18655665190353
+      },
+      {
+        "seed": 10048,
+        "prediction": 27.548545837402344,
+        "following_periods_to_true_terminal": 1392,
+        "first_96_return": 13.024275189876636,
+        "discounted_tail": 3.601585867218887,
+        "full_terminal_return": 16.625861057095523,
+        "sample_error": 10.92268478030682
+      },
+      {
+        "seed": 10051,
+        "prediction": 29.131467819213867,
+        "following_periods_to_true_terminal": 1344,
+        "first_96_return": 3.744786757631811,
+        "discounted_tail": 1.7900618985856598,
+        "full_terminal_return": 5.534848656217471,
+        "sample_error": 23.596619162996397
+      }
+    ],
+    "full_terminal_sample_rmse": 17.934631603114664,
+    "scope": "One frozen stochastic trajectory per validation month; MC samples, not exact expected values."
+  },
+  "candidate_selection": [
+    {
+      "round": 1,
+      "selected": 1,
+      "paired_gain": {
+        "mean": 0.7194220770057548,
+        "standard_error": 0.3209842347216195,
+        "lower": 0.0902929769513805,
+        "upper": 1.348551177060129,
+        "seeds": 4
+      }
+    },
+    {
+      "round": 2,
+      "selected": 0,
+      "paired_gain": {
+        "mean": -0.034014818161943294,
+        "standard_error": 0.029517231722381746,
+        "lower": -0.09186859233781151,
+        "upper": 0.023838956013924925,
+        "seeds": 4
+      }
+    },
+    {
+      "round": 3,
+      "selected": 1,
+      "paired_gain": {
+        "mean": 0.37786075238046934,
+        "standard_error": 0.15253097125449636,
+        "lower": 0.07890004872165651,
+        "upper": 0.6768214560392822,
+        "seeds": 4
+      }
+    }
+  ],
+  "maximums": {
+    "energy_residual": 0.0,
+    "power_residual": 7.105427357601002e-15,
+    "queue_residual": 3.389649672058681e-15,
+    "cash_residual": 3.552713678800501e-15,
+    "reward_residual": 0.0,
+    "oracle_maximum_absolute_residual": 3.552713678800501e-15,
+    "oracle_compared_fields": 764.0,
+    "gae_residual": 4.263256414560601e-14,
+    "behavior_logp_residual": 2.384185791015625e-06,
+    "post_clip_gradient_norm": 0.5000011137948579
+  },
+  "checkpoint_exact_replay": true,
+  "regression": {
+    "passed": 311,
+    "failures": 0,
+    "errors": 0,
+    "deselected": 6,
+    "ruff": "passed",
+    "diff_check": "passed"
+  },
+  "remaining_issue": "Training MC fitting improved; frozen validation Critic values remain high. Full-terminal sample RMSE 17.93 AUD. Training mid/late-month versus validation early-month tariff states differ; no additional training or test evaluation performed.",
+  "provenance_notes": [
+    "Default 48-scenario traversal was reordered during the run. Explicit pilot seeds 43/56/69 and their dates were unchanged; original experiment and end-of-run contracts are retained.",
+    "After the run, fit_values input tensors were detached to support reusable fixed-target Tensor callers. NumPy targets used in this run have identical numerical behavior. Final regression includes requires_grad targets.",
+    "Original full report is immutable. Delivery source hashes are recorded separately, including the frozen tail-check entry."
+  ],
+  "postrun_changed_sources": {
+    "RLAlgo/src/raymarl/algorithms/stackelberg/learner.py": {
+      "recorded_at_run_end": "78f6b5d2c307a789d24b2d022e610d7c939285d39283fde94f7711d322c1f7e6",
+      "delivery": "25c5a5374444bdeebb886b2084f6f19665fd00585f77af2060daa9048f199114"
+    }
+  },
+  "delivery_source_sha256": {
+    "RLAlgo/src/raymarl/algorithms/stackelberg/__init__.py": "53b1b1e6bf7518ff605e6a3db8423e65355c2eb7dd5f6207a9aa224e33ad18eb",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/algorithm.py": "551fb81aeeab51940ffabda6e9f1fb605492b9cb07e4adc931303080514f3b68",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/config.py": "1a789aa0bdba951f3a9ff32d26619b669148f738caac10b958532d0b21882088",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/contracts.py": "548cc5eafb2cf1ea6df5872a3dfb85c19aaaf107cfff78b930bda2ac22492c19",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/evaluation.py": "5101e8c01c48e77d15f32696d115eff90388d24abb806b2d24be512f90b8b364",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/inference.py": "d2a3e8aa2d13c6f1af9537243cc91fd5b479f8bb78791443ce2c8e1038c952e2",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/learner.py": "25c5a5374444bdeebb886b2084f6f19665fd00585f77af2060daa9048f199114",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/rl_module.py": "fe7734be825c7bded5b1f4338f4eba75eae94cff5937951d47945d3f24e04e38",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/runner.py": "e60633317f7663fa3efc8afaf925f81862ab5496d06bc762fb7b20cf0a672c98",
+    "experiments/sn_energy_market/ausgrid.py": "687a7f688d470ebe021eb850083e02b4c51e3cf95bcc788089288154b5398f18",
+    "experiments/sn_energy_market/calibrated_pilot.py": "a3701cdd98879ca74630c2896eceb3886b52a02f8cb5002a22d04eb7d7e9e214",
+    "experiments/sn_energy_market/check_value_tail.py": "0308800d37c1a170d34af2fe412d5145a8f7d20f44d720e094661e7cb2bcee4d",
+    "experiments/sn_energy_market/diagnose_capacity.py": "49c5b791e375a800ee7be55bfef6d74a841fe97fa588a95c1bbc541f9540ef08",
+    "experiments/sn_energy_market/diagnose_pilot.py": "a6866a2cf839bb7e0e6dc983e238c98c4311404055323fab1c4660e071f02d8f",
+    "experiments/sn_energy_market/pilot.py": "fb844b883158c8db03c2034a8db8519ad1cf0227a002684c03335541039fbd12",
+    "experiments/sn_energy_market/profile_dataset.py": "bfc79d59aac64d2fa3aa7804ac90de09e57e0a739ce12b377ebe50a4f819a40c",
+    "experiments/sn_energy_market/smoke_test.py": "b3ca466b7cce4773e45c604ab2c9a65a68bdb58b6015da373503de2fb111e01e",
+    "experiments/sn_energy_market/tests/test_ausgrid.py": "ccf8478a183b36b5c0bd14371bb4c3d6854aaf2fdef7eccb11596c4a0c91032e",
+    "experiments/sn_energy_market/tests/test_calibrated_pilot.py": "ee495b1c9ca60424993b6ca69b3a3ac82de8db5952924057dceb9a4fd5c07912",
+    "experiments/sn_energy_market/tests/test_pilot.py": "24988e52d5fc2d35db3164be7b7b51c38a170eaa2de7db541bb0fbe29087b4fd",
+    "experiments/sn_energy_market/tests/test_profile_dataset.py": "cb665a9b14513e4bfecf886c1937ba56132583e443955be87ac27fa1a6147dea",
+    "experiments/sn_energy_market/tests/test_training_dates.py": "8052373dad6ed8cb506cbf0bec72a68587f100e83d4320d3e0ab04ec633216be",
+    "experiments/sn_energy_market/tests/test_training_entry.py": "f377f4ebafd1269454d05d9003bb4706c5c6e5bf91ddbb57a674d58c7aa907f6",
+    "experiments/sn_energy_market/tests/test_training_env.py": "b01a16130d9807aba0d534487b5636879ab588f1fd985bb7fb121797bb95099e",
+    "experiments/sn_energy_market/tests/test_training_split_boundary.py": "ed0dc5c6221c106355b6312547870fadfe99aa84ba3b20d4daff838210fd594f",
+    "experiments/sn_energy_market/train.py": "f21af93bbad0e9a7ac06ef3ef74389281ff7a6325cf1fde72821975705f3058f",
+    "experiments/sn_energy_market/training_env.py": "98d421fd1f5c8a7f52b11cf4cef10162d9c18481410a9f239e2db5dc36e951cb",
+    "experiments/sn_energy_market/validate_dataset.py": "fb2a0be1996655e882dbd903bb8deb39c13322eb23805aba3b19b7d8bbf19b58",
+    "experiments/sn_energy_market/validate_v9.py": "9f96d91778a07f5c3f0e87d72a15856f08e8420f563e36334c04d05e52798598",
+    "experiments/sn_energy_market/validation_helpers.py": "330182a1ce65175a7af6c67e27236fa8eb8c91087c55869b1403fa40d64e24db"
+  },
+  "environment_source_sha256": {
+    "environments/sn_energy_market/src/snmarket/__init__.py": "1a2f61a17ba26e681ce4c37cb2f90c51f679bb81ee09298d888006810486ef3c",
+    "environments/sn_energy_market/src/snmarket/action.py": "3621fae375958b06eedd3d36dad1ab8c275106070eab35e039822b8a20174d38",
+    "environments/sn_energy_market/src/snmarket/config.py": "995d25390588566157510c6a088eca3f78e12891f5efda932e010cd5256ae1a3",
+    "environments/sn_energy_market/src/snmarket/consumer.py": "a05c84bc432cdbeedbaaf2d670ecf67a76d210a0a1bd2a8650feda17a3217946",
+    "environments/sn_energy_market/src/snmarket/contracts.py": "e9739885a622dc8d16a61e6d0197b35f7e9a0ebb681bde73002421284d06cf36",
+    "environments/sn_energy_market/src/snmarket/dr.py": "a28430b6b5feee788f51c02808157e7ef9df5c687922ac8ba92fd37332096845",
+    "environments/sn_energy_market/src/snmarket/engine.py": "2f96239cc4cbfd2c6bd29f9024274041886e40b265f90686cabce83798740656",
+    "environments/sn_energy_market/src/snmarket/incentive.py": "2adec800e2ab8288fe01134f25a80149579be472f00f1b65642a039aa8850089",
+    "environments/sn_energy_market/src/snmarket/market.py": "9fca257d83668aa2b7d344a214a597faa689b5eabce6da2d6d9c134906dcfb42",
+    "environments/sn_energy_market/src/snmarket/metrics.py": "e871324bbf045e43bbe95e81281ab61333aa8f88c3f3cd7c60d0a4c1110afe65",
+    "environments/sn_energy_market/src/snmarket/observation.py": "c3f15abbeeb9200f4d507bec73cc1ba48c847983de34c130a853b1fc3c620936",
+    "environments/sn_energy_market/src/snmarket/physics.py": "07540bf9b4c285563993ac530c9b74a599e96f537d4d729179ea96f8e3a3189b",
+    "environments/sn_energy_market/src/snmarket/profiles.py": "ef31c5771873bda8160398ca00be660dc1a24c9c89cd634ccf07a26a66bd00d3",
+    "environments/sn_energy_market/src/snmarket/reward.py": "ffa53c36e6dbcc5c697b51cd90b3635d7f9e2fea93034d18a1a343200e874d87",
+    "environments/sn_energy_market/src/snmarket/rllib_env.py": "bc4a8b33adb39578a86a0e940da9a89fffd77dc49ac537ca74b486dfb3410669",
+    "environments/sn_energy_market/src/snmarket/settlement.py": "762b9f22466a080e4dabb556f97a4328820505a99de2e58383b14fe1b7e51cf1",
+    "environments/sn_energy_market/src/snmarket/tariff.py": "e9833deadd2327d89bb28f0b8f21cee60a11b912f1a98dbc5d63d81ce13e0e5e",
+    "environments/sn_energy_market/src/snmarket/uc.py": "cff819b7a144c25054feb38906979698245e363b154020da320b87d9cc1ed993"
+  },
+  "artifact_sha256": {
+    "outputs/ausgrid-calibrated-pilot/20261019/experiment.json": "300c50e9611c5854c2291ae6b519b8ca90be1868d26d05607abe7459b22d0738",
+    "outputs/ausgrid-calibrated-pilot/20261019/report.json": "df7257d3297c670a0377d25c823db4b13f79d4e598a453162f0b76d8dbcba3f0",
+    "outputs/ausgrid-calibrated-pilot/20261019/critic_fit.json": "5a70ca073b4a2b776945dd50a945fd39509f23785c3a1f099248ca6321752033",
+    "outputs/ausgrid-calibrated-pilot/20261019/value_tail.json": "415b5d6f95dc30e0411a13f0a5ec9cddbbda56a5f8495fe2df2e783805caa11b",
+    "outputs/ausgrid-calibrated-pilot/20261019/optimizer_steps.json": "0f972c27067a301e341eeb2b65e487fbc05dea55302326613d3f220be7bcaf84",
+    "outputs/ausgrid-calibrated-pilot/regression-final.xml": "77b163cb109acec2665a8d3b82277d19d483e44281ba1104d92ed11a5e8fc358"
+  },
+  "artifacts": {
+    "directory": "outputs/ausgrid-calibrated-pilot/20261019",
+    "checkpoint": "outputs/ausgrid-calibrated-pilot/20261019/checkpoint",
+    "actors": "outputs/ausgrid-calibrated-pilot/20261019/actors"
+  }
+}
