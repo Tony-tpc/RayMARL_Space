@@ -6,7 +6,7 @@
 RayMARL/
   RLAlgo/
     src/raymarl/
-      algorithms/       # MAAC、MASAC、MADDPG、ISAC、MAPPO、IPPO
+      algorithms/       # 通用六算法与独立 stackelberg 双层算法包
       common/           # 网络、连接器、回放与运行管理
     tests/              # 算法测试
     docs/               # 架构、算法审计与验证记录
@@ -55,7 +55,13 @@ RayMARL/
 
 算法说明见 [RLAlgo/README.md](RLAlgo/README.md)，完整教学流程见 [运行示例](RLAlgo/examples/README.md)，本次整理验证见 [目录整理记录](RLAlgo/docs/layout.md)。
 
-新版博弈环境的安装、接口和验证方法见 [sn_energy_market 环境说明](environments/sn_energy_market/README.md)，逐项依据见 [v9 完整建模](environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。环境已采用六维 UC、四维 Consumer 物理动作；非学习验证由独立入口执行，集中 Critic 和双层训练另行实施。
+新版博弈环境的安装、接口和验证方法见 [sn_energy_market 环境说明](environments/sn_energy_market/README.md)，逐项依据见 [v9 完整建模](environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。环境采用六维 UC、四维 Consumer 物理动作。双层训练由独立 `stackelberg` 算法包实现，能源场景和运行入口位于 `experiments/sn_energy_market`，现有算法与公共运行逻辑保持独立。
+
+```powershell
+.\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/train.py --smoke
+```
+
+该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，验收结果见[训练验证报告](environments/sn_energy_market/docs/v9/training_validation_zh.md)。
 
 ## 本地版本管理
 

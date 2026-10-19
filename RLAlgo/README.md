@@ -15,6 +15,7 @@ src/raymarl/
     isac/       # 局部双 Q SAC
     mappo/      # 局部 Actor、集中 Value
     ippo/       # 局部 Actor、局部 Value
+    stackelberg/ # 独立双层 PPO 扩展，公告后响应与匹配候选评价
   common/       # 可复用网络、连接器、回放、优化器与运行管理
   distributions.py
   spaces.py
@@ -22,6 +23,8 @@ src/raymarl/
 ```
 
 每个算法目录包含 `algorithm.py`、`config.py`、`rl_module.py`、`learner.py`。公共层不根据算法名称选择损失或 Critic 模式。
+
+`stackelberg` 通过 `from raymarl.algorithms.stackelberg import StackelbergConfig` 显式使用，保持通用算法的导出和注册表独立。其采样协议、物理期 GAE、PPO 学习、配对评价、停止判据和 Actor 导出各自有单独接口；能源环境转换仅在实验适配器中实现。完整生命周期及实验参数见[能源市场训练说明](../experiments/sn_energy_market/TRAINING.md)。下文的通用算法配置示例与动作支持表仍描述原有六算法。
 
 ## 安装与训练
 

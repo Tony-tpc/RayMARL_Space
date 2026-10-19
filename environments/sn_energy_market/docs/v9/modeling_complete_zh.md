@@ -1,8 +1,8 @@
 # 基于 Stackelberg–Nash 博弈的六维 UC 调度与需求响应建模
 
 **版本：v9 · 公告供给充足性考核与按主体重排版**  
-**日期：2026-10-14**  
-**交付：完整 v9 环境、配置、两阶段适配接口、验证报告与离线 HTML；本轮完成环境实现和非学习验证。**
+**日期：2026-10-19**  
+**交付：完整 v9 环境、双层 PPO 训练、场景实验入口、验证报告与离线 HTML。**
 
 ## 研究主线与阅读约定
 
@@ -1167,6 +1167,24 @@ evaluate_frozen_pair(uc_policy, consumer_policies, held_out_test_scenarios)
 
 训练集用于学习策略，验证集用于选择候选，测试集用于冻结后的性能评价。伪代码将候选生成、消费者适应和响应后评价组织为一个可复查的训练流程；实现状态见第 23 节。
 
+### 14.8 当前实现与可复现实验协议
+
+训练实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg/`。`StackelbergConfig` 配置目标、预算和模块；`Stackelberg` 编排一次完整内外层更新；`StackelbergRLModule` 定义策略与价值；`StackelbergTorchLearner` 通过原生 RLlib `LearnerGroup` 更新参数。专用 `StackelbergEnvRunner` 接入原生 `EnvRunnerGroup`，每行经验对应一个完整物理时段。
+
+消费者采用条件 Beta 分布，在单位区间采样后仿射映射到当前物理区间，物理密度扣除区间宽度的对数 Jacobian。削减和移峰的已采样前缀作为后续分布条件，更新时直接使用轨迹中保存的前缀、边界与掩码。零宽维度是确定值，对联合 `log_prob` 的贡献为零。UC 使用第 13.2 节的原始高斯概率。双方 Actor 均使用两层 Tanh 网络，输入固定转换为带符号的 `log1p`；该转换在采集和更新中完全相同。
+
+每个参与者的 Actor 与 Value 有独立 Adam 优化器。消费者 Value 的集中输入按固定顺序拼接 UC 聚合观测和本轮所有消费者的公告后观测，维度为 `(H+20)+N(H+24)`。各户 Actor 只读取本人观测，UC Actor 与 Value 只读取 UC 聚合观测。PPO 每批先固定 GAE、价值目标及行为概率，再按参与者对整批优势归一化一次；价值目标保持元等值尺度。学习器只更新本阶段选中的模块。
+
+采样切片结束时，采集器暂存环境及随机状态，生成下一轮 UC 公告以计算消费者 bootstrap，再恢复该状态。这样下一批在新的策略参数下重新生成公告，队列、SOC 和日历继续承接上一物理时段。真正终止使用零 bootstrap。连续数据不足以构造下一决策时，调用方先显式追加相邻数据。
+
+每轮包含当前 UC 和若干 PPO 更新后的 UC 候选。所有候选使用同一参考消费者参数、Adam 状态、响应更新次数和训练种子起点；验证使用相同外生轨迹与随机采样种子。对各候选逐场景计算相对当前 UC 的收益差，以均值和配对标准误构造正态近似区间。默认系数为 1.96，仅当区间下界超过 `min_uc_gain`（默认 0）时接受改进候选；多个候选符合时选择均值最大者，其余情况选择已重新响应的当前 UC。现金、实际服务、失供、DR 和消费者成本随候选一起报告。
+
+有限期评价累计至真正终止，包含一次终端追加项。连续运行或显式截断评价使用同一起点、同一长度窗口内的实际折扣回报作为候选与偏离比较量；带 Critic 尾值的估计单独记录，避免不同候选的价值拟合误差直接改变排序。固定窗口是无限期目标的截断估计，实验通过增加窗口长度检验尾部影响；若单期奖励绝对值上界为 $M$，长度 $L$ 的单策略尾部绝对误差不超过 $\gamma^L M/(1-\gamma)$。训练切片的 GAE 仍使用下一决策时刻的 bootstrap。
+
+消费者单边偏离分别在候选生成前和最终选中策略组上搜索，每次只更新一户，并恢复其余策略和原训练状态。联合停止检查最终策略组的已发现消费者改进、UC 候选改进、Actor 参数均方根变化及配对区间半宽，连续满足 `stopping_patience` 轮后建议停止；外层预算始终给出运行上限。默认阈值分别为 0.1 元等值、0.1 元等值、0.001 和 0.1 元等值，连续轮数为 3，实验可以按场景规模设置。有限搜索与近似区间用于训练诊断，均衡质量由搜索预算和样本精度共同界定。
+
+完整 checkpoint 保存网络、优化器、采集环境、随机状态、进度及停止计数，同时绑定模型、折扣、学习与响应预算、数据切分和场景生成规则。恢复前核对这一训练契约；设备和输出位置属于运行配置。独立 Actor 导出仅包含策略参数与输入规格，可通过同一策略输出接口执行。场景、市场适配和入口位于 `experiments/sn_energy_market/`，算法通过结构化接口调用它们，现有算法和公共训练框架保持独立。运行命令、参数及产物见[训练与评价说明](../../../../experiments/sn_energy_market/TRAINING.md)。
+
 ---
 
 # 第六部分　工程接口与环境验收
@@ -1250,7 +1268,7 @@ class ConsumerAction:
 | `Ledger` | 电费、补偿、赔偿、外部现金、经营成本、公告供给考核、估值与终端 |
 | `StateDelta` | 下一状态、奖励、终止、阶段与 transition ID |
 
-不同阶段的数据保留自己的语义。例如 `repay_requested_kw` 与 `repay_served_kw` 分别进入激励和队列；`grid_import_offer_kw` 与 `grid_import_actual_kw` 分别描述决策和使用量。
+不同阶段的数据保留自己的语义。例如请求回补由 `max(-action.signed_shift_kw, 0)` 计算，实际回补记录为 `LoadService.repay_actual_kw`，二者分别进入激励和队列；`UCAction.grid_import_offer_kw` 与 `PhysicalExecution.grid_buy_kw` 分别描述决策和使用量。
 
 ### 16.3 张量、掩码与任务结构
 
@@ -1274,15 +1292,15 @@ FIFO 列表由模拟器管理，训练状态编码按固定方法读取。UC 内
 
 | 阶段 | 接口 | 结果 |
 |---|---|---|
-| 冻结 | `freeze_inputs(state)` | 本期数据、价格和入期状态 |
-| UC 行动 | `validate_and_publish_uc_action(...)` | 六维行动和两池公告 |
-| 本地可行域 | `build_local_bounds(...)` | 本人条件边界 |
-| 请求 | `validate_consumer_actions(...)` | 校验后的分层订单 |
-| 市场 | `clear_announced_capacities(...)` | 两层成交和缺口 |
-| 物理与服务 | `execute_offers_and_fifo(...)` | 资源使用和任务完成 |
-| DR | `measure_requested_net_dr(...)` | 有符号净量与采购 |
-| 结算 | `settle_cash_and_costs(...)` | 资金和经济成本 |
-| 提交 | `commit_once(candidate)` | 唯一下一状态 |
+| 期初读取 | `engine.state`、`engine.uc_observation()` | 本期数据、价格和入期状态 |
+| UC 行动 | `engine.apply_uc_action(...)`、`uc.prepare_offer(...)` | 六维行动和两池公告 |
+| 本地可行域 | `action.build_local_bounds(...)` | 本人条件边界 |
+| 请求 | `action.prepare_order(...)` | 校验后的分层订单 |
+| 市场 | `market.clear(...)` | 两层成交和缺口 |
+| 物理与服务 | `physics.execute(...)`、`dr.realize_service(...)` | 资源使用和任务完成 |
+| DR | `incentive.procure(...)` | 有符号净量与采购 |
+| 结算 | `settlement.settle(...)`、`reward.calculate_rewards(...)` | 资金、经济成本和奖励 |
+| 提交 | `engine.commit(delta)` | 唯一下一状态与执行记录 |
 
 ### 17.2 边界与校验
 
@@ -1324,20 +1342,12 @@ for layer in ("necessary", "early_repayment"):
 ### 18.1 单物理期编排
 
 ```python
-frozen = freeze_inputs(state)
-offer = validate_and_publish_uc_action(frozen, uc_action)
-orders = validate_consumer_actions(offer, consumer_actions)
-market = clear_announced_capacities(orders, offer)
-physical = execute_offers_and_fifo(frozen, offer, market)
-dr = measure_requested_net_dr(orders, offer)
-cash, costs = settle_cash_and_costs(frozen, offer, market, physical, dr)
-reward = build_rewards_and_true_terminal_values(cash, costs, physical)
-candidate = build_next_state(frozen, physical, cash, reward)
-validate_invariants_and_action_preservation(candidate, offer, physical, dr)
-new_state = commit_once(candidate)
+consumer_observations = engine.apply_uc_action(uc_action)
+delta = engine.evaluate_consumer_actions(consumer_actions, transition_id=transition_id)
+record = engine.commit(delta)
 ```
 
-全部奖励、终端和下一状态形成候选，再进行唯一提交。执行检查包括原行动保留、来源上限、SOC、任务、支付和终止。
+`evaluate_consumer_actions` 按第 17.1 节顺序构造订单、出清、执行物理资源、更新 FIFO、计量 DR 和结算，形成包含奖励、终端和下一状态的 `StateDelta`，再通过 `commit` 唯一提交。执行检查包括原行动保留、来源上限、SOC、任务、支付和终止。
 
 ### 18.2 动态行动者与时钟
 
@@ -1488,7 +1498,7 @@ PG 削峰使用相同外生轨迹及明确基准策略作配对比较，同时�
 
 UC 联合域使 $p^{DER,cap},p^{UC,cap}$ 非负，并满足来源和 SOC 边界。市场各层使用剩余容量，跨来源补配使公告容量得到充分利用，形成式（22）的总服务量。
 
-实际使用服从原额度，固定充电保持决策值，主动弃电与未售余量构成实际弃电。式（23）—（7）给出统一的能量平衡。DR 个体补偿求和等于式（18）的全体补偿金额，现金按对手方求和得到完整转账一致性。
+实际使用服从原额度，固定充电保持决策值，主动弃电与未售余量构成实际弃电。式（23）—（26）给出统一的能量平衡。DR 个体补偿求和等于式（18）的全体补偿金额，现金按对手方求和得到完整转账一致性。
 
 ### 22.3 固定响应下的服务成本条件
 
@@ -1564,15 +1574,16 @@ $$
 | 独立机制参考 | 当前奖励和账本有独立实现 | 100,000 个静态生产场景逐字段对照 |
 | v9 环境迁移 | 已完成并通过生产验证 | [实施与验证报告](implementation_validation_zh.md) |
 | 两阶段环境适配 | 原生 MultiAgentEpisode 调用验证通过 | UC 公告冻结，Consumer 齐备后推进；真实终止与连续数据耗尽分开处理 |
-| 随机策略分布、网络与 Learner | 本轮未实施 | 后续按第 12—14 章实现并单独验收概率、梯度和学习生命周期 |
-| 学习策略与均衡 | 待实验 | 消费者重新响应、偏离搜索、UC 适应与冻结测试集 |
+| 随机策略分布、网络与 Learner | 已实现原生 RLlib 双层 PPO | 原始 UC 高斯、消费者条件 Beta、独立 Actor/Value、物理期 GAE 与冻结模块更新 |
+| 重新响应与候选选择 | 已实现匹配训练预算、配对评价及完整回退 | [训练协议及运行方式](../../../../experiments/sn_energy_market/TRAINING.md) |
+| 学习生命周期与均衡诊断 | 支持训练、偏离搜索、联合停止、恢复续训及独立推理 | [训练实施与验证报告](training_validation_zh.md)；性能与均衡质量按正式实验预算评价 |
 | 文档交付 | Markdown 与离线 HTML 同步 | 本轮仅更新实施状态和证据，数学公式保持 |
 
 环境保留两阶段、原子提交与快照恢复骨架。UC 使用六维物理动作，Consumer 使用四维物理动作；旧五维 UC 输入、旧报价字段、旧快照与旧配置均明确拒绝。备用供电、UC 竞价、自放电和自动调度覆盖已退出生产运行链。
 
 执行记录保存入期状态、双方观测、条件边界、原行动、公告、分层成交、实际服务、FIFO、完整账本及供给容量减少分解。个人诊断通过独立接口读取；UC 观测与公开反馈仅包含聚合信息。数据来源元信息、任务 ID 和配置分时窗一并保存，支持跨月、显式追加数据和确定性恢复。
 
-修改前的环境快照及哈希保存在 `outputs/snmarket-validation/v5-baseline-20261018-204139/`。RLAlgo 和历史模型、原文档核验脚本保留；当前生产验收使用新入口。旧“生产代码未改动”哈希断言对应文档修订阶段，不能用于验收本次迁移。
+修改前的环境快照及哈希保存在 `outputs/snmarket-validation/v5-baseline-20261018-204139/`。历史模型和原文档核验脚本保留；当前环境与训练分别使用对应验收入口。旧“生产代码未改动”哈希断言对应文档修订阶段，当前实现由各次验证报告的源码清单定位。
 
 ## 24. 机制核验结果与旧问题复查
 

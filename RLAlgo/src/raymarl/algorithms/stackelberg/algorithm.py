@@ -1,0 +1,252 @@
+"""Native RLlib lifecycle with matched-response leader candidate selection."""
+
+import copy
+import json
+from pathlib import Path
+
+from ray.rllib.algorithms.algorithm import Algorithm
+from ray.rllib.policy.sample_batch import MultiAgentBatch
+from ray.rllib.utils.metrics import LEARNER_RESULTS, NUM_ENV_STEPS_SAMPLED_LIFETIME
+
+from raymarl.common.algorithm import NativeAlgorithmMixin
+
+from .evaluation import (
+    actor_parameter_change,
+    paired_gain,
+    select_candidate,
+    stopping_status,
+    summarize_evaluation,
+)
+from .runner import random_state, restore_random_state
+
+
+class Stackelberg(NativeAlgorithmMixin, Algorithm):
+    """One train() call completes one lower/upper response-evaluation round."""
+
+    def _setup_logdir(self):
+        # Local execution writes directly to the requested output directory and
+        # leaves the caller's working directory available to scenario factories.
+        self._logdir = str(Path(self._storage.trial_fs_path).resolve())
+        Path(self._logdir).mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def get_default_config(cls):
+        from .config import StackelbergConfig
+
+        return StackelbergConfig(algo_class=cls)
+
+    def setup(self, config):
+        super().setup(config)
+        self.sampled_periods = self.evaluated_periods = self.completed_updates = self.outer_round = 0
+        self.last_round = None
+        self.stable_rounds = 0
+
+    @property
+    def consumer_ids(self):
+        return tuple(key for key in self.config.agent_order if key != "uc")
+
+    def _sync(self):
+        self.env_runner.module.set_state(self.learner_group.get_weights())
+
+    def _snapshot(self):
+        return copy.deepcopy(
+            {
+                "learner": self.learner_group.get_state(),
+                "runner": self.env_runner.get_state(),
+                "rng": random_state(),
+            }
+        )
+
+    def _restore(self, snapshot):
+        self.learner_group.set_state(copy.deepcopy(snapshot["learner"]))
+        self.env_runner.set_state(copy.deepcopy(snapshot["runner"]))
+        self._sync()
+        restore_random_state(snapshot["rng"])
+
+    def _adapt(self, module_ids, updates, *, seed=None):
+        if seed is not None:
+            self.env_runner.restart(seed)
+        for _ in range(updates):
+            batch = self.env_runner.collect(self.config.rollout_length)
+            selected = MultiAgentBatch({key: batch.policy_batches[key] for key in module_ids}, batch.count)
+            if self.config.normalize_advantages:
+                for data in selected.policy_batches.values():
+                    advantage = data["advantages"]
+                    data["advantages"] = (advantage - advantage.mean()) / max(advantage.std(), 1e-8)
+            result = self.learner_group.update(
+                batch=selected,
+                num_epochs=self.config.num_epochs,
+                minibatch_size=self.config.minibatch_size,
+                shuffle_batch_per_epoch=True,
+                timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
+            )
+            measured = {
+                "policy_loss",
+                "value_loss",
+                "total_loss",
+                "entropy",
+                "clip_fraction",
+                "approx_kl",
+                "grad_norm",
+                "actor_learning_rate",
+                "value_learning_rate",
+            }
+            # RLlib also returns empty statistics for frozen modules. Aggregate
+            # only measurements made by this update, keeping reports finite.
+            current = [
+                {
+                    key: {name: value for name, value in update[key].items() if name in measured}
+                    for key in module_ids
+                }
+                for update in result
+            ]
+            self.metrics.aggregate(current, key=LEARNER_RESULTS)
+            self.sampled_periods += batch.count
+            self.completed_updates += 1
+            self._sync()
+
+    def _evaluate(self, seeds, deterministic=False):
+        rows = self.env_runner.evaluate(
+            seeds, steps=self.config.evaluation_steps, deterministic=deterministic
+        )
+        self.evaluated_periods += sum(row["physical_periods"] for row in rows)
+        return rows
+
+    def evaluate_pair(self, seeds=None, *, deterministic=False):
+        """Frozen policy performance; default split is the held-out test set."""
+        rows = self._evaluate(self.config.test_seeds if seeds is None else seeds, deterministic)
+        return {"rows": rows, "summary": summarize_evaluation(rows), "deterministic": deterministic}
+
+    def search_deviations(self):
+        """Train one consumer at a time with every other policy fixed, then restore."""
+        if self.config.deviation_updates == 0:
+            return {"searched": False, "per_consumer": {}, "maximum_found_gain": None}
+        reference = self._snapshot()
+        baseline = self._evaluate(self.config.validation_seeds)
+        results = {}
+        seed = self.config.train_seeds[self.outer_round % len(self.config.train_seeds)]
+        try:
+            for key in self.consumer_ids:
+                self._restore(reference)
+                self._adapt((key,), self.config.deviation_updates, seed=seed)
+                rows = self._evaluate(self.config.validation_seeds)
+                result = paired_gain(rows, baseline, agent=key, z=self.config.acceptance_z)
+                results[key] = {**result, "found_gain": max(0.0, result["mean"])}
+        finally:
+            self._restore(reference)
+        return {
+            "searched": True,
+            "per_consumer": results,
+            "maximum_found_gain": max(item["found_gain"] for item in results.values()),
+            "updates_per_consumer": self.config.deviation_updates,
+            "validation_seeds": list(self.config.validation_seeds),
+        }
+
+    def training_step(self):
+        cfg = self.config
+        starting_weights = copy.deepcopy(self.learner_group.get_weights())
+        seed = cfg.train_seeds[self.outer_round % len(cfg.train_seeds)]
+        self._adapt(self.consumer_ids, cfg.inner_updates, seed=seed)
+        deviations = self.search_deviations()
+        reference = self._snapshot()
+        candidates = [reference]
+        self.env_runner.restart(seed)
+        for _ in range(cfg.uc_candidates):
+            self._adapt(("uc",), cfg.uc_updates_per_candidate)
+            candidates.append(self._snapshot())
+
+        evaluated, pairs = [], []
+        for candidate in candidates:
+            # Consumer parameters AND Adam moments come from the same reference.
+            # UC proposal updates touched only the UC module and its optimizers.
+            self._restore(candidate)
+            restore_random_state(reference["rng"])
+            self._adapt(self.consumer_ids, cfg.response_updates, seed=seed)
+            evaluated.append(self._evaluate(cfg.validation_seeds))
+            pairs.append(self._snapshot())
+        selected, gains = select_candidate(evaluated, z=cfg.acceptance_z, min_gain=cfg.min_uc_gain)
+        self._restore(pairs[selected])
+        final_deviations = self.search_deviations()
+        policy_change = actor_parameter_change(starting_weights, self.learner_group.get_weights())
+        stopping = stopping_status(final_deviations, gains, policy_change, cfg.stopping_tolerances)
+        self.stable_rounds = self.stable_rounds + 1 if stopping["passed"] else 0
+        self.outer_round += 1
+        self.last_round = {
+            "outer_round": self.outer_round,
+            "selected_candidate": selected,
+            "candidate_accepted": selected != 0,
+            "candidates": [
+                {
+                    "index": i,
+                    "paired_uc_gain": gains[i],
+                    "evaluation": summarize_evaluation(rows),
+                    "rows": rows,
+                }
+                for i, rows in enumerate(evaluated)
+            ],
+            "consumer_deviations_before_proposal": deviations,
+            "consumer_deviations_selected_pair": final_deviations,
+            "policy_change": policy_change,
+            "stopping": {**stopping, "stable_rounds": self.stable_rounds, "patience": cfg.stopping_patience},
+            "stop_recommended": cfg.stopping_patience > 0 and self.stable_rounds >= cfg.stopping_patience,
+            "maximum_found_uc_gain": max(0.0, max(item["mean"] for item in gains)),
+            "budget": {
+                "inner_updates": cfg.inner_updates,
+                "response_updates_per_candidate": cfg.response_updates,
+                "proposal_updates_per_candidate": cfg.uc_updates_per_candidate,
+                "physical_periods_per_update": cfg.rollout_length,
+                "ppo_epochs": cfg.num_epochs,
+                "minibatch_size": cfg.minibatch_size,
+            },
+            "sampled_periods_lifetime": self.sampled_periods,
+            "evaluated_periods_lifetime": self.evaluated_periods,
+            "updates_lifetime": self.completed_updates,
+        }
+        self.metrics.log_value(NUM_ENV_STEPS_SAMPLED_LIFETIME, self.sampled_periods, window=1)
+        self.metrics.log_value("num_updates_lifetime", self.completed_updates, window=1)
+        self.metrics.log_value("selected_candidate", selected, window=1)
+        self.metrics.log_value(
+            "response_uc_return", summarize_evaluation(evaluated[selected])["returns"]["uc"], window=1
+        )
+        path = Path(self.logdir) / "rounds.jsonl"
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(self.last_round, ensure_ascii=False, allow_nan=False) + "\n")
+
+    def get_state(self, *args, **kwargs):
+        state = super().get_state(*args, **kwargs)
+        state["learning_contract"] = self.config.learning_contract()
+        state["stackelberg_runtime"] = {
+            "sampled_periods": self.sampled_periods,
+            "evaluated_periods": self.evaluated_periods,
+            "completed_updates": self.completed_updates,
+            "outer_round": self.outer_round,
+            "last_round": copy.deepcopy(self.last_round),
+            "stable_rounds": self.stable_rounds,
+        }
+        return state
+
+    def set_state(self, state):
+        if state["learning_contract"] != self.config.learning_contract():
+            raise ValueError("Checkpoint learning contract differs from the configured model/scenarios")
+        super().set_state(state)
+        for key, value in state["stackelberg_runtime"].items():
+            setattr(self, key, copy.deepcopy(value))
+        self._sync()
+
+    def save_to_path(self, path=None, **kwargs):
+        saved = super().save_to_path(path, **kwargs)
+        (Path(saved) / "learning_contract.json").write_text(
+            json.dumps(self.config.learning_contract(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return saved
+
+    def restore_from_path(self, path, *args, **kwargs):
+        contract = json.loads((Path(path) / "learning_contract.json").read_text(encoding="utf-8"))
+        if contract != self.config.learning_contract():
+            raise ValueError("Checkpoint learning contract differs from the configured model/scenarios")
+        return super().restore_from_path(path, *args, **kwargs)
+
+    def export_actors(self, path):
+        from .inference import export_actors
+
+        return export_actors(self, path)

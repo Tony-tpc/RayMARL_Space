@@ -1,0 +1,325 @@
+"""Physical-period sampling for the leader announcement and follower response."""
+
+from __future__ import annotations
+
+import copy
+import random
+
+import gymnasium as gym
+import numpy as np
+import torch
+from ray.rllib.core import COMPONENT_RL_MODULE
+from ray.rllib.env.env_runner import EnvRunner
+from ray.rllib.policy.sample_batch import MultiAgentBatch, SampleBatch
+from ray.rllib.utils.checkpoints import Checkpointable
+from ray.rllib.utils.metrics import NUM_ENV_STEPS_SAMPLED_LIFETIME
+
+from .contracts import TrainingEnvironment
+
+
+def random_state():
+    return {
+        "torch": torch.get_rng_state().clone(),
+        "numpy": np.random.get_state(),
+        "python": random.getstate(),
+        "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+    }
+
+
+def restore_random_state(state):
+    torch.set_rng_state(torch.as_tensor(state["torch"], dtype=torch.uint8).cpu())
+    np.random.set_state(state["numpy"])
+    random.setstate(state["python"])
+    if state["cuda"] is not None:
+        torch.cuda.set_rng_state_all(state["cuda"])
+
+
+def generalized_advantages(rewards, values, next_values, terminated, gamma, lambda_gae):
+    """One discount per physical period; segment ends bootstrap but stop recursion."""
+    rewards, values, next_values = [np.asarray(x, dtype=np.float64) for x in (rewards, values, next_values)]
+    terminated = np.asarray(terminated, dtype=bool)
+    advantages = np.empty_like(rewards)
+    carry = 0.0
+    for index in range(len(rewards) - 1, -1, -1):
+        continuation = float(not terminated[index])
+        delta = rewards[index] + gamma * continuation * next_values[index] - values[index]
+        carry = delta + gamma * lambda_gae * continuation * carry
+        advantages[index] = carry
+    return advantages, advantages + values
+
+
+class StackelbergEnvRunner(EnvRunner, Checkpointable):
+    """A local native EnvRunner whose rows each represent a complete physical period.
+
+    Sampling always leaves the real environment before the next UC announcement.
+    A temporary announcement supplies a segment-end Consumer bootstrap value; its
+    environment and random state are then restored, so an update cannot leave a stale
+    UC action pending for the next batch.
+    """
+
+    env: TrainingEnvironment
+
+    def __init__(self, *, config, **kwargs):
+        super().__init__(config=config, **kwargs)
+        self._train_seed_index = 0
+        self._scenario_seed = int(self.config.train_seeds[0])
+        self._weights_seq_no = 0
+        self.restart(self._scenario_seed)
+        self.module = self.config.get_multi_rl_module_spec(
+            spaces=self.get_spaces(), inference_only=False
+        ).build()
+        self.last_metrics = {}
+
+    def assert_healthy(self):
+        assert self.env is not None and self.module is not None
+
+    def get_spaces(self):
+        box = lambda size, dtype=np.float32: gym.spaces.Box(-np.inf, np.inf, (size,), dtype)
+        return {
+            "uc": (box(self.env.uc_observation_dim), box(6, np.float64)),
+            **{
+                key: (box(self.env.consumer_observation_dim), box(4, np.float64))
+                for key in self.env.consumer_ids
+            },
+        }
+
+    @property
+    def agent_ids(self):
+        return ("uc", *self.env.consumer_ids)
+
+    def restart(self, seed):
+        """Start an explicit scenario while retaining lifetime sampling counters."""
+        self._scenario_seed = int(seed)
+        if seed in self.config.train_seeds:
+            self._train_seed_index = self.config.train_seeds.index(seed)
+        self.env = self.config.scenario_factory(self._scenario_seed)
+        self._observation = self.env.reset(self._scenario_seed)
+        self._terminated = self._data_exhausted = False
+        torch.manual_seed(self._scenario_seed)
+        np.random.seed(self._scenario_seed)
+        random.seed(self._scenario_seed)
+
+    def _start_next_episode(self):
+        index = (self._train_seed_index + 1) % len(self.config.train_seeds)
+        self.restart(self.config.train_seeds[index])
+
+    def append_profiles(self, profiles):
+        self._observation = self.env.append_profiles(profiles)
+        self._data_exhausted = False
+
+    def _tensor(self, key, value, *, dtype=torch.float32):
+        device = next(self.module[key].parameters()).device
+        return torch.as_tensor(value, device=device, dtype=dtype).unsqueeze(0)
+
+    def _draw(self, key, observation, bounds=None, deterministic=False):
+        with torch.no_grad():
+            output = self.module[key].draw(
+                self._tensor(key, observation),
+                None if bounds is None else self._tensor(key, bounds, dtype=torch.float64),
+                deterministic=deterministic,
+            )
+        return {name: value.detach().cpu().numpy()[0].copy() for name, value in output.items()}
+
+    def _value(self, key, observation, critic_observation):
+        with torch.no_grad():
+            value = self.module[key].compute_values(
+                {
+                    "obs": self._tensor(key, observation),
+                    "critic_obs": self._tensor(key, critic_observation),
+                }
+            )
+        return float(value.item())
+
+    def _announce(self, deterministic):
+        sample = self._draw("uc", self._observation, deterministic=deterministic)
+        decision = self.env.publish(sample["raw_latents"])
+        sample["actions"] = decision.uc_action
+        sample["mapping_context"] = np.asarray(list(decision.mapping_context.values()), dtype=np.float64)
+        sample.update(
+            obs=decision.uc_observation,
+            critic_obs=decision.uc_observation,
+            bounds=np.zeros(13),
+            vf_preds=self._value("uc", decision.uc_observation, decision.uc_observation),
+        )
+        return sample, decision
+
+    def bootstrap_values(self, *, deterministic=False):
+        """Estimate both next decision values without consuming an action or RNG draw."""
+        if self._terminated:
+            return {key: 0.0 for key in self.agent_ids}
+        if self._data_exhausted:
+            raise RuntimeError("Continuous data exhausted: append profiles before value bootstrapping")
+        snapshot, rng = self.env.get_state(), random_state()
+        try:
+            sample, decision = self._announce(deterministic)
+            return {
+                "uc": sample["vf_preds"],
+                **{
+                    key: self._value(key, decision.consumer_observations[key], decision.consumer_value_state)
+                    for key in self.env.consumer_ids
+                },
+            }
+        finally:
+            self.env.set_state(snapshot)
+            restore_random_state(rng)
+
+    def _period(self, *, deterministic=False):
+        if self._data_exhausted:
+            raise RuntimeError("Continuous data exhausted: append profiles before collecting another period")
+        uc_sample, decision = self._announce(deterministic)
+        samples = {"uc": uc_sample}
+        actions = {}
+        for key in self.env.consumer_ids:
+            observation = decision.consumer_observations[key]
+            bounds = decision.consumer_bounds[key]
+            sample = self._draw(key, observation, bounds, deterministic)
+            sample.update(
+                obs=observation,
+                critic_obs=decision.consumer_value_state,
+                bounds=bounds,
+                vf_preds=self._value(key, observation, decision.consumer_value_state),
+            )
+            samples[key] = sample
+            actions[key] = sample["actions"]
+        result = self.env.step(actions)
+        self._observation = result.next_uc_observation
+        self._terminated, self._data_exhausted = result.terminated, result.data_exhausted
+        self.num_env_steps_sampled_lifetime += 1
+        for key, sample in samples.items():
+            sample.update(
+                rewards=result.rewards[key],
+                terminateds=result.terminated,
+                truncateds=False,
+                period_id=decision.period_id,
+                scenario_seed=self._scenario_seed,
+            )
+        return samples, result
+
+    def collect(self, steps, *, deterministic=False):
+        rows = {key: [] for key in self.agent_ids}
+        totals = {}
+        for _ in range(steps):
+            if self._terminated:
+                self._start_next_episode()
+            samples, result = self._period(deterministic=deterministic)
+            for key, sample in samples.items():
+                if rows[key] and not rows[key][-1]["terminateds"]:
+                    rows[key][-1]["next_vf_preds"] = sample["vf_preds"]
+                sample["next_vf_preds"] = 0.0
+                rows[key].append(sample)
+            for name, value in result.metrics.items():
+                totals[name] = totals.get(name, 0.0) + value
+        next_values = self.bootstrap_values(deterministic=deterministic)
+        batches = {}
+        for key, samples in rows.items():
+            samples[-1]["next_vf_preds"] = next_values[key]
+            samples[-1]["truncateds"] = not samples[-1]["terminateds"]
+            data = {name: np.asarray([sample[name] for sample in samples]) for name in samples[0]}
+            data["advantages"], data["value_targets"] = generalized_advantages(
+                data["rewards"],
+                data["vf_preds"],
+                data["next_vf_preds"],
+                data["terminateds"],
+                self.config.gamma,
+                self.config.lambda_gae,
+            )
+            batches[key] = SampleBatch(data)
+        self.last_metrics = totals
+        return MultiAgentBatch(batches, steps)
+
+    def sample(self, *, num_timesteps=None, **kwargs):
+        return self.collect(num_timesteps or self.config.rollout_length)
+
+    def evaluate(self, seeds, *, steps=None, deterministic=False):
+        """Compare sampled returns; report value-bootstrap estimates separately.
+
+        Candidate and deviation comparisons use only realized window rewards.
+        The diagnostic estimate must not let a candidate's own critic change its
+        evaluation score. Training GAE retains its decision-time bootstrap.
+        """
+        state = self.get_state()
+        rows = []
+        try:
+            for seed in seeds:
+                self.restart(seed)
+                returns = {key: 0.0 for key in self.agent_ids}
+                totals, period = {}, 0
+                while not self._terminated and (steps is None or period < steps):
+                    _, result = self._period(deterministic=deterministic)
+                    for key, reward in result.rewards.items():
+                        returns[key] += self.config.gamma**period * reward
+                    for key, value in result.metrics.items():
+                        totals[key] = totals.get(key, 0.0) + value
+                    period += 1
+                bootstrap = self.bootstrap_values(deterministic=deterministic)
+                estimated_returns = {
+                    key: value + self.config.gamma**period * bootstrap[key] for key, value in returns.items()
+                }
+                native = totals.get("native_requested_kwh", 0.0)
+                rows.append(
+                    {
+                        "seed": seed,
+                        "returns": returns,
+                        "bootstrap_estimated_returns": estimated_returns,
+                        "bootstrap_values": bootstrap,
+                        "terminated": self._terminated,
+                        "cash_profit": totals.get("uc_cash", 0.0),
+                        "native_lost_kwh": totals.get("native_lost_kwh", 0.0),
+                        "served_kwh": totals.get("served_kwh", 0.0),
+                        "consumer_cost": totals.get("consumer_cost", 0.0),
+                        "total_dr_payment": totals.get("dr_payment", 0.0),
+                        "service_rate": 1.0 - totals.get("native_lost_kwh", 0.0) / native if native else 1.0,
+                        "physical_periods": period,
+                        "bootstrap_used": not self._terminated,
+                        "metrics": totals,
+                    }
+                )
+        finally:
+            self.set_state(state)
+        return rows
+
+    def get_metrics(self):
+        self.metrics.log_value(NUM_ENV_STEPS_SAMPLED_LIFETIME, self.num_env_steps_sampled_lifetime, window=1)
+        return self.metrics.reduce()
+
+    def get_state(self, components=None, *, not_components=None, **kwargs):
+        state = {}
+        if self._check_component(COMPONENT_RL_MODULE, components, not_components):
+            state[COMPONENT_RL_MODULE] = self.module.get_state()
+            state["weights_seq_no"] = self._weights_seq_no
+        if self._check_component("sampling", components, not_components):
+            state["sampling"] = {
+                "environment": self.env.get_state(),
+                "observation": self._observation,
+                "terminated": self._terminated,
+                "data_exhausted": self._data_exhausted,
+                "scenario_seed": self._scenario_seed,
+                "train_seed_index": self._train_seed_index,
+                "rng": random_state(),
+                "last_metrics": self.last_metrics,
+                "sampled_periods": self.num_env_steps_sampled_lifetime,
+            }
+        return copy.deepcopy(state)
+
+    def set_state(self, state):
+        if COMPONENT_RL_MODULE in state:
+            self.module.set_state(state[COMPONENT_RL_MODULE])
+            self._weights_seq_no = state.get("weights_seq_no", 0)
+        if NUM_ENV_STEPS_SAMPLED_LIFETIME in state:
+            self.num_env_steps_sampled_lifetime = state[NUM_ENV_STEPS_SAMPLED_LIFETIME]
+        if "sampling" in state:
+            saved = state["sampling"]
+            self.restart(saved["scenario_seed"])
+            self.env.set_state(saved["environment"])
+            self._observation = copy.deepcopy(saved["observation"])
+            self._terminated, self._data_exhausted = saved["terminated"], saved["data_exhausted"]
+            self._train_seed_index = saved["train_seed_index"]
+            self.last_metrics = copy.deepcopy(saved["last_metrics"])
+            self.num_env_steps_sampled_lifetime = saved["sampled_periods"]
+            restore_random_state(saved["rng"])
+
+    def get_ctor_args_and_kwargs(self):
+        return (), {"config": self.config, "worker_index": self.worker_index}
+
+    def stop(self):
+        self.env = None

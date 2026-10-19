@@ -1,6 +1,8 @@
 # v9 六维 UC 调度环境与建模
 
-提交 `33f27b7` 的[完整规模复验与一致性审查](full_validation_current_commit_zh.md)已完成：207 项测试、100,000 组静态独立对照、10,000 组非法输入、1,094,400 个动态物理时段全部通过；未发现 v5 兼容运行分支，三处文档接口名称／引用差异单独列明。[机器汇总](full_validation_current_commit.json)绑定此次提交、来源及全部批次哈希。
+提交 `33f27b7` 的[完整规模复验与一致性审查](full_validation_current_commit_zh.md)已完成：207 项测试、100,000 组静态独立对照、10,000 组非法输入、1,094,400 个动态物理时段全部通过；未发现 v5 兼容运行分支。[机器汇总](full_validation_current_commit.json)绑定此次提交、来源及全部批次哈希。当时列明的三处文档接口名称／引用差异已在当前正文中对齐。
+
+当前已增加原生 RLlib 双层训练，详细接口和运行方式见[训练说明](../../../../experiments/sn_energy_market/TRAINING.md)，实际测试和训练验收见[训练验证报告](training_validation_zh.md)。环境内核保持既有机制，新增学习实现位于独立算法包。
 
 当前运行接口与关键校验的最新调整见[兼容性与简化审查](compatibility_audit_zh.md)：只保留 `UCAction`、`ConsumerAction`，按字段名构造，不保留旧机制兼容层。
 
@@ -19,7 +21,7 @@ v9 环境已按完整建模文档实现，保留 UC 六维物理行动、Consume
 .\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/validate_v9.py --workers 4
 ```
 
-验证输出位于 `outputs/snmarket-validation/`，每次运行绑定当时源码、配置、参考程序与主文规格哈希。主合成组供给考核系数为 2.00，基础 DR 服务估值为 0。U02、A01、A02、A03 按现有数学定义保留，数值复现与经济解释分别列示。本轮未开展 RL 训练。
+环境验证输出位于 `outputs/snmarket-validation/`，训练输出位于 `outputs/snmarket-training/`，分别绑定当时源码、配置和规格哈希。主合成组供给考核系数为 2.00，基础 DR 服务估值为 0。U02、A01、A02、A03 按现有数学定义保留，数值复现与经济解释分别列示。
 
 ## 历史文档审查档案
 

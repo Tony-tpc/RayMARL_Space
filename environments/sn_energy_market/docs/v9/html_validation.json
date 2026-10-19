@@ -1,17 +1,17 @@
 {
   "status": "passed",
-  "source_sha256": "4575b430006878e64af1c43f01d7603caf5af15c6ef421d3765825fd17b6ba2d",
+  "source_sha256": "905b84f5dbb2512ce1edb757ae1f73fcf8efc936bcb8093e7157a69992300098",
   "source_unchanged": true,
-  "html_sha256": "4f4841b87a7daf541b7b3f6985ba79ba000cfe7bb7c46afbf22723df72cc6c57",
-  "html_bytes": 4529737,
-  "formulas": 541,
+  "html_sha256": "0d055e67131cab40b6d7a5dbb92310ee2934dc8b14f6bc46fddf2a0bf0da8f9c",
+  "html_bytes": 4542202,
+  "formulas": 544,
   "numbered_equations": 30,
   "tables": 41,
   "code_blocks": 7,
   "chapter_and_toc_check": "passed",
   "math_render": {
     "ready": true,
-    "formulas": 541,
+    "formulas": 544,
     "mathErrors": [],
     "headings": [
       "基于 Stackelberg–Nash 博弈的六维 UC 调度与需求响应建模",
@@ -108,6 +108,7 @@
       "14.5 下层单边偏离与上层候选改进",
       "14.6 内外层节奏",
       "14.7 双层训练结构伪代码",
+      "14.8 当前实现与可复现实验协议",
       "第六部分　工程接口与环境验收",
       "15. 项目目录与模块职责",
       "15.1 RayMARL 的组织方式",
@@ -174,21 +175,19 @@
     "badAnchors": []
   },
   "offline_desktop": {
-    "formulas": 541,
-    "svg": 541,
+    "formulas": 544,
+    "svg": 544,
     "scripts": 0,
     "overflow": false,
     "mathErrors": 0
   },
   "offline_mobile": {
-    "formulas": 541,
-    "svg": 541,
+    "formulas": 544,
+    "svg": 544,
     "scripts": 0,
     "overflow": false,
     "mathErrors": 0
   },
   "external_requests": [],
-  "unrelated_protected_files_checked": 121,
-  "protected_files_unchanged": true,
-  "scope": "Static HTML generated from the current v9 Markdown, including all formula, unit and accounting definitions; source unchanged during export, v9 environment migration completed; RLAlgo and historical model files unchanged."
+  "scope": "Static HTML generated from the current v9 Markdown, including all formula, unit and accounting definitions; source unchanged during export, current model and training implementation documented; environment physics unchanged."
 }

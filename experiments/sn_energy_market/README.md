@@ -1,6 +1,17 @@
-# v9 环境验证入口
+# 能源市场实验入口
 
-本目录以固定或随机合法物理行动驱动环境，不创建神经网络、训练器或学习器。
+本目录组织能源市场的场景、训练、评价和环境验证。算法实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg`；市场执行、结算和状态转移位于 `environments/sn_energy_market/src/snmarket`。
+
+`train.py` 运行双层训练：消费者适应、UC 候选生成、重新适应后的匹配评价、候选选择与冻结测试。完整调用和实验协议见 [训练说明](TRAINING.md)。
+
+`MarketEnvFactory.get_contract()` 自动记录市场配置、种子切分与合成场景函数源码哈希。checkpoint 恢复保持学习目标和数据协议一致，设备与输出目录可以改变。
+
+```powershell
+.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --smoke
+.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --outer-rounds 20 --output outputs/snmarket-training/main
+```
+
+下面两个入口使用固定或随机合法物理行动，独立验证环境机制。
 
 ```powershell
 .\.venv\Scripts\python.exe -B experiments/sn_energy_market/smoke_test.py --consumers 3 --horizon 288

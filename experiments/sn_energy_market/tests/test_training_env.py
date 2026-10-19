@@ -1,0 +1,214 @@
+import json
+import pickle
+from dataclasses import replace
+
+import numpy as np
+import pytest
+from snmarket import (
+    ConsumerState,
+    EnvironmentConfig,
+    Phase,
+    ProfileExhaustedError,
+    ShiftTask,
+)
+from snmarket.action import map_consumer_controls
+
+from experiments.sn_energy_market.training_env import (
+    MarketEnvFactory,
+    MarketTrainingEnv,
+    scenario_profiles,
+)
+
+
+def config(*, mode="finite", steps=8):
+    base = EnvironmentConfig()
+    return replace(
+        base,
+        system=replace(
+            base.system,
+            num_consumers=2,
+            horizon_steps=steps,
+            episode_mode=mode,
+            start_datetime="2026-01-01T17:00:00+08:00",
+        ),
+        market=replace(base.market, shift_deadline_steps=2),
+    ).validate()
+
+
+def consumer_actions(env, values=(0.2, 0.4, 0.5, 0.6)):
+    return {
+        key: map_consumer_controls(values, bounds)
+        for key, bounds in env.engine.local_bounds().items()
+    }
+
+
+def test_publish_has_two_phase_inputs_and_never_advances_time():
+    env = MarketEnvFactory(config())(12)
+    initial = env.reset(12)
+    decision = env.publish([0.7, 0.1, 0.5, 0.5, 0.3, 0.4])
+    assert env.phase == Phase.CONSUMER_TURN
+    assert env.engine.state.period_id == decision.period_id == 0
+    np.testing.assert_array_equal(decision.uc_observation, initial)
+    assert decision.uc_action.shape == (6,)
+    assert set(decision.mapping_context) == {
+        "ess_energy_kwh",
+        "der_generation_kw",
+        "grid_import_max_kw",
+        "ess_energy_min_kwh",
+        "ess_energy_capacity_kwh",
+        "ess_charge_max_kw",
+        "ess_discharge_max_kw",
+        "ess_charge_efficiency",
+        "ess_discharge_efficiency",
+        "dt_hours",
+        "dr_procurement_max_kw",
+        "event_active",
+    }
+    assert decision.consumer_value_state.shape == (env.consumer_value_dim,)
+    np.testing.assert_array_equal(
+        decision.consumer_value_state,
+        np.concatenate([initial, *decision.consumer_observations.values()]),
+    )
+    assert all(bound.shape == (13,) for bound in decision.consumer_bounds.values())
+    result = env.step(consumer_actions(env))
+    assert env.engine.state.period_id == 1
+    assert env.phase == Phase.UC_TURN
+    assert result.metrics["physical_periods"] == 1
+    assert set(result.rewards) == {"uc", *env.consumer_ids}
+
+
+def test_consumer_value_state_changes_with_next_announcement():
+    env = MarketEnvFactory(config())(12)
+    env.reset(12)
+    env.publish([0.2, 0, 0, 0, 0, 0.2])
+    env.step(consumer_actions(env))
+    snapshot = env.get_state()
+    first = env.publish([0.2, 0, 0, 0, 0, 0.2])
+    env.set_state(snapshot)
+    second = env.publish([0.8, 0, 0, 0, 0, 0.8])
+    np.testing.assert_array_equal(first.uc_observation, second.uc_observation)
+    assert not np.array_equal(first.consumer_value_state, second.consumer_value_state)
+
+
+def test_pending_snapshot_restores_exact_market_transition():
+    env = MarketEnvFactory(config())(12)
+    env.reset(12)
+    env.publish([0.7, 0, 0.3, 0.4, 0.5, 0.6])
+    snapshot = pickle.loads(pickle.dumps(env.get_state()))
+    actions = consumer_actions(env)
+    expected = env.step(actions)
+    env.set_state(snapshot)
+    actual = env.step(actions)
+    assert actual.rewards == expected.rewards
+    assert actual.metrics == expected.metrics
+    np.testing.assert_array_equal(
+        actual.next_uc_observation, expected.next_uc_observation
+    )
+
+
+def test_only_true_terminal_has_no_bootstrap_and_terminal_value_once():
+    env = MarketEnvFactory(config(steps=2))(12)
+    env.reset(12)
+    for index in range(2):
+        env.publish([0.7, 0, 0, 0, 0, 0.4])
+        result = env.step(consumer_actions(env))
+        assert result.terminated == (index == 1)
+    assert result.next_uc_observation is None
+    assert not result.data_exhausted
+    assert len(env.engine.records) == 2
+    assert env.phase == Phase.TERMINATED
+
+
+def test_continuous_exhaustion_is_not_terminal_and_can_append():
+    cfg = config(mode="continuous", steps=2)
+    env = MarketEnvFactory(cfg)(12)
+    env.reset(12)
+    for _ in range(2):
+        env.publish([0.7, 0, 0, 0, 0, 0.4])
+        result = env.step(consumer_actions(env))
+    assert not result.terminated
+    assert result.data_exhausted
+    assert result.next_uc_observation is None
+    with pytest.raises(ProfileExhaustedError):
+        env.publish([0.7, 0, 0, 0, 0, 0.4])
+    continuation = replace(
+        cfg,
+        system=replace(
+            cfg.system, start_datetime=env.engine.state.timestamp.isoformat()
+        ),
+    )
+    observation = env.append_profiles(scenario_profiles(continuation, 13, "train"))
+    assert observation[0] == 2
+    assert observation[1] == -1
+    env.publish([0.7, 0, 0, 0, 0, 0.4])
+    assert env.step(consumer_actions(env)).next_uc_observation[0] == 3
+
+
+def test_seed_reproduces_scenarios_and_different_seed_changes_inputs():
+    factory = MarketEnvFactory(config(), split="validation")
+    a, b, c = factory(12), factory(12), factory(13)
+    assert a.engine.profiles.fingerprint() == b.engine.profiles.fingerprint()
+    assert a.engine.profiles.fingerprint() != c.engine.profiles.fingerprint()
+    assert a.engine.profiles.metadata["split"] == "validation"
+    np.testing.assert_array_equal(a.reset(12), b.reset(12))
+
+
+def test_due_queue_and_monthly_amount_remain_private_to_consumer_value():
+    cfg = config()
+    env = MarketTrainingEnv(cfg)
+    consumers = (
+        ConsumerState("consumer_0", 73, (ShiftTask(-1, 1, 0.25),)),
+        ConsumerState("consumer_1", 7),
+    )
+    env.reset(12, options={"consumer_states": consumers})
+    decision = env.publish([0.7, 0, 0, 0, 0, 0.4])
+    assert decision.consumer_observations["consumer_0"][5] == 73
+    assert decision.consumer_observations["consumer_1"][5] == 7
+    assert "monthly_uc_energy_kwh" not in env.uc_observation_fields
+    assert all("consumer_" not in key for key in decision.mapping_context)
+
+
+def test_raw_unclipped_controls_are_saved_separately_from_physical_actions():
+    env = MarketEnvFactory(config())(12)
+    env.reset(12)
+    latent = np.array([3, -2, 4, 0.5, -4, 3.0])
+    decision = env.publish(latent)
+    np.testing.assert_array_equal(decision.raw_controls, latent)
+    assert decision.uc_action[0] == env.config.system.grid_import_max_kw
+    assert decision.uc_action[1] == decision.uc_action[2] == decision.uc_action[3] == 0
+    latent[0] = 999
+    assert decision.raw_controls[0] == 3
+
+
+def test_metrics_use_single_physical_period_units():
+    env = MarketEnvFactory(config())(12)
+    env.reset(12)
+    env.publish([0.7, 0, 0, 0, 0, 0.4])
+    result = env.step(consumer_actions(env))
+    record = env.engine.latest_record
+    assert result.metrics["uc_cash"] == record.ledger.cash_profit
+    assert result.metrics["served_kwh"] == record.physical.supply_served_kw * 0.25
+    assert result.metrics["consumer_cost"] == sum(
+        x.total_cost for x in record.ledger.consumers.values()
+    )
+
+
+def test_factory_contract_is_json_stable_and_binds_configuration_and_splits():
+    cfg = config()
+    splits = {"train": (1, 2), "validation": (11, 12), "test": (21, 22)}
+    factory = MarketEnvFactory(cfg, seed_splits=splits)
+    contract = factory.get_contract()
+    assert contract == json.loads(json.dumps(contract))
+    assert contract == MarketEnvFactory(cfg, seed_splits=splits).get_contract()
+    assert len(contract["profile_rule_sha256"]) == 64
+    assert contract["seed_splits"]["train"] == [1, 2]
+    assert contract != replace(factory, split="evaluation").get_contract()
+    assert contract != replace(factory, profile_periods=16).get_contract()
+    assert (
+        contract
+        != replace(factory, seed_splits={**splits, "train": (3, 4)}).get_contract()
+    )
+    changed = replace(cfg, rewards=replace(cfg.rewards, adjustment_rate_per_kwh=0.75))
+    assert contract != replace(factory, config=changed).get_contract()
+    contract["seed_splits"]["train"].append(999)
+    assert factory.get_contract()["seed_splits"]["train"] == [1, 2]
