@@ -1,6 +1,6 @@
 # 能源市场实验入口
 
-当前进展、最新实验与下一步连续采样改造见 [项目交接文档](HANDOFF.md)。
+连续采样方案、固定预算训练及验证集结果见 [连续采样小规模报告](CONTINUOUS_PILOT.md)。改造前背景保留在 [项目交接文档](HANDOFF.md)。
 
 本目录组织能源市场的场景、训练、评价和环境验证。算法实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg`；市场执行、结算和状态转移位于 `environments/sn_energy_market/src/snmarket`。
 

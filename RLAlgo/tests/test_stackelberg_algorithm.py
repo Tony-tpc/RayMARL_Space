@@ -209,6 +209,88 @@ def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path):
         algo.stop()
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("chosen", [0, 1, 2])
+def test_common_response_state_and_selected_branch_continuation(ray_runtime, tmp_path, monkeypatch, chosen):
+    from raymarl.algorithms.stackelberg import algorithm as implementation
+
+    torch.set_num_threads(1)
+    cfg = configuration(tmp_path)
+    cfg.deviation_updates = 0
+    cfg.uc_candidates = 2
+    algo = cfg.build_algo()
+    original_adapt = algo._adapt
+    original_select = implementation.select_candidate
+    responses = []
+
+    def consumers(learner):
+        return {
+            "weights": {key: learner.module[key].get_state() for key in algo.consumer_ids},
+            "adam": {
+                name: opt.state_dict()
+                for name, opt in learner._named_optimizers.items()
+                if learner._optimizer_name_to_module[name] in algo.consumer_ids
+            },
+        }
+
+    def adapt(module_ids, updates, **kwargs):
+        assert_nested_equal(algo.learner_group.get_weights(), algo.env_runner.module.get_state())
+        before = copy.deepcopy(
+            {
+                "sampling": algo.env_runner.get_state(components="sampling"),
+                "consumers": [item.get() for item in algo.learner_group.foreach_learner(consumers)],
+            }
+        )
+        original_adapt(module_ids, updates, **kwargs)
+        if module_ids == algo.consumer_ids:
+            responses.append((before, algo._snapshot()))
+
+    def select(evaluated, **kwargs):
+        _, gains = original_select(evaluated, **kwargs)
+        return chosen, gains
+
+    monkeypatch.setattr(algo, "_adapt", adapt)
+    monkeypatch.setattr(implementation, "select_candidate", select)
+    try:
+        for round_index in range(2):
+            responses.clear()
+            algo.train()
+            assert len(responses) == 4  # Main adaptation, incumbent and two proposal responses.
+            left = responses[1][0]
+            for response in responses[2:]:
+                right = response[0]
+                assert_nested_equal(left["consumers"], right["consumers"])
+                a, b = left["sampling"]["sampling"], right["sampling"]["sampling"]
+                for key in a:
+                    if key != "environment":
+                        assert_nested_equal(a[key], b[key])
+                assert a["environment"].engine == b["environment"].engine
+                assert a["environment"].profiles.fingerprint() == b["environment"].profiles.fingerprint()
+            # Compare trajectories from each full common snapshot, including RNG.
+            selected = algo._snapshot()
+            algo.env_runner.set_state(left["sampling"])
+            expected = algo.env_runner.collect(1)
+            algo.env_runner.set_state(right["sampling"])
+            actual = algo.env_runner.collect(1)
+            for key in expected.policy_batches:
+                assert_nested_equal(dict(expected[key]), dict(actual[key]))
+            algo._restore(selected)
+            committed = responses[chosen + 1][1]
+            assert_nested_equal(committed["learner"], selected["learner"])
+            assert_nested_equal(committed["rng"], selected["rng"])
+            assert (
+                algo.env_runner.env.engine.state
+                == committed["runner"]["sampling"]["environment"].engine.state
+            )
+            main_steps = 8 * (round_index + 1)
+            assert algo.last_round["main_periods_lifetime"] == main_steps
+            assert algo.sampled_periods == 24 * (round_index + 1)
+            assert algo.env_runner.env.engine.state.period_id == main_steps % 6
+            assert algo.env_runner._scenario_seed == (2, 3)[(main_steps // 6) % 2]
+    finally:
+        algo.stop()
+
+
 @pytest.mark.cuda
 @pytest.mark.integration
 def test_gpu_learner_cpu_runner_update(ray_runtime, tmp_path):

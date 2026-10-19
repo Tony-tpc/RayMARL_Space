@@ -25,7 +25,6 @@ from experiments.sn_energy_market.profile_dataset import (
     ProfileDataset,
 )
 from experiments.sn_energy_market.train import (
-    TRAINING_START_DAYS,
     model_settings,
     write_json,
 )
@@ -49,29 +48,35 @@ def collect_value_data(algorithm, seeds, audit):
     accumulated = {key: [] for key in algorithm.config.agent_order}
     trajectories = []
     runner = algorithm.env_runner
-    for seed in seeds:
-        audit.phase = "critic_collect"
-        runner.restart(seed)
-        start = runner.env.engine.state.timestamp.isoformat()
-        steps = (
-            runner.env.config.system.horizon_steps - runner.env.engine.state.period_id
-        )
-        batch = runner.collect(steps)
-        assert runner._terminated
-        for key, rows in batch.policy_batches.items():
-            accumulated[key].append(
-                {
-                    "obs": rows["obs"],
-                    "critic_obs": rows["critic_obs"],
-                    "value_targets": terminal_returns(
-                        rows["rewards"], rows["terminateds"], GAMMA
-                    ),
-                }
+    if not seeds or not set(seeds) <= set(algorithm.config.train_seeds):
+        raise ValueError("Value fitting data requires nonempty training seeds only")
+    saved = runner.get_state(components="sampling")
+    phase = audit.phase
+    try:
+        for seed in seeds:
+            audit.phase = "critic_collect"
+            runner.restart(seed)
+            start = runner.env.engine.state.timestamp.isoformat()
+            steps = runner.env.config.system.horizon_steps - runner.env.engine.state.period_id
+            batch = runner.collect(steps)
+            assert runner._terminated
+            for key, rows in batch.policy_batches.items():
+                accumulated[key].append(
+                    {
+                        "obs": rows["obs"],
+                        "critic_obs": rows["critic_obs"],
+                        "value_targets": terminal_returns(
+                            rows["rewards"], rows["terminateds"], algorithm.config.gamma
+                        ),
+                    }
+                )
+            trajectories.append(
+                {"seed": seed, "start": start, "periods": steps, "true_terminal": True}
             )
-        trajectories.append(
-            {"seed": seed, "start": start, "periods": steps, "true_terminal": True}
-        )
-        print(json.dumps({"critic_episode": seed, "periods": steps}), flush=True)
+            print(json.dumps({"critic_episode": seed, "periods": steps}), flush=True)
+    finally:
+        runner.set_state(saved)
+        audit.phase = phase
     merged = {
         key: {name: np.concatenate([row[name] for row in rows]) for name in rows[0]}
         for key, rows in accumulated.items()
@@ -148,7 +153,7 @@ def main():
         splits=("train", "validation"),
     )
     factory = DatasetEnvFactory(
-        dataset, seed=42, training_start_days=TRAINING_START_DAYS
+        dataset, seed=42, training_start_days=(1, 11, 21, -1)
     )
     windows = factory.get_contract()["seed_windows"]
     selected = (("2010-07", 11), ("2010-10", 21), ("2011-01", 31))

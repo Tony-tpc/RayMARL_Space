@@ -150,12 +150,11 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
     def training_step(self):
         cfg = self.config
         starting_weights = copy.deepcopy(self.learner_group.get_weights())
-        seed = cfg.train_seeds[self.outer_round % len(cfg.train_seeds)]
-        self._adapt(self.consumer_ids, cfg.inner_updates, seed=seed)
+        # Only a true episode boundary rotates the main training scenario.
+        self._adapt(self.consumer_ids, cfg.inner_updates)
         deviations = self.search_deviations()
         reference = self._snapshot()
         candidates = [reference]
-        self.env_runner.restart(seed)
         for _ in range(cfg.uc_candidates):
             self._adapt(("uc",), cfg.uc_updates_per_candidate)
             candidates.append(self._snapshot())
@@ -165,8 +164,10 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             # Consumer parameters AND Adam moments come from the same reference.
             # UC proposal updates touched only the UC module and its optimizers.
             self._restore(candidate)
-            restore_random_state(reference["rng"])
-            self._adapt(self.consumer_ids, cfg.response_updates, seed=seed)
+            # Discard proposal sampling progress, retaining its UC weights/Adam.
+            # Every response starts at the same physical state AND random stream.
+            self.env_runner.set_state({"sampling": reference["runner"]["sampling"]})
+            self._adapt(self.consumer_ids, cfg.response_updates)
             evaluated.append(self._evaluate(cfg.validation_seeds))
             pairs.append(self._snapshot())
         selected, gains = select_candidate(evaluated, z=cfg.acceptance_z, min_gain=cfg.min_uc_gain)
@@ -204,6 +205,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                 "minibatch_size": cfg.minibatch_size,
             },
             "sampled_periods_lifetime": self.sampled_periods,
+            "main_periods_lifetime": self.env_runner.trajectory_periods,
+            "main_scenario_seed": self.env_runner._scenario_seed,
             "evaluated_periods_lifetime": self.evaluated_periods,
             "updates_lifetime": self.completed_updates,
         }

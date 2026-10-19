@@ -47,6 +47,21 @@ def test_training_seed_schedule_covers_months_and_interior_dates(dataset):
     assert len({row["sampling_start_datetime"] for key, row in contract["seed_windows"].items()
                 if int(key) in factory.seed_splits["train"]}) == 48
     assert not factory._initial_snapshots
+
+
+def test_default_training_starts_at_month_beginning_without_rule_history(dataset):
+    from experiments.sn_energy_market.train import TRAINING_START_DAYS
+
+    assert TRAINING_START_DAYS == (1,)
+    factory = DatasetEnvFactory(dataset, training_start_days=TRAINING_START_DAYS)
+    assert len(factory.seed_splits["train"]) == 12
+    for seed in factory.seed_splits["train"]:
+        env = factory(seed)
+        env.reset(seed)
+        assert env.engine.state.period_id == 0
+        assert env.engine.state.timestamp.day == 1
+        assert not env.engine.records
+    assert not factory._initial_snapshots
     assert "test" not in factory.seed_splits
     for seed in factory.seed_splits["train"]:
         assert factory.profiles_for_seed(seed).metadata["split"] == "train"

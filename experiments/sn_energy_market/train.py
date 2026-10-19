@@ -28,7 +28,7 @@ from experiments.sn_energy_market.profile_dataset import (
 )
 from experiments.sn_energy_market.training_env import MarketEnvFactory
 
-TRAINING_START_DAYS = (1, 11, 21, -1)
+TRAINING_START_DAYS = (1,)
 
 
 def model_settings(hidden_dim):

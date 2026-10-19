@@ -169,6 +169,7 @@ class StackelbergConfig(AlgorithmConfig):
             uc_probability="raw_diagonal_gaussian",
             consumer_probability="conditional_beta_physical_density",
             evaluation_return="sampled_discounted_window",
+            sampling_protocol="continuous_main_common_response_snapshot_selected_branch_v1",
         )
         return json.loads(json.dumps(contract, sort_keys=True))
 

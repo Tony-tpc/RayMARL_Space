@@ -194,6 +194,21 @@ def test_snapshot_restores_complete_sampling_trajectory_and_partial_weights_keep
     assert_batches_equal(expected, actual)
 
 
+def test_framework_counter_broadcast_does_not_erase_branch_progress():
+    from ray.rllib.utils.metrics import NUM_ENV_STEPS_SAMPLED_LIFETIME
+
+    runner = make_runner(terminal_at=8)
+    runner.collect(2)
+    runner.set_state({NUM_ENV_STEPS_SAMPLED_LIFETIME: 0})
+    assert runner.trajectory_periods == 2
+    saved = runner.get_state(components="sampling")
+    runner.collect(1)
+    assert runner.trajectory_periods == 3
+    runner.set_state(saved)
+    assert runner.trajectory_periods == 2
+    assert runner.env.t == 2
+
+
 def test_native_runner_checkpoint_restores_environment_and_action_stream(tmp_path):
     runner = make_runner(terminal_at=8)
     runner.collect(2)

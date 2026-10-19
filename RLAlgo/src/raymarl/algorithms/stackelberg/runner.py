@@ -64,6 +64,9 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         self._train_seed_index = 0
         self._scenario_seed = int(self.config.train_seeds[0])
         self._weights_seq_no = 0
+        # RLlib can broadcast its aggregate counter between train() calls.
+        # This snapshot-owned cursor counts only the committed sampling branch.
+        self.trajectory_periods = 0
         self.restart(self._scenario_seed)
         self.module = self.config.get_multi_rl_module_spec(
             spaces=self.get_spaces(), inference_only=False
@@ -185,6 +188,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         self._observation = result.next_uc_observation
         self._terminated, self._data_exhausted = result.terminated, result.data_exhausted
         self.num_env_steps_sampled_lifetime += 1
+        self.trajectory_periods += 1
         for key, sample in samples.items():
             sample.update(
                 rewards=result.rewards[key],
@@ -297,7 +301,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                 "train_seed_index": self._train_seed_index,
                 "rng": random_state(),
                 "last_metrics": self.last_metrics,
-                "sampled_periods": self.num_env_steps_sampled_lifetime,
+                "sampled_periods": self.trajectory_periods,
             }
         return copy.deepcopy(state)
 
@@ -316,6 +320,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             self._train_seed_index = saved["train_seed_index"]
             self.last_metrics = copy.deepcopy(saved["last_metrics"])
             self.num_env_steps_sampled_lifetime = saved["sampled_periods"]
+            self.trajectory_periods = saved["sampled_periods"]
             restore_random_state(saved["rng"])
 
     def get_ctor_args_and_kwargs(self):

@@ -249,7 +249,7 @@ def test_monthly_episode_preserves_state_at_midnight_and_snapshot(dataset_path):
 def test_training_entry_uses_all_months_and_converted_learning_parameters(dataset_path):
     args = train.arguments(["--dataset", str(dataset_path)])
     config, budget, splits = train.experiment_settings(args)
-    assert len(splits["train"]) == 48
+    assert len(splits["train"]) == 12
     assert len(splits["validation"]) == len(splits["test"]) == 12
     assert config.system.num_consumers == 2
     assert budget["gamma"] == pytest.approx(0.9801)
