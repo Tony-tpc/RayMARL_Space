@@ -22,6 +22,10 @@ sys.path.insert(0, str(ROOT / "environments/sn_energy_market/src"))
 
 from snmarket import EnvironmentConfig
 
+from experiments.sn_energy_market.profile_dataset import (
+    DatasetEnvFactory,
+    ProfileDataset,
+)
 from experiments.sn_energy_market.training_env import MarketEnvFactory
 
 
@@ -31,6 +35,16 @@ def arguments(argv=None):
         "--smoke", action="store_true", help="Run a complete small training lifecycle"
     )
     parser.add_argument("--config-dir", type=Path)
+    parser.add_argument(
+        "--dataset",
+        type=Path,
+        help="Cleaned profile manifest with chronological train/validation/test splits",
+    )
+    parser.add_argument(
+        "--validate-data",
+        action="store_true",
+        help="Verify data and experiment contracts without importing Ray or training",
+    )
     parser.add_argument("--consumers", type=int)
     parser.add_argument("--horizon", type=int)
     parser.add_argument("--deadline", type=int)
@@ -53,12 +67,13 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
-def experiment_settings(args):
+def experiment_settings(args, dataset=None):
     base = (
         EnvironmentConfig.from_directory(args.config_dir)
         if args.config_dir
         else EnvironmentConfig()
     )
+    dataset = dataset or (ProfileDataset(args.dataset) if args.dataset else None)
     count = (
         args.consumers
         if args.consumers is not None
@@ -82,13 +97,33 @@ def experiment_settings(args):
     if args.smoke:
         system = replace(system, start_datetime="2026-01-01T17:00:00+08:00")
     market = replace(base.market, shift_deadline_steps=deadline)
-    config = replace(base, system=system, market=market).validate()
+    config = (
+        dataset.environment_config(base if args.config_dir else None)
+        if dataset is not None
+        else replace(base, system=system, market=market).validate()
+    )
+    if dataset is not None:
+        if args.horizon is not None:
+            raise ValueError(
+                "Dataset episodes use complete calendar months; --horizon cannot truncate them"
+            )
+        if args.consumers is not None and args.consumers != len(dataset.household_ids):
+            raise ValueError(
+                "--consumers must match the dataset's fixed household identities"
+            )
+        if args.deadline is not None:
+            config = replace(
+                config,
+                market=replace(config.market, shift_deadline_steps=args.deadline),
+            ).validate()
     if config.system.episode_mode != "finite":
         raise ValueError(
             "This episode experiment requires finite profiles; use the adapter for continuous sampling"
         )
     if args.evaluate_only and args.resume is None:
         raise ValueError("--evaluate-only requires --resume")
+    if args.validate_data and dataset is None:
+        raise ValueError("--validate-data requires --dataset")
     defaults = {
         "outer_rounds": (1, 20),
         "inner_updates": (1, 5),
@@ -107,6 +142,10 @@ def experiment_settings(args):
         else values[not args.smoke]
         for key, values in defaults.items()
     }
+    cadence = config.system.resolution_minutes / 15
+    budget.update(gamma=0.99**cadence, lambda_gae=0.95**cadence)
+    if dataset is not None and args.rollout_steps is None and not args.smoke:
+        budget["rollout_steps"] = max(1, round(128 / cadence))
     if not args.evaluate_only and budget["outer_rounds"] < 1:
         raise ValueError("--outer-rounds must be positive for training")
     train_count, evaluation_count = (2, 2) if args.smoke else (8, 8)
@@ -117,7 +156,17 @@ def experiment_settings(args):
         ),
         "test": tuple(range(args.seed + 20_000, args.seed + 20_000 + evaluation_count)),
     }
+    if dataset is not None:
+        splits = DatasetEnvFactory(dataset, config, seed=args.seed).seed_splits
     return config, budget, splits
+
+
+def scenario_factory(args, config, splits, dataset=None):
+    if args.dataset:
+        return DatasetEnvFactory(
+            dataset or ProfileDataset(args.dataset), config, seed=args.seed
+        )
+    return MarketEnvFactory(config, seed_splits=splits)
 
 
 def write_json(path, value):
@@ -145,7 +194,13 @@ def provenance(config, budget, splits, factory, args, learning_contract):
         "RLAlgo/src/raymarl/algorithms/stackelberg",
     ):
         paths.extend(sorted((ROOT / directory).glob("*.py")))
-    paths.extend([Path(__file__), Path(__file__).with_name("training_env.py")])
+    paths.extend(
+        [
+            Path(__file__),
+            Path(__file__).with_name("training_env.py"),
+            Path(__file__).with_name("profile_dataset.py"),
+        ]
+    )
     sources = {
         str(path.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(
             path.read_bytes()
@@ -177,6 +232,7 @@ def provenance(config, budget, splits, factory, args, learning_contract):
         "budget": budget,
         "learning_contract": learning_contract,
         "seed_splits": splits,
+        "scenario_contract": factory.get_contract(),
         "profiles": profiles,
         "device": args.device,
         "torch_threads": args.torch_threads,
@@ -189,7 +245,47 @@ def provenance(config, budget, splits, factory, args, learning_contract):
 
 def main(argv=None):
     args = arguments(argv)
-    environment, budget, splits = experiment_settings(args)
+    dataset = ProfileDataset(args.dataset) if args.dataset else None
+    environment, budget, splits = experiment_settings(args, dataset)
+    factory = scenario_factory(args, environment, splits, dataset)
+    if args.validate_data:
+        report = {
+            "status": "data_contract_validated",
+            "training_started": False,
+            "environment": environment.to_dict(),
+            "budget": budget,
+            "scenario_contract": factory.get_contract(),
+            "splits": {
+                split: [
+                    {
+                        "seed": seed,
+                        "periods": len(profiles),
+                        "start_datetime": profiles.start_datetime.isoformat(),
+                        "sha256": profiles.fingerprint(),
+                        "metadata": profiles.metadata,
+                    }
+                    for seed in seeds
+                    for profiles in [factory(seed).engine.profiles]
+                ]
+                for split, seeds in splits.items()
+            },
+        }
+        if args.output:
+            args.output.mkdir(parents=True, exist_ok=True)
+            write_json(args.output / "data_contract.json", report)
+        print(
+            json.dumps(
+                {
+                    "status": report["status"],
+                    "training_started": False,
+                    "monthly_scenarios": {
+                        key: len(value) for key, value in splits.items()
+                    },
+                },
+                ensure_ascii=False,
+            )
+        )
+        return report
     output = (
         args.output
         or ROOT
@@ -214,7 +310,6 @@ def main(argv=None):
     torch.set_num_threads(args.torch_threads)
     if args.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is unavailable")
-    factory = MarketEnvFactory(environment, seed_splits=splits)
     ray.init(
         num_cpus=2,
         include_dashboard=False,
@@ -235,6 +330,8 @@ def main(argv=None):
             .rl_module(model_config={"hidden_dim": budget["hidden_dim"]})
             .learners(num_learners=0, num_gpus_per_learner=int(args.device == "cuda"))
             .training(
+                gamma=budget["gamma"],
+                lambda_gae=budget["lambda_gae"],
                 rollout_length=budget["rollout_steps"],
                 inner_updates=budget["inner_updates"],
                 response_updates=budget["response_updates"],

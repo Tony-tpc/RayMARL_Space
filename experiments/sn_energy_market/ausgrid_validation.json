@@ -1,0 +1,525 @@
+{
+  "status": "passed",
+  "validation_date": "2026-10-19",
+  "no_formal_training": true,
+  "dataset": "ausgrid_solar_home",
+  "manifest_path": "datasets/ausgrid/processed/manifest.json",
+  "manifest_sha256": "1aca2e4b8eb68c4ddb49313a616eb6b6ef8fa2632f22a988b049c06dbfcec097",
+  "provenance": {
+    "sources": {
+      "Ausgrid_solar_home_data.zip": {
+        "url": "https://pierreh.eu/downloads/Ausgrid_solar_home_data.zip",
+        "sha256": "5a766f52b6c8b3b72730380f4422e478934bc94640a4b089dd0e0e3c055c5d82",
+        "bytes": 57038633
+      },
+      "data_gov_au_metadata.json": {
+        "url": "https://data.gov.au/data/api/3/action/package_show?id=nsw-solar-home-electricty-data",
+        "sha256": "741d0b4e931c25731ca040c1f81a600a54218f12b15021c8089ce16c51440355",
+        "bytes": 5544
+      },
+      "origin_README.md": {
+        "url": "https://raw.githubusercontent.com/pierre-haessig/ausgrid-solar-data/master/README.md",
+        "sha256": "596f7c419d9b2b040e11938b7b044f7df77fc56ee8ce090212f77e68824a184e",
+        "bytes": 7642
+      },
+      "Ausgrid_notes_2014.pdf": {
+        "url": "https://raw.githubusercontent.com/rockey-abhishek/Ausgrid-Dataset/main/Ausgrid%20solar%20home%20electricity%20data%20notes%20%28Aug%202014%29.pdf",
+        "sha256": "05efccf64d45356d368a6b5c7d8f4e0990bd07ddf92afa3cf303cfbf3f39b156",
+        "bytes": 40839
+      },
+      "independent_Data.zip": {
+        "url": "https://raw.githubusercontent.com/rockey-abhishek/Ausgrid-Dataset/main/Data.zip",
+        "sha256": "7ec04dbe64700d3e69a6d5b0b501ef1a9f8bd503cfc4a1050630f99c2dbcf7b8",
+        "bytes": 14618329
+      }
+    },
+    "archive_members": {
+      "Solar home 2010-2011.csv": {
+        "sha256": "2fc1f615e22fbd8ec350cdb19f7465d3a038453fc2ffd19473ef1bd38fd28289",
+        "bytes": 63621419
+      },
+      "Solar home 2011-2012.csv": {
+        "sha256": "a7d6abd1369311a5566e00d249141fd8aec28e9faba0bc928788607d961fc8c8",
+        "bytes": 64222510
+      },
+      "Solar home 2012-2013.csv": {
+        "sha256": "e4be46b3c9991c65735a9545319a2f1c33be8e639c75a17a88e0323a8e5098be",
+        "bytes": 63782724
+      },
+      "Ausgrid solar home electricity data notes (Aug 2014).pdf": {
+        "sha256": "05efccf64d45356d368a6b5c7d8f4e0990bd07ddf92afa3cf303cfbf3f39b156",
+        "bytes": 40839
+      }
+    },
+    "notes_independent_mirror_match": true,
+    "test_csv_independent_mirror_match": true,
+    "test_csv_independent_sha256": "e4be46b3c9991c65735a9545319a2f1c33be8e639c75a17a88e0323a8e5098be",
+    "author": "Ausgrid",
+    "license_title": "Creative Commons Attribution 3.0 Australia",
+    "license_url": "http://creativecommons.org/licenses/by/3.0/au/",
+    "attribution": "Ausgrid, Solar Home Electricity Data, 2010–2013, released 2014; archive mirror Pierre Haessig, May 2026.",
+    "transformations": "Selected complete actual-meter cohort, GC+CL aggregation, kWh-to-kW conversion, nominal interval-start calendar labels."
+  },
+  "resolution_minutes": 30,
+  "household_ids": [
+    7,
+    19,
+    20,
+    29,
+    30,
+    38,
+    49,
+    64,
+    67,
+    84,
+    106,
+    155,
+    160,
+    169,
+    177,
+    184
+  ],
+  "postcode": 2259,
+  "quality_audit": {
+    "total_households": 300,
+    "eligible_households": 255,
+    "by_split": {
+      "train": {
+        "rows": 269735,
+        "households": 300,
+        "quality_flags": {
+          "": 269735
+        },
+        "invalid_meter_values": 0,
+        "source_energy_kwh": {
+          "GC": 1828903.049,
+          "CL": 264950.893,
+          "GG": 635572.862
+        }
+      },
+      "validation": {
+        "rows": 270304,
+        "households": 300,
+        "quality_flags": {
+          "": 270204,
+          "NA": 100
+        },
+        "invalid_meter_values": 0,
+        "source_energy_kwh": {
+          "GC": 1721699.665,
+          "CL": 257202.961,
+          "GG": 624954.01
+        }
+      },
+      "test": {
+        "rows": 268557,
+        "households": 300,
+        "quality_flags": {
+          "": 268126,
+          "NA": 431
+        },
+        "invalid_meter_values": 0,
+        "source_energy_kwh": {
+          "GC": 1676277.855,
+          "CL": 239721.28699999998,
+          "GG": 654300.1370000001
+        }
+      }
+    }
+  },
+  "splits": {
+    "train": {
+      "file": "train.npz",
+      "sha256": "0ffdb376026586a1a5704b93cfc3bb78667b4a34965356c8e7d8ad5c4c561119",
+      "periods": 17520,
+      "start_datetime": "2010-07-01T00:00:00+10:00",
+      "end_datetime": "2011-07-01T00:00:00+10:00",
+      "source_selected_load_kwh": 90169.67199999999,
+      "source_selected_pv_kwh": 32410.197,
+      "energy_residuals": {
+        "load_kwh": 1.4551915228366852e-11,
+        "pv_kwh": 0.0
+      }
+    },
+    "validation": {
+      "file": "validation.npz",
+      "sha256": "e234e04df73e75cc1d7555767e54e44ef25fc40a9da5d87b482332bafd9dcce7",
+      "periods": 17568,
+      "start_datetime": "2011-07-01T00:00:00+10:00",
+      "end_datetime": "2012-07-01T00:00:00+10:00",
+      "source_selected_load_kwh": 88474.372,
+      "source_selected_pv_kwh": 31894.995000000003,
+      "energy_residuals": {
+        "load_kwh": 0.0,
+        "pv_kwh": 7.275957614183426e-12
+      }
+    },
+    "test": {
+      "file": "test.npz",
+      "sha256": "dad507832a781d8711945437f107d3164c3a2cdb15615de50a07d5a42e980948",
+      "periods": 17520,
+      "start_datetime": "2012-07-01T00:00:00+10:00",
+      "end_datetime": "2013-07-01T00:00:00+10:00",
+      "source_selected_load_kwh": 89464.18,
+      "source_selected_pv_kwh": 33684.0,
+      "energy_residuals": {
+        "load_kwh": 0.0,
+        "pv_kwh": 0.0
+      }
+    }
+  },
+  "reprocessing": {
+    "full_dataset_repeat_completed": true,
+    "byte_identical_outputs": [
+      "manifest.json",
+      "train.npz",
+      "validation.npz",
+      "test.npz"
+    ],
+    "preprocessing": {
+      "code_sha256": "687a7f688d470ebe021eb850083e02b4c51e3cf95bcc788089288154b5398f18",
+      "dependencies": {
+        "numpy": "2.5.3",
+        "pandas": "3.0.6"
+      },
+      "units": {
+        "raw": "kWh per 30-minute interval",
+        "loads_kw": "kW",
+        "pv_kw": "kW",
+        "der_kw": "kW"
+      },
+      "load_formula": "(GC + CL) / 0.5",
+      "pv_formula": "GG / 0.5; DER is sum over selected households",
+      "time_policy": {
+        "name": "nominal_calendar_not_reconstructed_UTC",
+        "fixed_offset": "+10:00",
+        "source_labels": "interval end, 00:30 through following midnight 00:00",
+        "output_labels": "interval start, 00:00 through 23:30",
+        "interpretation": "Preserve all 48 published slots per source date on a fixed-offset simulation clock. Original notes mention EST/EDT but do not disambiguate DST transition slots. No slot is inserted, dropped, interpolated or moved between dates; these timestamps do not claim reconstructed physical UTC alignment.",
+        "dst_transition_dates": [
+          "2010-10-03",
+          "2011-04-03",
+          "2011-10-02",
+          "2012-04-01",
+          "2012-10-07",
+          "2013-04-07"
+        ]
+      },
+      "selection": "Structural completeness and actual-meter quality across all three years define availability eligibility. This cohort uses held-out availability metadata, but no held-out consumption magnitude, fitted statistic, price, reward or policy performance. Rank postcodes by eligible count descending, postcode ascending on ties, then household ID ascending; take the requested count.",
+      "absent_cl": "Zero only when the household has no CL rows in any of the three years; partial channels exclude the household.",
+      "quality": "Blank quality only; literal NA and every other nonblank flag exclude the household.",
+      "missing_values": "No imputation, interpolation, clipping or resampling.",
+      "scenario_fields": "Flexibility, rigid load, prices and resource capacities are configured outside measured NPZ files."
+    }
+  },
+  "time_policy": {
+    "name": "nominal_calendar_not_reconstructed_UTC",
+    "fixed_offset": "+10:00",
+    "source_labels": "interval end, 00:30 through following midnight 00:00",
+    "output_labels": "interval start, 00:00 through 23:30",
+    "interpretation": "Preserve all 48 published slots per source date on a fixed-offset simulation clock. Original notes mention EST/EDT but do not disambiguate DST transition slots. No slot is inserted, dropped, interpolated or moved between dates; these timestamps do not claim reconstructed physical UTC alignment.",
+    "dst_transition_dates": [
+      "2010-10-03",
+      "2011-04-03",
+      "2011-10-02",
+      "2012-04-01",
+      "2012-10-07",
+      "2013-04-07"
+    ]
+  },
+  "configuration": {
+    "market": {
+      "der_bid_cap": 1.5,
+      "der_reference_rate_per_kwh": 0.3,
+      "dr_event_intervals": [
+        [
+          34,
+          40
+        ]
+      ],
+      "dr_incentive_per_kwh": 0.5,
+      "dr_procurement_max_kw": 4.15008,
+      "mechanism_version": "v9_announced_supply_adequacy",
+      "shift_backlog_limit_kwh": [
+        16.963679999999997,
+        6.240000000000001,
+        4.320000000000001,
+        8.947679999999995,
+        9.513600000000002,
+        12.000479999999994,
+        8.52623999999998,
+        22.19855999999995,
+        7.785600000000001,
+        20.966400000000004,
+        8.535359999999988,
+        12.374400000000001,
+        18.941279999999995,
+        4.886400000000001,
+        7.382400000000001,
+        9.811679999999994
+      ],
+      "shift_deadline_steps": 48,
+      "tier_thresholds_kwh": [
+        100.0,
+        200.0
+      ],
+      "uc_flat_rates": [
+        0.4,
+        0.5,
+        0.6
+      ],
+      "uc_high_intervals_hours": [
+        [
+          9.0,
+          15.0
+        ]
+      ],
+      "uc_high_rates": [
+        0.6,
+        0.7,
+        0.8
+      ],
+      "uc_peak_intervals_hours": [
+        [
+          20.0,
+          22.0
+        ]
+      ],
+      "uc_peak_rates": [
+        0.7,
+        0.8,
+        0.9
+      ]
+    },
+    "rewards": {
+      "actual_compensation_per_kwh": 1.0,
+      "adjustment_epsilon_kw": 1.0,
+      "adjustment_rate_per_kwh": 0.5,
+      "consumer_native_loss_rate_per_kwh": 2.0,
+      "consumer_overdue_rate_per_kwh_hour": 0.5,
+      "consumer_terminal_pending_rate_per_kwh": 3.0,
+      "consumer_wait_rate_per_kwh_hour": 0.1,
+      "curtailment_rate_per_kwh": 0.1,
+      "der_operating_rate_per_kwh": 0.0,
+      "dr_value_rate_per_kwh": 0.0,
+      "ess_throughput_rate_per_kwh": 0.02,
+      "external_cost_per_period": 0.0,
+      "terminal_energy_value_per_kwh": 0.0,
+      "uc_due_rate_per_kwh": 2.0,
+      "uc_supply_shortfall_rate_per_kwh": 2.0,
+      "uc_terminal_pending_rate_per_kwh": 2.0
+    },
+    "system": {
+      "dr_limit_ratio": 0.2,
+      "episode_mode": "finite",
+      "ess_charge_efficiency": 0.95,
+      "ess_charge_max_kw": 5.1876,
+      "ess_discharge_efficiency": 0.95,
+      "ess_discharge_max_kw": 5.1876,
+      "ess_energy_capacity_kwh": 10.3752,
+      "ess_energy_min_kwh": 0.0,
+      "ess_initial_energy_kwh": 5.1876,
+      "grid_import_max_kw": 20.7504,
+      "horizon_steps": 1488,
+      "num_consumers": 16,
+      "resolution_minutes": 30,
+      "start_datetime": "2010-07-01T00:00:00+10:00"
+    }
+  },
+  "resource_calibration": {
+    "applied": {
+      "dr_procurement_max_kw": 4.15008,
+      "ess_charge_max_kw": 5.1876,
+      "ess_discharge_max_kw": 5.1876,
+      "ess_energy_capacity_kwh": 10.3752,
+      "ess_energy_min_kwh": 0.0,
+      "ess_initial_energy_kwh": 5.1876,
+      "grid_import_max_kw": 20.7504,
+      "shift_backlog_limit_kwh": [
+        16.963679999999997,
+        6.240000000000001,
+        4.320000000000001,
+        8.947679999999995,
+        9.513600000000002,
+        12.000479999999994,
+        8.52623999999998,
+        22.19855999999995,
+        7.785600000000001,
+        20.966400000000004,
+        8.535359999999988,
+        12.374400000000001,
+        18.941279999999995,
+        4.886400000000001,
+        7.382400000000001,
+        9.811679999999994
+      ]
+    },
+    "training_reference": {
+      "aggregate_load_q95_kw": 20.7504,
+      "dr_procurement_max_kw": 4.15008,
+      "ess_energy_capacity_kwh": 10.3752,
+      "ess_power_kw": 5.1876,
+      "fit_split": "train",
+      "flex_ratio": 0.2,
+      "grid_import_max_kw": 20.7504,
+      "quantile_method": "linear",
+      "resource_ratios": {
+        "ess_duration_hours": 2.0,
+        "ess_power_to_q95_load": 0.25,
+        "grid_to_q95_load": 1.0,
+        "initial_soc_fraction": 0.5,
+        "queue_flexible_hours": 24.0
+      },
+      "shift_backlog_limit_kwh": [
+        16.963679999999997,
+        6.240000000000001,
+        4.320000000000001,
+        8.947679999999995,
+        9.513600000000002,
+        12.000479999999994,
+        8.52623999999998,
+        22.19855999999995,
+        7.785600000000001,
+        20.966400000000004,
+        8.535359999999988,
+        12.374400000000001,
+        18.941279999999995,
+        4.886400000000001,
+        7.382400000000001,
+        9.811679999999994
+      ]
+    }
+  },
+  "scenario_prices": {
+    "all_monetary_coefficients": "AUD scenario values, not observed tariffs",
+    "currency": "AUD",
+    "offpeak_per_kwh": 0.35,
+    "peak_hours": [
+      17,
+      22
+    ],
+    "peak_per_kwh": 0.65
+  },
+  "episode_boundary": "complete month; empty initial queue; configured initial ESS; terminal valuation once",
+  "unit_tests": {
+    "passed": 278,
+    "deselected": 6,
+    "failures": 0,
+    "errors": 0,
+    "elapsed_seconds": 21.791,
+    "selection": "not integration and not cuda",
+    "excluded_scope": "Native training and CUDA integration tests",
+    "report_path": "outputs/ausgrid-validation/unit.xml",
+    "report_sha256": "8822dfc72655208d3cada73ba29740b474f10f5103f6c6c553d254e85d4442b6",
+    "command": ".venv/Scripts/python.exe -B -X utf8 -m pytest -c RLAlgo/pyproject.toml environments/sn_energy_market/tests experiments/sn_energy_market/tests RLAlgo/tests/test_stackelberg_policy.py RLAlgo/tests/test_stackelberg_sampling.py RLAlgo/tests/test_stackelberg_evaluation.py RLAlgo/tests/test_stackelberg_algorithm.py -m \"not integration and not cuda\" --basetemp .tmp/pytest-ausgrid-release --junitxml outputs/ausgrid-validation/unit.xml -q"
+  },
+  "environment_validation": {
+    "complete_month_episodes": 36,
+    "physical_periods": 52608,
+    "consumer_periods": 841728,
+    "coverage": {
+      "necessary_shortage_periods": 20808,
+      "new_task_ids": 341959,
+      "consumer_records": 841728,
+      "due_consumer_periods": 143064,
+      "due_over_capacity": 46334,
+      "early_repayment": 270389,
+      "shift_out": 341959,
+      "charge_periods": 8872,
+      "discharge_periods": 8454,
+      "idle_periods": 35282,
+      "negative_signed_DR": 343,
+      "event_on": 6576,
+      "event_off": 46032,
+      "zero_price_event": 0,
+      "monthly_rollover": 36,
+      "true_terminal": 36,
+      "native_shortage": 20808,
+      "full_service": 31800,
+      "exact_bid_ties": 0,
+      "tariff_band_flat": 35072,
+      "empty_tariff_schedule": 0,
+      "multiple_tariff_intervals": 0,
+      "fractional_tariff_hours": 0,
+      "oracle_comparisons": 1168,
+      "retained_task_ids": 12484271,
+      "tariff_band_high": 13152,
+      "tariff_band_peak": 4384,
+      "snapshot_replays": 36
+    },
+    "maximums": {
+      "energy_residual": 0.0,
+      "power_residual": 7.105427357601002e-15,
+      "queue_residual": 3.3792413312028202e-15,
+      "cash_residual": 7.105427357601002e-15,
+      "reward_residual": 0.0,
+      "oracle_maximum_absolute_residual": 7.105427357601002e-15,
+      "oracle_compared_fields": 779
+    },
+    "report_path": "outputs/ausgrid-validation/full/report.json",
+    "report_sha256": "ee7e403acb92c29b10d870a49e230fdb32464785589e4c669fe0be99a3b8bcca",
+    "command": ".venv/Scripts/python.exe -B -X utf8 experiments/sn_energy_market/validate_dataset.py --dataset datasets/ausgrid/processed/manifest.json --output outputs/ausgrid-validation/full --workers 4"
+  },
+  "untrained_network_sampling": {
+    "physical_periods": 128,
+    "batches": 2,
+    "agents": 17,
+    "uc_observation_dim": 68,
+    "consumer_observation_dim": 72,
+    "weights_unchanged": true,
+    "optimizer_updates": 0,
+    "gamma": 0.9801,
+    "lambda_gae": 0.9025
+  },
+  "interface_validation": {
+    "report_path": "outputs/ausgrid-validation/interface/data_contract.json",
+    "report_sha256": "e5b8e3432e7b9f5a7581a51d023d3345ad368a0eb285dc4a251bb7240f1e4208",
+    "command": ".venv/Scripts/python.exe -B experiments/sn_energy_market/train.py --dataset datasets/ausgrid/processed/manifest.json --validate-data --output outputs/ausgrid-validation/interface"
+  },
+  "source_sha256": {
+    "environments/sn_energy_market/src/snmarket/__init__.py": "1a2f61a17ba26e681ce4c37cb2f90c51f679bb81ee09298d888006810486ef3c",
+    "environments/sn_energy_market/src/snmarket/action.py": "3621fae375958b06eedd3d36dad1ab8c275106070eab35e039822b8a20174d38",
+    "environments/sn_energy_market/src/snmarket/config.py": "995d25390588566157510c6a088eca3f78e12891f5efda932e010cd5256ae1a3",
+    "environments/sn_energy_market/src/snmarket/consumer.py": "a05c84bc432cdbeedbaaf2d670ecf67a76d210a0a1bd2a8650feda17a3217946",
+    "environments/sn_energy_market/src/snmarket/contracts.py": "e9739885a622dc8d16a61e6d0197b35f7e9a0ebb681bde73002421284d06cf36",
+    "environments/sn_energy_market/src/snmarket/dr.py": "a28430b6b5feee788f51c02808157e7ef9df5c687922ac8ba92fd37332096845",
+    "environments/sn_energy_market/src/snmarket/engine.py": "2f96239cc4cbfd2c6bd29f9024274041886e40b265f90686cabce83798740656",
+    "environments/sn_energy_market/src/snmarket/incentive.py": "2adec800e2ab8288fe01134f25a80149579be472f00f1b65642a039aa8850089",
+    "environments/sn_energy_market/src/snmarket/market.py": "9fca257d83668aa2b7d344a214a597faa689b5eabce6da2d6d9c134906dcfb42",
+    "environments/sn_energy_market/src/snmarket/metrics.py": "e871324bbf045e43bbe95e81281ab61333aa8f88c3f3cd7c60d0a4c1110afe65",
+    "environments/sn_energy_market/src/snmarket/observation.py": "c3f15abbeeb9200f4d507bec73cc1ba48c847983de34c130a853b1fc3c620936",
+    "environments/sn_energy_market/src/snmarket/physics.py": "07540bf9b4c285563993ac530c9b74a599e96f537d4d729179ea96f8e3a3189b",
+    "environments/sn_energy_market/src/snmarket/profiles.py": "ef31c5771873bda8160398ca00be660dc1a24c9c89cd634ccf07a26a66bd00d3",
+    "environments/sn_energy_market/src/snmarket/reward.py": "ffa53c36e6dbcc5c697b51cd90b3635d7f9e2fea93034d18a1a343200e874d87",
+    "environments/sn_energy_market/src/snmarket/rllib_env.py": "bc4a8b33adb39578a86a0e940da9a89fffd77dc49ac537ca74b486dfb3410669",
+    "environments/sn_energy_market/src/snmarket/settlement.py": "762b9f22466a080e4dabb556f97a4328820505a99de2e58383b14fe1b7e51cf1",
+    "environments/sn_energy_market/src/snmarket/tariff.py": "e9833deadd2327d89bb28f0b8f21cee60a11b912f1a98dbc5d63d81ce13e0e5e",
+    "environments/sn_energy_market/src/snmarket/uc.py": "cff819b7a144c25054feb38906979698245e363b154020da320b87d9cc1ed993",
+    "experiments/sn_energy_market/ausgrid.py": "687a7f688d470ebe021eb850083e02b4c51e3cf95bcc788089288154b5398f18",
+    "experiments/sn_energy_market/profile_dataset.py": "ca365c64ead0ddfc8189ea81104ac76ad0399f6c328d533b37d9e7bbb3b6aa42",
+    "experiments/sn_energy_market/smoke_test.py": "b3ca466b7cce4773e45c604ab2c9a65a68bdb58b6015da373503de2fb111e01e",
+    "experiments/sn_energy_market/train.py": "fded53e71a0935a36b2f4242b1554c234b7eb5987df75c4c7e9e61948febb0db",
+    "experiments/sn_energy_market/training_env.py": "422bec755d5302b8b77a095936cd53ae68086d18d23b62f2d1a2dbc2fc5faae7",
+    "experiments/sn_energy_market/validate_dataset.py": "fb2a0be1996655e882dbd903bb8deb39c13322eb23805aba3b19b7d8bbf19b58",
+    "experiments/sn_energy_market/validate_v9.py": "9f96d91778a07f5c3f0e87d72a15856f08e8420f563e36334c04d05e52798598",
+    "experiments/sn_energy_market/validation_helpers.py": "330182a1ce65175a7af6c67e27236fa8eb8c91087c55869b1403fa40d64e24db",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/__init__.py": "53b1b1e6bf7518ff605e6a3db8423e65355c2eb7dd5f6207a9aa224e33ad18eb",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/algorithm.py": "b1c36411f06d272a7c87a5e8f0e732d3fdd10ef8e40ab85a977d2c2ff3a8e251",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/config.py": "f25aff154e71cfda269dca98fa1772607ccad7ad31afe1d4ae0cf4e5dc65f73d",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/contracts.py": "548cc5eafb2cf1ea6df5872a3dfb85c19aaaf107cfff78b930bda2ac22492c19",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/evaluation.py": "5101e8c01c48e77d15f32696d115eff90388d24abb806b2d24be512f90b8b364",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/inference.py": "d2a3e8aa2d13c6f1af9537243cc91fd5b479f8bb78791443ce2c8e1038c952e2",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/learner.py": "d442726d55c51c5620746bee06c85c4559cdf6fd668aed2ba059b9b869669809",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/rl_module.py": "13c096b2bca0bf71a40abca37a2afaee6aef4549d60e756e23e0f22a15f11022",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/runner.py": "e60633317f7663fa3efc8afaf925f81862ab5496d06bc762fb7b20cf0a672c98"
+  },
+  "scope": {
+    "RLAlgo_modified": false,
+    "environment_kernel_modified": false,
+    "optimizer_updates_in_real_data_sampling": 0,
+    "cohort_selection": "Held-out availability and quality metadata define a complete fixed cohort; calibration uses training values only.",
+    "scenario_assumptions": "Flexible load fraction, equipment capacities and AUD tariffs are experiment parameters, not measured Ausgrid attributes.",
+    "time_alignment": "Fixed-offset nominal source calendar; physical UTC alignment on DST transition days is not reconstructed.",
+    "evidence": "Data and environment correctness checks, not policy performance or equilibrium evidence."
+  }
+}

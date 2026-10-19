@@ -1,0 +1,2 @@
+# Dataset preparation only; RLAlgo has no dependency on pandas.
+pandas>=3.0,<4

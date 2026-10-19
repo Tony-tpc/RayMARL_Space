@@ -9,6 +9,8 @@
 | `RLAlgo/src/raymarl/algorithms/stackelberg/` | 策略网络、条件分布、PPO Learner、两阶段采样、双层更新、快照及策略导出 |
 | `experiments/sn_energy_market/training_env.py` | 将当前环境的公告和物理时段接口连接到采样器；构造训练侧消费者价值状态 |
 | `experiments/sn_energy_market/train.py` | 场景切分、预算、运行目录、训练入口及最终评价 |
+| `experiments/sn_energy_market/ausgrid.py` | 原始数据下载、计量质量审查、固定住户及年度数据转换 |
+| `experiments/sn_energy_market/profile_dataset.py` | 通用数据清单、完整月窗口、训练集资源标定及场景工厂 |
 | `environments/sn_energy_market/src/snmarket/` | 动作校验、出清、调度执行、任务队列、账本和奖励 |
 
 最小完整运行：
@@ -48,6 +50,14 @@
 | 测试 | 20042—20049 | 最终冻结策略的保留集评价 |
 
 `--seed` 整体平移三组种子。测试集不参与参数更新和候选选择。最小运行每组使用两个种子、两位消费者、8 个时段、2 期移峰期限，从 17:00 开始以覆盖 DR 事件。
+
+以上默认设置用于合成场景。选择 `--dataset datasets/ausgrid/processed/manifest.json` 后，使用固定 16 户的 Ausgrid 三年数据，按年度划分训练／验证／测试，各含 12 个完整月场景。步长为 30 分钟、期限为 48 步；默认 `gamma=0.9801`、`lambda_gae=0.9025`、采样长度为 64。PG、ESS、DR 和队列容量默认按训练年标定；显式提供 `--config-dir` 时保留所给容量。实测数据场景不接受截短月份的 `--horizon`，住户数量与清单保持一致。
+
+数据场景每月月初采用明确初态，月内不因日界线或采样切片重置。工厂合同绑定数据哈希、住户顺序、月窗口、配置、费率假设和相关代码，不依赖数据目录绝对路径。获取、清洗及时间口径详见 [Ausgrid 实验说明](AUSGRID.md)。以下命令仅验证数据与接口，不启动 Ray 或训练：
+
+```powershell
+.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --dataset datasets/ausgrid/processed/manifest.json --validate-data --output outputs/ausgrid-validation/interface
+```
 
 ## 3. 动作概率与信息输入
 
