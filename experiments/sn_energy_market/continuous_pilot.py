@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import secrets
@@ -306,7 +307,26 @@ def main(argv=None):
         start = cursor(algorithm.env_runner)
         sampled_before = algorithm.sampled_periods
         audit.phase = "validation_initial"
-        initial = frozen_evaluation(algorithm)
+        initial_critic_source = None
+        if args.stage == 2:
+            previous_path = OUTPUT / "stage-1/report.json"
+            previous = json.loads(previous_path.read_text(encoding="utf-8"))
+            assert start == previous["end"]
+            initial = {
+                "performance": evaluate(algorithm, VALIDATION_SEEDS),
+                "critic": previous["final"]["critic"],
+            }
+            # Check restored policies and short-window bootstrap values exactly.
+            # The same checkpoint's full-month Critic baseline is already measured.
+            assert initial["performance"] == previous["final"]["performance"]
+            initial_critic_source = {
+                "report": str(previous_path.relative_to(ROOT)),
+                "sha256": hashlib.sha256(previous_path.read_bytes()).hexdigest(),
+                "field": "final.critic",
+                "new_full_month_periods": 0,
+            }
+        else:
+            initial = frozen_evaluation(algorithm)
         sampling_before = algorithm.env_runner.get_state(components="sampling")
         weights_before = copy.deepcopy(algorithm.learner_group.get_weights())
         optimizer_before = [
@@ -429,6 +449,7 @@ def main(argv=None):
             "status": "passed",
             "stage": args.stage,
             "initial": initial,
+            "initial_critic_source": initial_critic_source,
             "final": final,
             "start": start,
             "end": cursor(algorithm.env_runner),
