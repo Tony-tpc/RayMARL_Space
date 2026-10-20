@@ -55,13 +55,15 @@ RayMARL/
 
 新版博弈环境的安装、接口和验证方法见 [sn_energy_market 环境说明](environments/sn_energy_market/README.md)，逐项依据见 [v9 完整建模](environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。环境采用六维 UC、四维 Consumer 物理动作。双层训练由独立 `stackelberg` 算法包实现，能源场景和运行入口位于 `experiments/sn_energy_market`，现有算法与公共运行逻辑保持独立。
 
+可直接阅读[已渲染的 v9 HTML](environments/sn_energy_market/docs/v9/modeling_complete_zh.html)，全部公式已转换为 SVG，支持离线打开。
+
 ```powershell
 .\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/train.py --smoke
 ```
 
 该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，验收结果见[固定预算验证报告](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)。
 
-当前双层算法每批更新全部 Critic，仅对选中的 Actor 做策略更新。冻结 Actor 时保留其参数和 Adam 状态，候选响应恢复相同消费者 Actor／Critic／Adam。Actor GAE 与 Critic 多步目标独立，月初连续采样、真实月末重置。固定预算入口为 `experiments/sn_energy_market/batch_critic_pilot.py`，结果及真实 24 批 loss 见[最新报告](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)，测试集继续保留。
+当前双层算法每批更新全部 Critic，仅对选中的 Actor 做策略更新。冻结 Actor 时保留其参数和 Adam 状态，候选响应恢复相同消费者 Actor／Critic／Adam。Actor GAE 与 Critic 多步目标独立，月初连续采样、真实月末重置。固定预算入口为 `experiments/sn_energy_market/batch_critic_pilot.py`，3 轮结果见[小规模报告](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)，72 轮验证及真实 576 批 loss 见[中长期报告](experiments/sn_energy_market/YEAR_STUDY.md)，测试集继续保留。
 
 ## 本地版本管理
 

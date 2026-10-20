@@ -86,14 +86,21 @@ def full_value_validation(algorithm):
         for seed in VALIDATION_SEEDS:
             runner.restart(seed)
             rows = {key: [] for key in runner.agent_ids}
+            totals, discounted_returns = {}, dict.fromkeys(runner.agent_ids, 0.0)
+            period = 0
             while not runner._terminated:
-                samples, _ = runner._period()
+                samples, result = runner._period()
                 for key, samples_for_agent in rows.items():
                     samples_for_agent.append(samples[key])
+                    discounted_returns[key] += GAMMA**period * result.rewards[key]
+                for key, value in result.metrics.items():
+                    totals[key] = totals.get(key, 0.0) + value
+                period += 1
             periods = [row["period_id"] for row in rows["uc"]]
             period_ids.extend(periods)
             episodes.append(
-                {"seed": seed, "periods": len(periods), "true_terminal": True}
+                {"seed": seed, "periods": len(periods), "true_terminal": True,
+                 "metrics": totals, "returns": discounted_returns}
             )
             for key, samples in rows.items():
                 values = [row["vf_preds"] for row in samples]

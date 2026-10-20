@@ -98,7 +98,10 @@ def summarize(report_path, output):
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     log_path = ROOT / current["batch_loss_log"]
     rows = load_batches(log_path)
-    assert current["status"] == "completed" and current["initial"] == reference["initial"]
+    assert current["status"] == "completed"
+    assert current["initial"]["performance"] == reference["initial"]["performance"]
+    assert current["initial"]["critic"]["modules"] == reference["initial"]["critic"]["modules"]
+    assert current["initial"]["critic"]["periods"] == reference["initial"]["critic"]["periods"]
     assert current["ppo_sampled_periods"] == reference["ppo_sampled_periods"] == 1536
     assert current["critic_auxiliary_periods"] == reference["critic_auxiliary_periods"] == 0
     assert not current["test_loaded"] and not current["test_evaluated"]

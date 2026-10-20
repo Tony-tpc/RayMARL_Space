@@ -1186,11 +1186,11 @@ for outer_round in range(outer_budget):
 
 真实数据采用有限月回合：每月从 1 日零时、明确 SOC 和空任务队列开始；64 步批末和外层轮次结束均不重置，当前策略持续形成月累计用电、SOC、队列和历史反馈，真实月末结算一次后进入下一月份。这里的“连续采样”描述批间保留状态，区别于第 12.1 节的无限期 `episode_mode="continuous"` 目标。
 
-当前固定预算入口 `batch_critic_pilot.py` 只运行 3 轮、24 批、1,536 个实际 PPO 采样时段，选定主轨迹前进 768 步。每轮依次为消费者适应 2 批、UC 提案 2 批、候选 0 响应 2 批、候选 1 响应 2 批。每批 64 步，Critic 4 epoch、Actor 2 epoch、minibatch 32；每个 Critic 实际执行 192 次优化，回滚后保留步数另记。没有额外 MC 预拟合或月中规则暖启动。
+固定预算入口 `batch_critic_pilot.py` 默认运行 3 轮、24 批、1,536 个实际 PPO 采样时段，选定主轨迹前进 768 步。每轮依次为消费者适应 2 批、UC 提案 2 批、候选 0 响应 2 批、候选 1 响应 2 批。每批 64 步，Critic 4 epoch、Actor 2 epoch、minibatch 32；3 轮时每个 Critic 实际执行 192 次优化，回滚后保留步数另记。显式指定 `outer_rounds=72` 时沿用相同逐批预算，共 576 批、36,864 个 PPO 时段、18,432 个主轨迹时段，每个 Critic 实际执行 4,608 次优化。没有额外 MC 预拟合或月中规则暖启动。
 
-`batch_losses.jsonl` 每批立即记录同一固定目标上的 Critic loss／原单位 RMSE 更新前后值，以及实际更新 Actor 的 policy loss；冻结 Actor 留空。批号按实际执行递增，不随候选回滚重置。候选决策另追加分支保留标记，曲线直接使用 1—24，不按 epoch 聚合。完整验证月 MC 只做冻结评价，使用 `finally` 恢复采样状态并核对网络及 Adam 未变。
+`batch_losses.jsonl` 每批立即记录同一固定目标上的 Critic loss／原单位 RMSE 更新前后值，以及实际更新 Actor 的 policy loss；冻结 Actor 留空。批号按实际执行递增，不随候选回滚重置。候选决策另追加分支保留标记，曲线直接使用实际批号：小规模为 1—24，中长期为 1—576，不按 epoch 聚合。完整验证月 MC 只做冻结评价，使用 `finally` 恢复采样状态并核对网络及 Adam 未变。
 
-本次预算只推进到训练月第 17 日，未覆盖训练月末。验证分别统计 1—10 日、11—20 日和 21 日至月末的原单位 RMSE；短窗口报告供电率与 UC 现金，二者窗口不同。最新结果见[固定预算对照](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)。逐批 loss 下降不等于验证 RMSE 下降，也不能证明供电保障或均衡收敛。
+3 轮基线只推进到训练月第 17 日；已完成的 72 轮主轨迹覆盖完整训练年、12 次真实月末及下一循环的 19 天。验证分别统计 1—10 日、11—20 日和 21 日至月末的原单位 RMSE；供电率与 UC 现金分别报告 48 小时窗口和完整月口径。结果见[小规模对照](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)和[72 轮中长期验证](../../../../experiments/sn_energy_market/YEAR_STUDY.md)。逐批 loss 下降不等于验证 RMSE 下降，也不能证明供电保障或均衡收敛。
 
 完整 checkpoint 保存网络、优化器、采集环境、随机状态、进度及停止计数，同时绑定模型、折扣、学习与响应预算、数据切分和场景生成规则。恢复前核对这一训练契约；设备和输出位置属于运行配置。独立 Actor 导出仅包含策略参数与输入规格，可通过同一策略输出接口执行。场景、市场适配和入口位于 `experiments/sn_energy_market/`，算法通过结构化接口调用它们，现有算法和公共训练框架保持独立。运行命令、参数及产物见[训练与评价说明](../../../../experiments/sn_energy_market/TRAINING.md)。
 
@@ -1564,12 +1564,13 @@ UC 保持六维资源调度，Consumer 保持四维响应。公告阶段冻结�
 | 环境物理与结算 | 已实现并通过独立参考及大规模验证 | [公式映射](formula_implementation_map_zh.md)、[环境验证基线](full_validation_current_commit_zh.md) |
 | 策略与梯度 | 原始 UC 高斯、条件 Beta、独立 Actor/Value 与 Adam | `RLAlgo/tests/test_stackelberg_policy.py`、`test_stackelberg_learner_phases.py` |
 | 连续采样及候选隔离 | 批间保留状态，真实终止重置，完整分支快照恢复 | `test_stackelberg_sampling.py`、`test_stackelberg_algorithm.py` |
-| 固定预算实测 | 3 轮、24 批，已完成训练与验证，测试集保留 | [最新报告](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md) |
+| 小规模预算实测 | 3 轮、24 批，已完成训练与验证，测试集保留 | [小规模报告](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md) |
+| 中长期实测 | 已完成 72 轮、576 批和六个固定节点验证，测试集保留 | [中长期实验](../../../../experiments/sn_energy_market/YEAR_STUDY.md) |
 | 研究结论 | 验证 RMSE 与供电改善不一致，未建立均衡或供电保证 | 第 14、22、25 节 |
 
 ### 23.3 资料与源码边界
 
-当前维护一份 Markdown 建模规格和一套运行接口。旧 v5/v7/v8 文档、旧 MC 预拟合入口、旧文档修改校验脚本和过时实验结果已从当前目录移除；历史版本由 Git 定位。保留的验证报告绑定当时源码哈希，本轮整理不重写历史结果，也未重新训练。
+当前维护一份 Markdown 建模规格和一套运行接口，并从该规格生成带目录与 SVG 公式的[离线 HTML 阅读版](modeling_complete_zh.html)。旧 v5/v7/v8 文档、旧 MC 预拟合入口、旧文档修改校验脚本和过时实验结果已从当前目录移除；历史版本由 Git 定位。保留的验证报告绑定当时源码哈希；旧清理提交 b0a81e7 未重新训练。后续 72 轮实验另存实际运行记录，不改写历史结果。
 
 执行记录继续保存入期状态、双方观测、条件边界、行动、公告、成交、服务、FIFO、账本及供给缺口分解。UC 网络只读取聚合观测，消费者集中 Critic 的训练输入不向执行侧 Actor 开放。
 
@@ -1614,11 +1615,13 @@ UC 保持六维资源调度，Consumer 保持四维响应。公告阶段冻结�
 
 这些是已完成的环境验证记录，详见[报告](full_validation_current_commit_zh.md)及[来源与批次哈希](full_validation_current_commit.json)。当前维护的数值参考在 `tests/v9_oracle.py`，生产验收入口为 `experiments/sn_energy_market/validate_v9.py`。本轮文档和代码整理没有重新执行该规模压力测试。
 
-### 24.4 最新学习验证
+### 24.4 学习验证
 
-2026-10-20 固定预算实验与上一轮相同初值、预算及验证场景对照。UC 全月 RMSE 从 17.7959 到 17.5153，月初改善、中旬和月末略升；16 户平均 RMSE 从 4.4473 到 5.4321。随机策略窗口供电率从 99.6316% 到 99.7279%，UC 现金从 33.3142 到 35.3490 AUD/48h；均值动作窗口供电率略降。
+2026-10-20 的 3 轮固定预算实验与上一轮相同初值、预算及验证场景对照。UC 全月 RMSE 从 17.7959 到 17.5153，月初改善、中旬和月末略升；16 户平均 RMSE 从 4.4473 到 5.4321。随机策略窗口供电率从 99.6316% 到 99.7279%，UC 现金从 33.3142 到 35.3490 AUD/48h；均值动作窗口供电率略降。
 
 逐户与分日期结果、真实 1—24 批 loss 及回滚标记见[实验报告](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)。完整验证月采用每月一条冻结随机轨迹，与训练批内固定多步目标的误差口径不同。两轮策略轨迹也不同，因此该对照衡量各自策略下的拟合表现，不能解释为同一固定样本集上的纯回归改进。
+
+后续 72 轮、576 批实验已完成，主轨迹累计 18,432 个半小时时段，覆盖完整训练年与 12 次真实月末。相对第 3 轮，最终 UC 全月 RMSE 从 17.5153 降至 14.9314，中旬从 17.2267 降至 12.0651、月末从 20.3999 降至 11.0471，但月初从 14.1151 升至 20.2190。消费者平均 RMSE 为 5.2078，较第 48 轮反弹。完整月供电率从 99.1051% 升至 99.6467%，绝对失供从 234.2880 降至 90.7091 kWh；UC 现金从 38.2864 略降至 38.0646 AUD/日。完整节点、真实 1—576 批 loss 与解释见[中长期实验](../../../../experiments/sn_energy_market/YEAR_STUDY.md)。评价恢复环境、RNG 及训练状态，checkpoint 精确重放通过，测试集未加载或评估。
 
 ## 25. 经济激励的适用条件与剩余问题
 
@@ -1730,5 +1733,5 @@ $$
 
 - 当前模型：本文与[公式—实现—测试对应表](formula_implementation_map_zh.md)。
 - 环境：`src/snmarket/`、`tests/v9_oracle.py` 及[完整环境验证基线](full_validation_current_commit_zh.md)。
-- 算法与实验：[训练协议](../../../../experiments/sn_energy_market/TRAINING.md)、[目标与逐批日志](../../../../experiments/sn_energy_market/BATCH_CRITIC_TARGETS.md)、[最新固定预算结果](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)。
+- 算法与实验：[训练协议](../../../../experiments/sn_energy_market/TRAINING.md)、[目标与逐批日志](../../../../experiments/sn_energy_market/BATCH_CRITIC_TARGETS.md)、[小规模结果](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)、[中长期结果](../../../../experiments/sn_energy_market/YEAR_STUDY.md)。
 - 历史规则与实验：通过 Git 提交读取，当前目录只维护现行实现。保留的历史来源哈希表示当时版本，不随目录整理改写。

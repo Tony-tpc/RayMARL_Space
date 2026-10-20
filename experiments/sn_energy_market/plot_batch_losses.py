@@ -63,7 +63,13 @@ def plot_batches(rows, output):
             axis.grid(alpha=0.25)
             axis.legend(loc="best", ncol=4)
         axes[-1].set_xlabel("Collected batch ID (includes candidate branches; frozen actors are gaps)")
-        axes[-1].set_xticks(ids)
+        if len(ids) <= 32:
+            axes[-1].set_xticks(ids)
+        else:
+            from matplotlib.ticker import MaxNLocator
+
+            ticks = MaxNLocator(nbins=12, integer=True).tick_values(ids[0], ids[-1])
+            axes[-1].set_xticks([ids[0], *(tick for tick in ticks if ids[0] < tick < ids[-1]), ids[-1]])
         axes[-1].set_xlim(ids[0] - 0.5, ids[-1] + 0.5)
         figure.suptitle(f"{key}: fixed targets within each batch; targets differ between batches")
         # Module IDs can contain path separators; keep every output inside the directory.

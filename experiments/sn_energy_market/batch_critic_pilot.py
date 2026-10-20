@@ -1,4 +1,4 @@
-"""Fixed-budget 24-batch pilot: separate Actor/Critic targets, no auxiliary fitting."""
+"""Fixed-budget training and validation: separate Actor/Critic targets, no auxiliary fitting."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -70,11 +71,12 @@ def configuration(output):
     )
 
 
-def run_pilot(output, reference_path):
+def run_pilot(output, reference_path, *, outer_rounds=3):
     import ray
     import torch
 
     cfg = configuration(output)
+    evaluation_rounds = sorted({n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds})
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     # Compare learning settings and data semantics; source hashes describe each
     # run separately and intentionally change when the implementation is cleaned.
@@ -100,13 +102,19 @@ def run_pilot(output, reference_path):
         token.write_text(secrets.token_hex(32), encoding="utf-8")
     os.environ["RAY_AUTH_TOKEN_PATH"] = str(token)
     environment_before = source_hashes("environments/sn_energy_market/src")
+    execution_sources = {
+        **source_hashes("RLAlgo/src/raymarl/algorithms/stackelberg"),
+        **source_hashes("experiments/sn_energy_market"),
+    }
     write_json(output / "experiment.json", {
+        "source_sha256": execution_sources,
         "learning_contract": cfg.learning_contract(),
         "initialization": "fresh_seed_42_same_as_reference",
         "reference_report": str(reference_path.relative_to(ROOT)),
         "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
-        "outer_rounds": 3,
-        "ppo_budget": 1536,
+        "outer_rounds": outer_rounds,
+        "ppo_budget": 512 * outer_rounds,
+        "evaluation_rounds": evaluation_rounds,
         "critic_auxiliary_periods": 0,
         "actor_epochs": 2,
         "critic_epochs": 4,
@@ -122,10 +130,15 @@ def run_pilot(output, reference_path):
         start = cursor(algorithm.env_runner)
         audit.phase = "validation_initial"
         initial = frozen_evaluation(algorithm)
-        assert initial == reference["initial"], "Initial policies/evaluation differ from the baseline"
+        assert initial["performance"] == reference["initial"]["performance"]
+        assert initial["critic"]["modules"] == reference["initial"]["critic"]["modules"]
+        assert initial["critic"]["periods"] == reference["initial"]["critic"]["periods"]
         assert start == reference["start"]
+        write_json(output / "validation-0000.json", initial)
+        evaluations = {"0": initial}
         rounds = []
-        for index in range(3):
+        started = time.monotonic()
+        for index in range(outer_rounds):
             audit.phase = f"round_{index + 1}"
             before = cursor(algorithm.env_runner)
             result = algorithm.train()
@@ -139,22 +152,35 @@ def run_pilot(output, reference_path):
             rounds.append(row)
             write_json(output / f"round-{index + 1:04d}.json", row)
             print(json.dumps({"round": index + 1, "selected": algorithm.last_round["selected_candidate"],
-                              "cursor": row["end"]}), flush=True)
-        assert algorithm.sampled_periods == 1536
-        assert cursor(algorithm.env_runner)["main_periods"] == 768
-        assert len(audit.updates) == 48  # 24 batches, one critic and one actor phase each.
+                              "cursor": row["end"], "elapsed_seconds": time.monotonic() - started}), flush=True)
+            if index + 1 in evaluation_rounds:
+                audit.phase = f"validation_{index + 1}"
+                evaluation = frozen_evaluation(algorithm)
+                if index + 1 == 3 and expected.get("critic_lambda") == cfg.critic_lambda:
+                    assert evaluation["performance"] == reference["final"]["performance"]
+                    assert evaluation["critic"]["modules"] == reference["final"]["critic"]["modules"]
+                evaluations[str(index + 1)] = evaluation
+                write_json(output / f"validation-{index + 1:04d}.json", evaluation)
+                # Managed checkpoints keep the latest two, including their full
+                # environment, optimizer and RNG state.
+                algorithm.save_to_path()
+                print(json.dumps({"validated_round": index + 1,
+                                  "uc_rmse": evaluation["critic"]["modules"]["uc"]["all"]["rmse"],
+                                  "elapsed_seconds": time.monotonic() - started}), flush=True)
+        assert algorithm.sampled_periods == 512 * outer_rounds
+        assert cursor(algorithm.env_runner)["main_periods"] == 256 * outer_rounds
+        assert len(audit.updates) == 16 * outer_rounds
         from experiments.sn_energy_market.plot_batch_losses import load_batches
 
         batch_log = Path(algorithm.logdir) / "batch_losses.jsonl"
         batch_rows = load_batches(batch_log)
-        assert [row["batch_id"] for row in batch_rows] == list(range(1, 25))
+        assert [row["batch_id"] for row in batch_rows] == list(range(1, 8 * outer_rounds + 1))
         assert all(row["samples"] == 64 and row["branch_status"] != "pending" for row in batch_rows)
         (output / "batch_losses.jsonl").write_bytes(batch_log.read_bytes())
         for key in algorithm.config.agent_order:
             steps = [row for row in audit.optimizer_steps if row["agent"] == key and row["role"] == "value"]
-            assert len(steps) == 192
-        audit.phase = "validation_final"
-        final = frozen_evaluation(algorithm)
+            assert len(steps) == 64 * outer_rounds
+        final = evaluations[str(outer_rounds)]
         audit.phase = "checkpoint_replay"
         saved = copy.deepcopy(algorithm.get_state())
         checkpoint = algorithm.save_to_path(str(output / "checkpoint"))
@@ -174,16 +200,19 @@ def run_pilot(output, reference_path):
             "start": start,
             "end": cursor(algorithm.env_runner),
             "rounds": rounds,
-            "ppo_sampled_periods": 1536,
-            "main_advanced_periods": 768,
+            "outer_rounds": outer_rounds,
+            "evaluations": evaluations,
+            "elapsed_training_and_validation_seconds": time.monotonic() - started,
+            "ppo_sampled_periods": 512 * outer_rounds,
+            "main_advanced_periods": 256 * outer_rounds,
             "critic_auxiliary_periods": 0,
-            "critic_optimizer_steps_executed_per_module": 192,
+            "critic_optimizer_steps_executed_per_module": 64 * outer_rounds,
             "initial_matches_reference": True,
             "reference_report": str(reference_path.relative_to(ROOT)),
             "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
             "batch_loss_log": str((output / "batch_losses.jsonl").relative_to(ROOT)),
             "batch_loss_sha256": hashlib.sha256(batch_log.read_bytes()).hexdigest(),
-            "logged_batches": 24,
+            "logged_batches": 8 * outer_rounds,
             "checkpoint_exact_replay": True,
             "retained_optimizer_steps": [
                 item.get() for item in algorithm.learner_group.foreach_learner(retained_optimizer_steps)
@@ -194,10 +223,7 @@ def run_pilot(output, reference_path):
             "environment_source_sha256": environment_before,
             "learning_contract": cfg.learning_contract(),
             "diagnostics": audit.report(),
-            "source_sha256": {
-                **source_hashes("RLAlgo/src/raymarl/algorithms/stackelberg"),
-                **source_hashes("experiments/sn_energy_market"),
-            },
+            "source_sha256": execution_sources,
         }
         write_json(output / "report.json", report)
         write_json(output / "optimizer_steps.json", audit.optimizer_steps)
