@@ -55,19 +55,14 @@ class MarketTrainingEnv:
     ``publish`` creates the Consumer decision state after the UC announcement.
     ``step`` advances one physical period. A subsequent ``publish`` is required
     before evaluating the next Consumer value, including at a sampling cut.
-    An optional ``initial_snapshot`` makes reset restore an already simulated
-    physical state, including its billing month and complete execution history.
     """
 
     def __init__(
         self,
         config: EnvironmentConfig,
         profiles: Profiles | None = None,
-        *,
-        initial_snapshot: MarketSnapshot | None = None,
     ):
         self.engine = EnergyMarketEngine(config, profiles)
-        self.initial_snapshot = initial_snapshot
         self.config = self.engine.config
         self.episode_mode = config.system.episode_mode
         self.consumer_ids = self.engine.consumer_ids
@@ -82,11 +77,6 @@ class MarketTrainingEnv:
         )
 
     def reset(self, seed: int, *, options: dict | None = None) -> np.ndarray:
-        if self.initial_snapshot is not None:
-            if options:
-                raise ValueError("A saved initial state cannot be combined with reset overrides")
-            self.set_state(self.initial_snapshot)
-            return self.engine.uc_observation()
         return self.engine.reset(
             seed=seed, options={"episode_id": f"scenario-{seed}", **(options or {})}
         )

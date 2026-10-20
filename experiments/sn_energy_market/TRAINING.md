@@ -53,7 +53,7 @@
 
 以上默认设置用于合成场景。选择 `--dataset datasets/ausgrid/processed/manifest.json` 后，使用固定 16 户的 Ausgrid 三年数据，按年度划分训练／验证／测试，各含 12 个完整月份。当前训练从月初启动，按月份顺序接续，真实月末才转入下一场景；验证和测试仍各有 12 个月初场景。步长为 30 分钟、期限为 48 步；默认 `gamma=0.9801`、`lambda_gae=0.9025`、采样长度为 64。PG、ESS、DR 和队列容量默认按训练年标定；显式提供 `--config-dir` 时保留所给容量。实测数据场景不接受截短月份的 `--horizon`，住户数量与清单保持一致。
 
-数据场景每月月初采用既有明确初态。当前 UC／Consumer 策略从月初生成月内历史；更新网络后保留 SOC、任务、月累计 UC 用电、历史反馈和日历，普通批末保留 bootstrap，真实月末执行一次终端结算。`DatasetEnvFactory` 的显式月中规则暖启动仍供历史实验复核，当前默认入口及 `continuous_pilot.py` 不使用它。工厂合同绑定数据哈希、住户顺序、月窗口、配置、费率假设和相关代码，不依赖数据目录绝对路径。获取、清洗及时间口径详见 [Ausgrid 实验说明](AUSGRID.md)。以下命令仅验证数据与接口，不启动 Ray 或训练：
+数据场景每月月初采用既有明确初态。当前 UC／Consumer 策略从月初生成月内历史；更新网络后保留 SOC、任务、月累计 UC 用电、历史反馈和日历，普通批末保留 bootstrap，真实月末执行一次终端结算。`DatasetEnvFactory` 每个 seed 只对应一个完整月，不再提供月中规则暖启动。工厂合同绑定数据哈希、住户顺序、月窗口、配置、费率假设和相关代码，不依赖数据目录绝对路径。获取、清洗及时间口径详见 [Ausgrid 实验说明](AUSGRID.md)。以下命令仅验证数据与接口，不启动 Ray 或训练：
 
 ```powershell
 .\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --dataset datasets/ausgrid/processed/manifest.json --validate-data --output outputs/ausgrid-validation/interface
@@ -71,7 +71,7 @@ Value 使用固定输出单位：UC 为 20、Consumer 为 10。网络输出乘�
 
 `critic_lambda` 写入学习契约，避免恢复时静默改变目标定义。每批全量固定目标的更新前后 loss、原单位 RMSE、实际参与更新的 Actor loss，以及候选回滚结果，实时写入运行目录下 `batch_losses.jsonl`。逐批绘图与字段定义见[目标分离与逐批日志](BATCH_CRITIC_TARGETS.md)。
 
-当前训练及 `online_critic_pilot.py` 均不执行额外 MC 预拟合。通用 `fit_values()` 和旧实验脚本保留供历史诊断使用，不进入当前训练链；历史结果见 [原预拟合实验](CALIBRATED_PILOT.md)及[连续采样实验](CONTINUOUS_PILOT.md)。完整月 MC 仍可用于冻结验证，验证数据不进入梯度更新。
+当前训练只使用已采集批次进行在线更新。额外 MC 预拟合接口和历史脚本已删除；完整月 MC 仅在 `evaluation.py` 中用于冻结验证，验证数据不进入梯度更新。
 
 消费者以自己的公告后观测生成削减、条件移峰、DER 来源比例和报价。采样记录保存本地 13 字段边界、条件区间和零宽掩码。条件区间使用本户队列、到期预留和柔性能力；零宽坐标执行确定值。
 
@@ -99,15 +99,13 @@ UC 到消费者之间没有物理折扣；连续两个同类决策之间使用�
 
 消费者前置适应推进主轨迹，结束后保存公共快照。UC 提案从该快照开始，多个提案沿用逐次 UC 更新；提案采样位置不直接提交。候选集合包含现有 UC。每个响应分支恢复公共环境、观测、随机状态，以及相同的消费者 Actor、Value 和两套 Adam，明确丢弃提案期间消费者 Value／Adam 的进展；保留对应候选 UC 的 Actor、Value 和 Adam。响应期间继续更新所有 Critic，各候选获得相同响应预算。候选接受使用同 seed 验证场景的配对 UC 回报差正态近似区间（默认 `z=1.96`）：下界超过最小改善量才进入可接受集合，再选择平均改善最大的候选。选定策略组合及其响应分支终点一起提交；未选分支只计入计算预算。
 
-验证、偏离搜索及 Critic 辅助采样与主轨迹隔离。`collect_value_data()` 只允许训练种子，成功或异常退出均恢复采样状态；随后 `fit_values()` 保留 Value 和其 Adam 更新，不能用旧 Learner 快照覆盖新拟合结果。连续实验也恢复 Value minibatch 打乱所消耗的随机状态。学习契约记录 `continuous_main_common_response_snapshot_selected_branch_v1`，旧重启协议 checkpoint 会被拒绝，历史实验产物保留。
+验证与偏离搜索均在退出时恢复主轨迹；冻结评价还核对全部 Learner 和 Adam 状态。算法保留当前学习契约核对，源码或数据协议变化后不自动迁移旧 checkpoint。
 
-当前固定小规模入口为 `online_critic_pilot.py`，从 seed 42 的相同初值执行一次 3 轮训练：1,536 个全部分支 PPO 时段、768 个主轨迹时段、零额外 MC 训练采样。每批 64 步，Actor 2 epoch、全部 Critic 4 epoch、minibatch 32；每个 Critic 实际执行 192 次优化，分支回滚后保留的步数另计。验证沿用四个月初 96 步窗口及四个完整验证月，测试集继续保留。结果见 [在线 Critic 实验](ONLINE_CRITIC_PILOT.md)。
+当前固定小规模入口为 `batch_critic_pilot.py`，从 seed 42 的相同初值执行一次 3 轮训练：1,536 个全部分支 PPO 时段、768 个主轨迹时段、零额外 MC 训练采样。每批 64 步，Actor 2 epoch、全部 Critic 4 epoch、minibatch 32；每个 Critic 实际执行 192 次优化，分支回滚后保留的步数另计。验证沿用四个月初 96 步窗口及四个完整验证月，测试集继续保留。结果见[最新固定预算对照](BATCH_CRITIC_PILOT.md)。
 
-学习契约新增 `critic_epochs` 和 `all_critics_then_selected_actors_common_consumer_state_v1` 更新协议，旧更新机制的 checkpoint 不可直接恢复为新训练。旧 `continuous_pilot.py --stage 1/2` 的已完成结果保留；复现其原始更新机制需使用对应历史 Git 版本，不能用当前算法冒充历史对照。
+当前入口只依赖 `train.py` 的通用设置与序列化、`evaluation.py` 的冻结评价、`training_audit.py` 的采样／梯度／Adam 审计。上一轮报告及原始输出作为对照保留，其运行源码由提交 `ea3d322` 定位。最新结果绑定 `ed56de0` 的运行来源；本轮清理不重新训练，也不改写已有结果。
 
-历史连续实验第二次恢复时，初始短窗口逐项核对策略结果和 bootstrap 值，初始 Critic 全月基线复用了同一检查点已有的第一次最终评价，并记录源报告 SHA-256。该历史设计与本次从相同初值启动的一次在线训练区分报告。
-
-消费者偏离搜索固定 UC 和其他消费者的 Actor，仅更新被检查消费者的 Actor，同时全部 Critic 继续跟踪当前联合策略；结束后恢复完整参考快照。候选与偏离报告记录实际搜索预算和已发现的收益改善。最小运行的两条验证轨迹用于验收训练、回退、恢复和评价链路；正式比较应增加独立 seed 和偏离搜索预算，并报告区间近似与多候选选择条件。
+消费者偏离搜索固定 UC 和其他消费者的 Actor，仅更新被检查消费者的 Actor，同时全部 Critic 继续跟踪当前联合策略；结束后恢复完整参考快照。候选与偏离报告记录实际搜索预算和已发现的收益改善。微型合成测试用于验收训练、回退、恢复和评价链路；结果报告明确搜索预算与区间近似，不据此宣称均衡。
 
 每轮在候选生成前及最终选定策略组上分别搜索消费者偏离。最终策略组用于联合停止检查：消费者已发现改进、UC 候选改进、Actor 参数 RMS 变化和配对区间半宽同时达到阈值，并连续维持指定轮数，入口才提前停止。默认阈值为 `consumer_gain=0.1`、`uc_gain=0.1`、`policy_change=0.001`、`confidence_half_width=0.1`，连续轮数为 3；两类改进和区间半宽以元等值计，参数 RMS 无量纲。通过 `StackelbergConfig.training(stopping_tolerances=..., stopping_patience=...)` 配置，`stopping_patience=0` 使用固定外层预算。未搜索偏离或缺少区间时，联合停止条件不会通过。
 
@@ -124,7 +122,8 @@ UC 到消费者之间没有物理折扣；连续两个同类决策之间使用�
 | `--proposal-updates` | 每个新候选的 UC 更新预算 |
 | `--deviation-updates` | 每个消费者单边偏离搜索预算 |
 | `--rollout-steps` | 每批物理时段数 |
-| `--epochs`、`--minibatch-size` | PPO 批内更新参数 |
+| `--epochs`、`--critic-epochs`、`--minibatch-size` | Actor / Critic 轮数与批内切分 |
+| `--critic-lambda` | 独立 Critic 目标参数，默认 1.0 |
 
 ## 6. 输出与可复现性
 

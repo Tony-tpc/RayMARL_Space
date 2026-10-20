@@ -1,18 +1,20 @@
-# 能源市场实验入口
+# 能源市场实验
 
-当前固定预算入口为 `batch_critic_pilot.py`：Actor GAE 与 Critic 多步目标分开，保留原 3 轮、24 批训练预算，并保存横轴 1—24 的真实 loss。结果和曲线见[本次固定预算对照](BATCH_CRITIC_PILOT.md)，实现细节见[目标分离与逐批日志](BATCH_CRITIC_TARGETS.md)。测试集继续保留。
+当前固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：月初连续采样，Actor GAE 与 Critic 多步目标分开，3 轮共 24 批，并记录真实逐批 loss。结果见[最新报告](BATCH_CRITIC_PILOT.md)，实现口径见[目标与日志](BATCH_CRITIC_TARGETS.md)。测试集继续保留。
 
-上一轮固定预算入口为 `online_critic_pilot.py`：冻结 Actor 时仍在线更新全部 Critic，取消额外 MC 预拟合。实现和结果见 [在线 Critic 小规模报告](ONLINE_CRITIC_PILOT.md)。前两次连续采样结果见 [历史报告](CONTINUOUS_PILOT.md)，改造前背景保留在 [项目交接文档](HANDOFF.md)。
+| 模块 | 职责 |
+|---|---|
+| `train.py` | 通用合成／数据场景入口、预算、checkpoint、导出 |
+| `batch_critic_pilot.py` | 固定预算配置与一次完整训练、验证、审计 |
+| `evaluation.py` | 冻结窗口表现、完整验证月 MC、日期分层 RMSE |
+| `training_audit.py` | 独立目标复算、物理账本及梯度／Adam 隔离检查 |
+| `profile_dataset.py`、`training_env.py` | 月窗口、数据契约、两阶段训练适配 |
+| `plot_batch_losses.py`、`summarize_batch_critic.py` | 读取已有结果、生成对照与曲线，不训练 |
+| `validate_v9.py`、`validation_helpers.py`、`smoke_test.py` | 环境独立数值验证与固定行动 smoke |
 
-本目录组织能源市场的场景、训练、评价和环境验证。算法实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg`；市场执行、结算和状态转移位于 `environments/sn_energy_market/src/snmarket`。
+算法属于 `RLAlgo/src/raymarl/algorithms/stackelberg`，状态转移和结算属于 `environments/sn_energy_market/src/snmarket`。完整参数见[训练协议](TRAINING.md)，真实数据接入见[Ausgrid 说明](AUSGRID.md)，数据选型依据见[调研](DATASETS.md)。
 
-`train.py` 运行双层训练：消费者适应、UC 候选生成、重新适应后的匹配评价、候选选择与冻结测试。完整调用和实验协议见 [训练说明](TRAINING.md)。
-
-真实数据的候选比较见 [数据选型调研](DATASETS.md)。当前已接入 Ausgrid 30 分钟负荷与光伏；下载清洗、固定住户、年度划分、参数与验证命令见 [Ausgrid 实验说明](AUSGRID.md)。`--dataset` 选择数据清单，省略时使用合成场景；`--validate-data` 仅检查数据与配置，不启动训练。
-
-历史小规模入口为 `pilot.py`，其采样、梯度、奖励、更新隔离及检查点的审计也由当前实验复用，见 [小规模训练验证](PILOT.md)。当前入口只加载训练集和验证集。通用入口的 `--skip-test` 同样保留测试集，并将结束评价写入 `validation_evaluation.json`。
-
-历史 `calibrated_pilot.py` 曾使用完整终止轨迹预热 Value，再执行 3 轮 PPO；结果见[修正后对照报告](CALIBRATED_PILOT.md)。该预热不进入当前 `online_critic_pilot.py` 或 `train.py` 的训练链。历史脚本的原始结果应在对应 Git 版本复现。
+保留[上一轮对照报告](ONLINE_CRITIC_PILOT.md)、最新结果及对应原始输出。旧预拟合、旧连续采样实验和过程文档已删除，其源码与报告通过 Git 查看。现行入口不再导入历史实验。当前状态见[交接说明](HANDOFF.md)。
 
 `MarketEnvFactory.get_contract()` 自动记录市场配置、种子切分与合成场景函数源码哈希。checkpoint 恢复保持学习目标和数据协议一致，设备与输出目录可以改变。
 
@@ -55,4 +57,3 @@
 续跑要求代码、参考程序、配置及规格哈希一致。失败批次不计入通过数。修改实现后须重新启动验证，不拼接不同版本的结果。数学上保留的 U02、A01、A02、A03 在独立经济测试中复现，其状态不随守恒测试通过而改变。
 
 环境接口、数据单位和生命周期见 [环境说明](../../environments/sn_energy_market/README.md)。
-

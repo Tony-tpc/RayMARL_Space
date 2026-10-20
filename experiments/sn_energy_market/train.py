@@ -28,8 +28,6 @@ from experiments.sn_energy_market.profile_dataset import (
 )
 from experiments.sn_energy_market.training_env import MarketEnvFactory
 
-TRAINING_START_DAYS = (1,)
-
 
 def model_settings(hidden_dim):
     """Experiment priors and value units; physical actions remain freely sampled."""
@@ -190,7 +188,7 @@ def experiment_settings(args, dataset=None):
     }
     if dataset is not None:
         splits = DatasetEnvFactory(
-            dataset, config, seed=args.seed, training_start_days=TRAINING_START_DAYS
+            dataset, config, seed=args.seed
         ).seed_splits
     if args.skip_test:
         splits.pop("test", None)
@@ -203,7 +201,6 @@ def scenario_factory(args, config, splits, dataset=None):
             dataset or load_dataset(args),
             config,
             seed=args.seed,
-            training_start_days=TRAINING_START_DAYS,
         )
     return MarketEnvFactory(config, seed_splits=splits)
 

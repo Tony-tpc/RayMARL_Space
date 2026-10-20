@@ -5,9 +5,9 @@ import torch
 
 from raymarl import MAACConfig
 from raymarl.common.models import AttentionCritic
+from raymarl.common.replay import JointReplay
 from raymarl.common.targets import score_function_loss, soft_target, soft_update
 from raymarl.distributions import HybridDistribution, bound_distribution
-from raymarl.replay import JointReplay
 from raymarl.spaces import ActionLayout, ObservationLayout
 
 

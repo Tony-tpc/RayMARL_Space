@@ -39,9 +39,9 @@ record = engine.apply_consumer_actions(actions)
 assert engine.state.period_id == 1
 ```
 
-输出层函数属于行动生成辅助工具。引擎不会调用它修改提交动作：非法联合动作报错，合法行动按公告执行。原始五维 UC 向量、旧七字段计划及旧配置需要显式迁移。可行域随状态变化，RLlib 的 Box 表示外包络；直接从 Box 随机采样不保证满足联合约束。
+输出层函数属于行动生成辅助工具。引擎不会调用它修改提交动作：非法联合动作报错，合法行动按公告执行。可行域随状态变化，RLlib 的 Box 表示外包络；直接从 Box 随机采样不保证满足联合约束。
 
-运行接口只有一套：`UCAction`、`ConsumerAction`，类型和函数不加文档版本后缀。动作对象必须按字段名构造，例如 `ConsumerAction(curtail_kw=0, signed_shift_kw=0, der_preference_fraction=0.5, der_bid_per_kwh=0.3)`，避免旧位置参数中的 UC 报价被误认成 DER 比例。四维裸向量按当前物理字段解释，数值本身没有版本信息；旧策略输出必须先按字段语义迁移。规则版本保留在配置、快照和验证元数据中，旧观测、动作轨迹和训练 checkpoint 需要相应迁移。兼容性专项核查见 [审查记录](docs/v9/compatibility_audit_zh.md)。
+运行接口只有 `UCAction`、`ConsumerAction`。动作对象按字段名构造，例如 `ConsumerAction(curtail_kw=0, signed_shift_kw=0, der_preference_fraction=0.5, der_bid_per_kwh=0.3)`；裸向量按文档中的当前物理顺序解释。规则版本仍绑定配置、快照和验证记录，用于阻止不同物理定义的状态混用。
 
 每个物理时段分为两次调用：UC 阶段只保存公告，消费者阶段统一执行和提交。成交使用必要层优先的 DER PAB→UC 比例分配→DER 原报价补配。两路充电与主动弃电按行动值执行；实际购电、放电限于公告。
 
@@ -72,7 +72,6 @@ assert engine.state.period_id == 1
 
 ## 验证和经济解释
 
-`tests/v9_oracle.py` 独立实现数学参考，`tests/v9_checks.py` 将生产结果逐字段对照。历史文档 verifier 保留原始来源和“代码未改动”检查，不再作为新生产验收入口。
+`tests/v9_oracle.py` 独立实现数学参考，`tests/v9_checks.py` 将生产结果逐字段对照。当前完整环境验证基线见[报告](docs/v9/full_validation_current_commit_zh.md)。
 
-当前模型保留 U02 来源替代、A01 已有减载付费认领、A02 到期回补额外容量责任、A03 公告容量平坦区。测试分别验证其数值结果；这些经济性质与程序守恒、实现一致性分开报告。当前没有进行 RL 训练，也未计算完整动态均衡。
-
+当前模型保留 U02 来源替代、A01 已有减载付费认领、A02 到期回补额外容量责任、A03 公告容量平坦区。测试分别验证其数值结果；这些经济性质与程序守恒、实现一致性分开报告。双层 RL 已实现并完成一次固定预算训练与验证，见[最新报告](../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)；尚未建立动态均衡结论。

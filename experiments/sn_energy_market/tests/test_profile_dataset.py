@@ -77,6 +77,11 @@ def test_all_months_and_fixed_household_order_with_leap_year(dataset_path):
     for split, seeds in factory.seed_splits.items():
         for seed, window in zip(seeds, data.windows(split)):
             env = factory(seed)
+            env.reset(seed)
+            assert env.engine.state.period_id == 0
+            assert env.engine.state.timestamp.day == 1
+            assert not env.engine.records
+            assert all(c.monthly_uc_energy_kwh == 0 and not c.tasks for c in env.engine.state.consumers)
             assert env.config.system.horizon_steps == window.periods
             assert env.engine.profiles.metadata["household_ids"] == [23, 5]
             assert env.engine.profiles.metadata["split"] == split

@@ -115,7 +115,10 @@
 本次运行执行了 5,352 次冻结优化器检查，checkpoint 恢复后的 8 步轨迹逐字段精确一致。环境源文件 SHA-256 前后相同；功率、队列、现金残差最大分别为 `7.11e-15`、`5.45e-15`、`3.55e-15`，GAE 残差为 `4.26e-14`，行为对数概率重算残差为 `2.38e-6`。初始／最终验证各含四个完整月份和随机／均值的四个短窗口，验证过程没有优化器更新；8 次真实月末终止来自这两组完整验证。训练主轨迹只运行到 7 月 17 日，真实终止后的重置和 bootstrap 语义由采样器单元检查覆盖，月末结算由市场环境检查覆盖。
 
 ```powershell
-.\.venv\Scripts\python.exe -u experiments/sn_energy_market/online_critic_pilot.py
+# 历史源码定位：git show ea3d322:experiments/sn_energy_market/online_critic_pilot.py
 ```
 
 固定输出为 `outputs/ausgrid-online-critic-pilot/20261020/`，包含学习契约、逐轮结果、完整报告、逐优化器审计、checkpoint 和 Actor 导出。入口拒绝覆盖已有目录。历史原始报告位于 `outputs/ausgrid-continuous-pilot/20261019/stage-1/` 和 `stage-2/`；原始数据、checkpoint 和输出文件继续由 Git 忽略，提交源码、测试、中文说明和结果摘要。
+
+
+本报告及原始输出作为最新实验的直接对照保留。该历史训练入口已移出当前工作树；原机制应在提交 `ea3d322` 下复现，当前入口见 `batch_critic_pilot.py`。

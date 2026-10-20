@@ -11,8 +11,6 @@ RayMARL/
     tests/              # 算法测试
     docs/               # 架构、算法审计与验证记录
     examples/           # 训练、评估、保存恢复与推理入口
-    local_runtime/      # 本机安装与 Ray 启动辅助脚本
-    archives/           # 本地历史归档工具与记录
     pyproject.toml      # 算法库的安装、打包与检查配置
     README.md
   environments/         # 独立环境及环境适配器
@@ -53,7 +51,7 @@ RayMARL/
 
 该入口从 `environments.aaa` 导入环境，并用 MAPPO 训练。环境接口与目录约定见 [环境说明](environments/README.md)。
 
-算法说明见 [RLAlgo/README.md](RLAlgo/README.md)，完整教学流程见 [运行示例](RLAlgo/examples/README.md)，本次整理验证见 [目录整理记录](RLAlgo/docs/layout.md)。
+算法说明见 [RLAlgo/README.md](RLAlgo/README.md)，完整教学流程见 [运行示例](RLAlgo/examples/README.md)，目录和保留规则见 [代码库维护说明](REPOSITORY.md)。
 
 新版博弈环境的安装、接口和验证方法见 [sn_energy_market 环境说明](environments/sn_energy_market/README.md)，逐项依据见 [v9 完整建模](environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。环境采用六维 UC、四维 Consumer 物理动作。双层训练由独立 `stackelberg` 算法包实现，能源场景和运行入口位于 `experiments/sn_energy_market`，现有算法与公共运行逻辑保持独立。
 
@@ -61,13 +59,13 @@ RayMARL/
 .\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/train.py --smoke
 ```
 
-该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，验收结果见[训练验证报告](environments/sn_energy_market/docs/v9/training_validation_zh.md)。
+该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，验收结果见[固定预算验证报告](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)。
 
-当前双层算法每批更新全部 Critic，仅对选中的 Actor 做策略更新。冻结 Actor 时保留其参数和 Adam 状态，候选响应恢复相同消费者 Actor／Critic／Adam。取消额外 MC 预拟合的一次固定预算实验入口为 `experiments/sn_energy_market/online_critic_pilot.py`，结果见[在线 Critic 小规模报告](experiments/sn_energy_market/ONLINE_CRITIC_PILOT.md)，测试集继续保留。
+当前双层算法每批更新全部 Critic，仅对选中的 Actor 做策略更新。冻结 Actor 时保留其参数和 Adam 状态，候选响应恢复相同消费者 Actor／Critic／Adam。Actor GAE 与 Critic 多步目标独立，月初连续采样、真实月末重置。固定预算入口为 `experiments/sn_energy_market/batch_critic_pilot.py`，结果及真实 24 批 loss 见[最新报告](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)，测试集继续保留。
 
 ## 本地版本管理
 
-整个工作区由根目录的 Git 仓库统一管理，保留既有算法历史。环境基线位于 `版本管理/环境建模基线` 分支，使用 `环境建模基线-20261018` 标签定位。代码、配置、测试、建模文档、HTML 和文档内的验证摘要均纳入版本；虚拟环境、数据集、运行输出、机器专用脚本及旧实验归档按 `.gitignore` 排除。本次新建分支、标签和提交说明均使用中文。
+整个工作区由根目录的 Git 仓库统一管理，保留既有算法历史。环境基线位于 `版本管理/环境建模基线` 分支，使用 `环境建模基线-20261018` 标签定位。代码、配置、必要测试、当前建模 Markdown 和保留验证摘要纳入版本；虚拟环境、数据集、运行输出、机器专用脚本及旧实验归档按 `.gitignore` 排除。提交说明使用中文。
 
 `.gitattributes` 保持文件当前字节，避免自动换行转换使验证清单中的 SHA256 失效。完整压力测试输出保留在本地 `outputs/snmarket-validation/`，可用已纳入版本的验证入口重新生成。当前仓库仅用于本地版本管理，尚未配置远程仓库。
 

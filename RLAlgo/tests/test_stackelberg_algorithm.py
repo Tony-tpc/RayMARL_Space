@@ -368,6 +368,7 @@ def test_gpu_learner_cpu_runner_update(ray_runtime, tmp_path):
 @pytest.mark.integration
 def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runtime, tmp_path, monkeypatch):
     from experiments.sn_energy_market.plot_batch_losses import load_batches
+    from experiments.sn_energy_market.training_audit import TrainingAudit
 
     torch.set_num_threads(1)
     cfg = configuration(tmp_path).training(
@@ -377,6 +378,7 @@ def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runti
     # Tiny synthetic fixtures only; no historical energy training/validation/test data.
     cfg.test_seeds = ()
     algo = cfg.build_algo()
+    audit = TrainingAudit(algo, tmp_path).install()
     path = Path(algo.logdir) / "batch_losses.jsonl"
     original_collect = algo.env_runner.collect
     original_diagnostics = algo._batch_diagnostics
@@ -403,8 +405,11 @@ def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runti
     monkeypatch.setattr(algo.env_runner, "collect", collect)
     monkeypatch.setattr(algo, "_batch_diagnostics", diagnostics)
     try:
-        for _ in range(3):
+        for index in range(3):
+            audit.phase = f"round_{index + 1}"
             algo.train()
+        assert len(audit.updates) == 48
+        assert audit.coverage["frozen_optimizer_checks"] > 0
         records = load_batches(path)
         assert [item["batch_id"] for item in records] == list(range(1, 25))
         assert algo.completed_updates == 24 and algo.sampled_periods == 96
@@ -429,4 +434,5 @@ def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runti
         algo._adapt(algo.consumer_ids, 1)
         assert load_batches(path)[-1]["batch_id"] == 25
     finally:
+        audit.close()
         algo.stop()

@@ -4,15 +4,15 @@ import torch
 from ray.rllib.core.columns import Columns
 
 from raymarl import IPPOConfig, MAPPOConfig
+from raymarl.algorithms.mappo.rl_module import MAPPORLModule
 from raymarl.common.models import ActorModule
 from raymarl.distributions import HybridDistribution
-from raymarl.ppo import PPOModule
 
 
 def test_mappo_actor_cannot_use_central_state():
     local = gym.spaces.Box(-1, 1, (3,), np.float32)
     space = gym.spaces.Dict({"local": local, "critic": gym.spaces.Box(-1, 1, (6,), np.float32)})
-    actor = PPOModule(
+    actor = MAPPORLModule(
         observation_space=space,
         action_space=gym.spaces.Box(-1, 1, (1,), np.float32),
         model_config={"hidden_dim": 8},

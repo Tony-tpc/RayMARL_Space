@@ -130,69 +130,6 @@ class StackelbergTorchLearner(TorchLearner):
             self.metrics.log_value((module_id, key), value.detach(), window=1)
         return loss
 
-    def fit_values(self, batches, *, epochs, minibatch_size):
-        """Supervise only Value on fixed original-unit targets supplied by the caller.
-
-        Each module batch contains ``obs``, ``critic_obs`` and ``value_targets``.
-        The existing Value optimizer and checkpoint state are reused; Actor
-        parameters and its optimizer are never included in this update.
-        """
-        if epochs < 1 or minibatch_size < 1:
-            raise ValueError("Value fitting needs positive epochs and minibatch_size")
-        results = {}
-        for module_id, source in batches.items():
-            module = self.module[module_id].unwrapped()
-            batch = {
-                key: torch.as_tensor(source[key], device=self._device, dtype=torch.float32).detach()
-                for key in (Columns.OBS, "critic_obs", "value_targets")
-            }
-            count = len(batch["value_targets"])
-            if count == 0:
-                raise ValueError("Value fitting needs nonempty target batches")
-            optimizer = self.get_optimizer(module_id, "value")
-            parameters = list(module.value.parameters())
-            with torch.no_grad():
-                _, before, _ = value_fit_statistics(
-                    module.compute_values(batch), batch["value_targets"], module.value_scale
-                )
-            steps = 0
-            maximum_norm = 0.0
-            for _ in range(epochs):
-                order = torch.randperm(count, device=self._device)
-                for indices in order.split(minibatch_size):
-                    mini = {key: value[indices] for key, value in batch.items()}
-                    optimizer.zero_grad(set_to_none=True)
-                    loss, _, _ = value_fit_statistics(
-                        module.compute_values(mini), mini["value_targets"], module.value_scale
-                    )
-                    if not torch.isfinite(loss):
-                        raise FloatingPointError("Non-finite Value loss; optimizer update rejected")
-                    (self.config.vf_loss_coeff * loss).backward()
-                    norm = torch.nn.utils.clip_grad_norm_(
-                        parameters, self.config.grad_clip, error_if_nonfinite=True
-                    )
-                    maximum_norm = max(maximum_norm, float(norm))
-                    optimizer.step()
-                    steps += 1
-            with torch.no_grad():
-                _, after, explained = value_fit_statistics(
-                    module.compute_values(batch), batch["value_targets"], module.value_scale
-                )
-            results[module_id] = {
-                "samples": count,
-                "epochs": epochs,
-                "optimizer_steps": steps,
-                "rmse_before": float(before),
-                "rmse_after": float(after),
-                "explained_variance_after": float(explained),
-                "maximum_unclipped_grad_norm": maximum_norm,
-            }
-        self._weights_seq_no += 1
-        return {
-            "modules": results,
-            "optimizer_steps": sum(item["optimizer_steps"] for item in results.values()),
-        }
-
     def compute_gradients(self, loss_per_module, **kwargs):
         if any(not torch.isfinite(loss).all() for loss in loss_per_module.values()):
             raise FloatingPointError("Non-finite PPO loss; optimizer update rejected")

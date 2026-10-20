@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from experiments.sn_energy_market.pilot import (
+from experiments.sn_energy_market.training_audit import (
     TrainingAudit,
     assert_same_state,
     parameter_changes,

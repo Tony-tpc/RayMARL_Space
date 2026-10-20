@@ -1,4 +1,4 @@
-"""Configured policy priors and fixed-unit Value fitting without Actor updates."""
+"""Policy priors, fixed value units and independent online update phases."""
 
 import copy
 
@@ -95,56 +95,6 @@ def test_value_units_preserve_gae_and_normalized_loss_gradients():
     np.testing.assert_allclose(large_advantage, 50 * advantage, rtol=1e-6, atol=1e-5)
     np.testing.assert_allclose(large_returns, 50 * returns, rtol=1e-6, atol=1e-5)
     assert torch.isfinite(value_fit_statistics(prediction.detach(), torch.ones(16), 1)[2])
-
-
-def test_value_only_fit_improves_targets_and_preserves_actor_optimizer_and_restore():
-    torch.set_num_threads(1)
-    torch.manual_seed(25)
-    config = AlgorithmConfig().learners(num_learners=0, num_gpus_per_learner=0)
-    config.actor_lr, config.critic_lr = 0.001, 0.01
-    config.clip_param, config.vf_loss_coeff, config.entropy_coeff, config.grad_clip = 0.2, 0.5, 0.0, 0.5
-    learner = StackelbergTorchLearner(
-        config=config,
-        module_spec=MultiRLModuleSpec(
-            rl_module_specs={
-                "uc": specification("uc", value_scale=20.0),
-                "consumer": specification("consumer", value_scale=3.0),
-            }
-        ),
-    )
-    learner.build()
-    learner.update(
-        batch=MultiAgentBatch({key: sample_batch(learner.module[key]) for key in ("uc", "consumer")}, 16),
-        num_epochs=1,
-        minibatch_size=16,
-    )
-    obs = torch.randn(32, 7, requires_grad=True)
-    targets = -40.0 + 3.0 * obs[:, 0].tanh()
-    batches = {"uc": {"obs": obs, "critic_obs": obs, "value_targets": targets}}
-    actor = copy.deepcopy(learner.module["uc"].actor.state_dict())
-    actor_optimizer = copy.deepcopy(learner.get_optimizer("uc", "actor").state_dict())
-    consumer = copy.deepcopy(learner.module["consumer"].get_state())
-    consumer_optimizers = {
-        name: copy.deepcopy(learner.get_optimizer("consumer", name).state_dict())
-        for name in ("actor", "value")
-    }
-    snapshot, rng = copy.deepcopy(learner.get_state()), torch.get_rng_state()
-    report = learner.fit_values(batches, epochs=30, minibatch_size=16)
-    assert obs.grad is None
-    assert report["optimizer_steps"] == 60
-    metrics = report["modules"]["uc"]
-    assert metrics["rmse_after"] < 0.15 * metrics["rmse_before"]
-    assert_nested_equal(actor, learner.module["uc"].actor.state_dict())
-    assert_nested_equal(actor_optimizer, learner.get_optimizer("uc", "actor").state_dict())
-    assert_nested_equal(consumer, learner.module["consumer"].get_state())
-    for name in ("actor", "value"):
-        assert_nested_equal(consumer_optimizers[name], learner.get_optimizer("consumer", name).state_dict())
-    expected = copy.deepcopy(learner.get_state())
-    learner.set_state(snapshot)
-    torch.set_rng_state(rng)
-    repeated = learner.fit_values(batches, epochs=30, minibatch_size=16)
-    assert repeated == report
-    assert_nested_equal(expected, learner.get_state())
 
 
 @pytest.mark.parametrize("active_actor", ["uc", "consumer"])
