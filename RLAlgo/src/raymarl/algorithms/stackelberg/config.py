@@ -40,6 +40,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.inner_updates, self.response_updates = 5, 5
         self.uc_candidates, self.uc_updates_per_candidate, self.deviation_updates = 2, 1, 2
         self.acceptance_z, self.min_uc_gain = 1.96, 0.0
+        self.candidate_feasibility = None
         self.stopping_patience = 3
         self.stopping_tolerances = {
             "consumer_gain": 0.1,
@@ -83,6 +84,7 @@ class StackelbergConfig(AlgorithmConfig):
             "deviation_updates",
             "acceptance_z",
             "min_uc_gain",
+            "candidate_feasibility",
             "stopping_patience",
             "stopping_tolerances",
             "evaluation_steps",
@@ -177,6 +179,11 @@ class StackelbergConfig(AlgorithmConfig):
             evaluation_return="sampled_discounted_window",
             sampling_protocol="continuous_main_common_response_snapshot_selected_branch_v1",
             update_protocol="all_critics_then_selected_actors_common_consumer_state_v1",
+            value_architecture="layernorm_tanh_with_optional_time_branch",
+            candidate_feasibility=(
+                f"{self.candidate_feasibility.__module__}.{self.candidate_feasibility.__qualname__}"
+                if self.candidate_feasibility else None
+            ),
         )
         return json.loads(json.dumps(contract, sort_keys=True))
 

@@ -346,6 +346,50 @@ def test_common_response_state_and_selected_branch_continuation(ray_runtime, tmp
         algo.stop()
 
 
+def reject_all_candidates(candidate, incumbent):
+    return {"passed": False}
+
+
+@pytest.mark.integration
+def test_all_rejected_restores_whole_round_but_keeps_consumed_budget(ray_runtime, tmp_path):
+    from experiments.sn_energy_market.plot_batch_losses import load_batches
+
+    torch.set_num_threads(1)
+    cfg = configuration(tmp_path).training(deviation_updates=0, candidate_feasibility=reject_all_candidates)
+    cfg.rl_module(model_config={"hidden_dim": 8, "uc_time_features": {
+        "elapsed": 0, "remaining": 1, "cycle_steps": 96,
+    }})
+    algo = cfg.build_algo()
+    try:
+        # Exercise restoration of populated Adam moments as well as weights.
+        algo._adapt(algo.consumer_ids, 1)
+        before = algo._snapshot()
+        initial_steps = algo.sampled_periods
+        for attempt in range(2):
+            algo.train()
+            after = algo._snapshot()
+            assert_nested_equal(before["learner"], after["learner"])
+            assert_nested_equal(before["rng"], after["rng"])
+            for key, value in before["runner"]["sampling"].items():
+                if key == "environment":
+                    assert value.engine == after["runner"]["sampling"][key].engine
+                else:
+                    assert_nested_equal(value, after["runner"]["sampling"][key])
+            assert algo.sampled_periods == initial_steps + (attempt + 1) * 16
+            assert algo.completed_updates == 1 + (attempt + 1) * 4
+            assert algo.last_round["selected_candidate"] is None
+            assert not algo.last_round["round_committed"]
+            records = load_batches(Path(algo.logdir) / "batch_losses.jsonl")
+            assert all(r["branch_status"] == "rolled_back" for r in records[-4:])
+            assert [r["batch_id"] for r in records] == list(range(1, len(records) + 1))
+        saved = algo.get_state()
+        assert saved["stackelberg_runtime"]["committed_evaluation"] is not None
+        algo.set_state(saved)
+        assert algo.committed_evaluation == saved["stackelberg_runtime"]["committed_evaluation"]
+    finally:
+        algo.stop()
+
+
 @pytest.mark.cuda
 @pytest.mark.integration
 def test_gpu_learner_cpu_runner_update(ray_runtime, tmp_path):

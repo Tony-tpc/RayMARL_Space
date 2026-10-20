@@ -40,6 +40,41 @@ def mlp(input_dim, hidden_dim, output_dim=None):
     return nn.Sequential(*layers)
 
 
+class ValueNetwork(nn.Module):
+    """Per-state normalization and an optional linear time-feature branch."""
+
+    def __init__(self, input_dim, hidden_dim, time_features=None):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.Tanh(),
+        )
+        self.head = nn.Linear(hidden_dim, 1)
+        self.time_features = time_features
+        # Zero initialization consumes no RNG and preserves subsequent actors.
+        self.time_weight = nn.Parameter(torch.zeros(4)) if time_features else None
+
+    def forward(self, inputs):
+        value = self.head(self.encoder(signed_log1p(inputs))).squeeze(-1)
+        if self.time_features:
+            settings = self.time_features
+            elapsed, remaining = inputs[..., settings["elapsed"]], inputs[..., settings["remaining"]]
+            progress = elapsed / (elapsed + remaining).clamp_min(1)
+            angle = 2 * math.pi * elapsed / settings["cycle_steps"]
+            features = torch.stack((progress, progress.square(), angle.sin(), angle.cos()), -1)
+            value = value + features @ self.time_weight
+        return value
+
+    @torch.no_grad()
+    def saturation(self, inputs):
+        hidden, fractions = signed_log1p(inputs), []
+        for layer in self.encoder:
+            hidden = layer(hidden)
+            if isinstance(layer, nn.Tanh):
+                fractions.append(float((hidden.abs() > 0.99).float().mean()))
+        return fractions
+
+
 def shift_interval(bounds, cut):
     """Equation (14), evaluated in double precision at the sampled cut."""
     _, due, _, backlog, capacity, baseline, rigid, flex, dt, allow, _, _, _ = bounds.unbind(-1)
@@ -95,7 +130,9 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             self.actor["market"] = nn.Linear(hidden + 2, 4)
         if not self.inference_only:
             critic_dim = obs_dim if self.role == "uc" else self.model_config["critic_dim"]
-            self.value = mlp(critic_dim, hidden, 1)
+            self.value = ValueNetwork(
+                critic_dim, hidden, self.model_config.get("uc_time_features") if self.role == "uc" else None
+            )
 
     def get_non_inference_attributes(self):
         # Native runner broadcasts also serve GAE sampling and need fresh values.
@@ -225,7 +262,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
     def compute_values(self, batch, embeddings=None):
         """Return original reward units; only the network's output unit is scaled."""
         inputs = batch[Columns.OBS] if self.role == "uc" else batch["critic_obs"]
-        return self.value(signed_log1p(inputs.float())).squeeze(-1) * self.value_scale
+        return self.value(inputs.float()) * self.value_scale
 
     def _forward(self, batch, **kwargs):
         return self.draw(batch[Columns.OBS], batch.get("bounds"))

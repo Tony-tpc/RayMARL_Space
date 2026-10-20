@@ -26,12 +26,14 @@ class BatchLossLog:
     def outcome(row, selected):
         phase = row["phase"]
         proposal = phase == "uc_proposal"
-        retained = phase not in {"uc_proposal", "response", "deviation"} or (
+        retained = selected is not None and (phase not in {"uc_proposal", "response", "deviation"} or (
             phase == "response" and row["candidate_index"] == selected
-        )
+        ))
         roles = {}
         for key in row["modules"]:
-            keep = retained or (proposal and key == "uc" and row["candidate_index"] <= selected)
+            keep = retained or (
+                selected is not None and proposal and key == "uc" and row["candidate_index"] <= selected
+            )
             roles[key] = {"actor": keep and key in row["actor_ids"], "critic": keep}
         any_kept = any(any(values.values()) for values in roles.values())
         return {
@@ -43,7 +45,7 @@ class BatchLossLog:
     def record(self, row):
         row = {"event": "batch", "batch_id": self.next_id, **row}
         self.next_id += 1
-        if row["phase"] in {"uc_proposal", "response"}:
+        if row["phase"] in {"consumer_adaptation", "uc_proposal", "response"}:
             row["branch_status"] = "pending"
             self.pending.append(row)
         else:

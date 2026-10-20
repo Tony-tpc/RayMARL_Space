@@ -37,6 +37,8 @@ class StackelbergTorchLearner(TorchLearner):
             raise ValueError("update_phase must be joint, critic or actor")
         previous = getattr(self, "_update_phase", "joint")
         self._update_phase = update_phase
+        if update_phase == "critic":
+            self._critic_gradient_norms = {}
         try:
             return super().update(*args, **kwargs)
         finally:
@@ -78,9 +80,24 @@ class StackelbergTorchLearner(TorchLearner):
         results = {}
         for key, data in converted.policy_batches.items():
             module = self.module[key].unwrapped()
+            predictions = module.compute_values(data)
             loss, rmse, _ = value_fit_statistics(
-                module.compute_values(data), data["value_targets"], module.value_scale
+                predictions, data["value_targets"], module.value_scale
             )
+            inputs = data[Columns.OBS] if module.role == "uc" else data["critic_obs"]
+            diagnostics = {"tanh_saturation": module.value.saturation(inputs.float())}
+            series = {"prediction": predictions, "target": data["value_targets"]}
+            if "value_bootstrap" in data:
+                series.update(
+                    bootstrap=data["value_bootstrap"],
+                    realized_return=data["value_targets"] - data["value_bootstrap"],
+                    reward=data[Columns.REWARDS],
+                )
+            for name, values in series.items():
+                diagnostics[name] = {
+                    "mean": float(values.mean()), "std": float(values.std(unbiased=False)),
+                    "min": float(values.min()), "max": float(values.max()),
+                }
             policy_loss = None
             if key in actor_ids:
                 policy_loss, _ = clipped_policy_loss(
@@ -91,6 +108,8 @@ class StackelbergTorchLearner(TorchLearner):
             results[key] = {
                 "critic_loss": float(loss), "critic_rmse": float(rmse),
                 "policy_loss": policy_loss, "value_scale": module.value_scale,
+                "value_diagnostics": diagnostics,
+                "critic_gradient_norms": getattr(self, "_critic_gradient_norms", {}).get(key, []),
             }
         return results
 
@@ -147,6 +166,9 @@ class StackelbergTorchLearner(TorchLearner):
                 self.metrics.log_value(
                     (self._optimizer_name_to_module[name], "grad_norm"), norm.detach(), window=1
                 )
+                if self._update_phase == "critic":
+                    key = self._optimizer_name_to_module[name]
+                    self._critic_gradient_norms.setdefault(key, []).append(float(norm))
         return {key: value for key, value in gradients_dict.items() if value is not None}
 
     def set_state(self, state):

@@ -246,6 +246,10 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                 data["rewards"], data["next_vf_preds"], data["terminateds"],
                 self.config.gamma, self.config.critic_lambda,
             )
+            data["value_bootstrap"] = bootstrapped_returns(
+                np.zeros_like(data["rewards"]), data["next_vf_preds"], data["terminateds"],
+                self.config.gamma, self.config.critic_lambda,
+            )
             batches[key] = SampleBatch(data)
         self.last_metrics = totals
         return MultiAgentBatch(batches, steps)

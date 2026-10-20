@@ -8,7 +8,8 @@
 |---|---|
 | [建模文档](environments/sn_energy_market/docs/v9/modeling_complete_zh.md) | 唯一维护的完整模型规格，含当前训练算法 |
 | [训练说明](experiments/sn_energy_market/TRAINING.md) | 通用参数、连续采样、候选恢复、日志及评价 |
-| [固定预算入口](experiments/sn_energy_market/batch_critic_pilot.py) | 默认 3 轮、24 批，支持显式指定 72 轮 |
+| [固定预算入口](experiments/sn_energy_market/batch_critic_pilot.py) | 当前 Critic 结构与候选检查，默认 3 轮、24 批 |
+| [Critic 稳定性实验](experiments/sn_energy_market/CRITIC_STABILITY_PILOT.md) | LayerNorm、UC 时间支路及供电／现金检查的固定预算对照 |
 | [小规模结果](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md) | 分日期 RMSE、供电率、UC 收益与真实逐批曲线 |
 | [中长期验证](experiments/sn_energy_market/YEAR_STUDY.md) | 72 轮固定预算，沿用同一算法、训练年与保留测试集 |
 | [HTML 阅读版](environments/sn_energy_market/docs/v9/modeling_complete_zh.html) | 从当前 Markdown 生成的离线目录与 SVG 公式 |
@@ -45,3 +46,5 @@
 ## 后续 72 轮验证与 HTML 交付
 
 已按用户确认预算完成一次 72 轮训练及六个固定节点验证。前 24 批精确复现小规模基线；完整训练年、12 次真实月末、全部 Critic 更新及 checkpoint 重放均已核对。本次没有修改算法或环境生产代码，也没有新增测试文件；实验入口支持显式轮数，整月评价复用已有 MC 轨迹累计能源指标，绘图保留全部实测批次。当前 v9 HTML 作为从 Markdown 生成的阅读交付物保留，公式离线渲染为 SVG；历史过时 HTML 不恢复。详见[中长期结果](experiments/sn_energy_market/YEAR_STUDY.md)。
+
+后续 Critic 稳定性修改在现有测试文件中补充归一化、Actor 初始化一致、候选 0 检查、整轮回滚与 JSON 数值覆盖，没有新增兼容层。24 批实验的三个候选选择轮全部拒绝，最终模型保持新结构初态；首轮日志故障及预算内恢复过程保留。新证据位于 `outputs/ausgrid-critic-stability-pilot/20261020/` 和 `experiments/sn_energy_market/results/critic_stability_20261020/`，见[报告](experiments/sn_energy_market/CRITIC_STABILITY_PILOT.md)。环境生产源码与测试集保持不变。

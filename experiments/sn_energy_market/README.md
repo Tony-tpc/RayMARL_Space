@@ -1,8 +1,8 @@
 # 能源市场实验
 
-当前固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：月初连续采样，Actor GAE 与 Critic 多步目标分开，3 轮共 24 批，并记录真实逐批 loss。小规模结果见[报告](BATCH_CRITIC_PILOT.md)，实现口径见[目标与日志](BATCH_CRITIC_TARGETS.md)。测试集继续保留。
+当前固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：Critic LayerNorm、UC 时间支路、整轮供电与现金筛选，3 轮共 24 批。月初连续采样、两套固定目标和六维动作保持。新结果见[Critic 稳定性实验](CRITIC_STABILITY_PILOT.md)，原[三轮基线](BATCH_CRITIC_PILOT.md)保留；实现口径见[目标与日志](BATCH_CRITIC_TARGETS.md)。测试集继续保留。
 
-中长期实验复用同一配置执行 72 轮（576 批），在预先固定的轮次冻结验证；协议与结果见[中长期报告](YEAR_STUDY.md)。
+修改前算法已完成 72 轮（576 批）验证，协议与结果见[中长期报告](YEAR_STUDY.md)。本次仅新增一次三轮实验。
 
 | 模块 | 职责 |
 |---|---|

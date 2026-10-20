@@ -20,6 +20,27 @@ def test_experiment_priors_keep_six_stochastic_controls():
     assert config["uc_initial_mean"][0] > 0.9
     assert config["uc_initial_mean"][1] < 0.05
     assert set(config["value_scale"]) == {"uc", "consumer"}
+    assert config["uc_time_features"]["cycle_steps"] == 48
+
+
+def test_supply_cash_guard_requires_ratio_absolute_loss_and_cash_together():
+    import json
+
+    from experiments.sn_energy_market.evaluation import supply_cash_feasibility
+
+    def rows(lost, requested, cash):
+        return [{"seed": 11, "physical_periods": 96, "metrics": {
+            "native_lost_kwh": np.float64(lost), "native_requested_kwh": np.float64(requested),
+            "uc_cash": np.float64(cash),
+        }}]
+
+    base = rows(1, 100, 20)
+    assert supply_cash_feasibility(rows(0.9, 100, 21), base)["passed"]
+    assert not supply_cash_feasibility(rows(1.1, 200, 21), base)["passed"]
+    assert not supply_cash_feasibility(rows(0.9, 50, 21), base)["passed"]
+    assert not supply_cash_feasibility(rows(0.9, 100, 19), base)["passed"]
+    assert supply_cash_feasibility(base, base)["passed"]
+    json.dumps(supply_cash_feasibility(base, base), allow_nan=False)
 
 
 @pytest.mark.parametrize("fail", [False, True])
@@ -27,9 +48,10 @@ def test_frozen_month_validation_restores_sampling_and_rng(tmp_path, monkeypatch
     from dataclasses import replace
     from types import SimpleNamespace
 
+    from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
+
     from experiments.sn_energy_market import evaluation
     from experiments.sn_energy_market.training_env import MarketEnvFactory
-    from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
     from RLAlgo.tests.test_stackelberg_algorithm import configuration
     from RLAlgo.tests.test_stackelberg_sampling import assert_batches_equal
 

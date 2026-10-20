@@ -23,13 +23,18 @@ from experiments.sn_energy_market.evaluation import (
     frozen_evaluation,
     retained_optimizer_steps,
     source_hashes,
+    supply_cash_feasibility,
 )
-from experiments.sn_energy_market.profile_dataset import DatasetEnvFactory, ProfileDataset
+from experiments.sn_energy_market.profile_dataset import (
+    DatasetEnvFactory,
+    ProfileDataset,
+)
 from experiments.sn_energy_market.train import model_settings, write_json
 from experiments.sn_energy_market.training_audit import TrainingAudit
 
-OUTPUT = ROOT / "outputs/ausgrid-batch-critic-pilot/20261020"
-REFERENCE = ROOT / "outputs/ausgrid-online-critic-pilot/20261020/report.json"
+OUTPUT = ROOT / "outputs/ausgrid-critic-stability-pilot/20261020"
+REFERENCE = ROOT / "outputs/ausgrid-batch-critic-pilot/20261020/report.json"
+FULL_MONTH_REFERENCE = ROOT / "outputs/ausgrid-year-study/20261020/validation-0003.json"
 
 
 def configuration(output):
@@ -67,6 +72,7 @@ def configuration(output):
             stopping_patience=0,
             storage_path=str(output),
             checkpoint_interval=0,
+            candidate_feasibility=supply_cash_feasibility,
         )
     )
 
@@ -78,12 +84,16 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
     cfg = configuration(output)
     evaluation_rounds = sorted({n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds})
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    full_reference = json.loads(FULL_MONTH_REFERENCE.read_text(encoding="utf-8"))
+    assert full_reference["performance"] == reference["final"]["performance"]
+    assert full_reference["critic"]["modules"] == reference["final"]["critic"]["modules"]
     # Compare learning settings and data semantics; source hashes describe each
     # run separately and intentionally change when the implementation is cleaned.
     actual, expected = cfg.learning_contract(), reference["learning_contract"]
     for key, value in actual.items():
-        if key not in {"critic_lambda", "scenario"}:
+        if key not in {"model", "value_architecture", "candidate_feasibility", "scenario"}:
             assert value == expected[key], f"Pilot learning setting changed: {key}"
+    assert {k: v for k, v in actual["model"].items() if k != "uc_time_features"} == expected["model"]
     for key in ("manifest_sha256", "loaded_splits", "household_ids", "config",
                 "resource_calibration", "scenario_prices"):
         assert actual["scenario"][key] == expected["scenario"][key], key
@@ -109,7 +119,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
     write_json(output / "experiment.json", {
         "source_sha256": execution_sources,
         "learning_contract": cfg.learning_contract(),
-        "initialization": "fresh_seed_42_same_as_reference",
+        "initialization": "fresh_seed_42_same_actors_new_critic_architecture",
         "reference_report": str(reference_path.relative_to(ROOT)),
         "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
         "outer_rounds": outer_rounds,
@@ -130,10 +140,16 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
         start = cursor(algorithm.env_runner)
         audit.phase = "validation_initial"
         initial = frozen_evaluation(algorithm)
-        assert initial["performance"] == reference["initial"]["performance"]
-        assert initial["critic"]["modules"] == reference["initial"]["critic"]["modules"]
+        for mode in ("sampled", "mean"):
+            for new, old in zip(initial["performance"][mode]["rows"],
+                                reference["initial"]["performance"][mode]["rows"], strict=True):
+                # Critic bootstrap diagnostics intentionally differ; actions,
+                # realized returns and energy/cash metrics must match exactly.
+                for key in ("seed", "returns", "metrics", "physical_periods"):
+                    assert new[key] == old[key], (mode, key)
         assert initial["critic"]["periods"] == reference["initial"]["critic"]["periods"]
         assert start == reference["start"]
+        algorithm.committed_evaluation = copy.deepcopy(initial["performance"]["sampled"]["rows"])
         write_json(output / "validation-0000.json", initial)
         evaluations = {"0": initial}
         rounds = []
@@ -148,7 +164,9 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
                 "start": before,
                 "end": cursor(algorithm.env_runner),
             }
-            assert row["end"]["main_periods"] - before["main_periods"] == 256
+            assert row["end"]["main_periods"] - before["main_periods"] == (
+                256 if algorithm.last_round["round_committed"] else 0
+            )
             rounds.append(row)
             write_json(output / f"round-{index + 1:04d}.json", row)
             print(json.dumps({"round": index + 1, "selected": algorithm.last_round["selected_candidate"],
@@ -156,9 +174,6 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
             if index + 1 in evaluation_rounds:
                 audit.phase = f"validation_{index + 1}"
                 evaluation = frozen_evaluation(algorithm)
-                if index + 1 == 3 and expected.get("critic_lambda") == cfg.critic_lambda:
-                    assert evaluation["performance"] == reference["final"]["performance"]
-                    assert evaluation["critic"]["modules"] == reference["final"]["critic"]["modules"]
                 evaluations[str(index + 1)] = evaluation
                 write_json(output / f"validation-{index + 1:04d}.json", evaluation)
                 # Managed checkpoints keep the latest two, including their full
@@ -168,7 +183,8 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
                                   "uc_rmse": evaluation["critic"]["modules"]["uc"]["all"]["rmse"],
                                   "elapsed_seconds": time.monotonic() - started}), flush=True)
         assert algorithm.sampled_periods == 512 * outer_rounds
-        assert cursor(algorithm.env_runner)["main_periods"] == 256 * outer_rounds
+        main_periods = 256 * sum(row["round"]["round_committed"] for row in rounds)
+        assert cursor(algorithm.env_runner)["main_periods"] == main_periods
         assert len(audit.updates) == 16 * outer_rounds
         from experiments.sn_energy_market.plot_batch_losses import load_batches
 
@@ -204,12 +220,15 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
             "evaluations": evaluations,
             "elapsed_training_and_validation_seconds": time.monotonic() - started,
             "ppo_sampled_periods": 512 * outer_rounds,
-            "main_advanced_periods": 256 * outer_rounds,
+            "main_advanced_periods": main_periods,
             "critic_auxiliary_periods": 0,
             "critic_optimizer_steps_executed_per_module": 64 * outer_rounds,
-            "initial_matches_reference": True,
+            "initial_actor_performance_matches_reference": True,
+            "initial_critic_matches_reference": False,
             "reference_report": str(reference_path.relative_to(ROOT)),
             "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
+            "full_month_reference": str(FULL_MONTH_REFERENCE.relative_to(ROOT)),
+            "full_month_reference_sha256": hashlib.sha256(FULL_MONTH_REFERENCE.read_bytes()).hexdigest(),
             "batch_loss_log": str((output / "batch_losses.jsonl").relative_to(ROOT)),
             "batch_loss_sha256": hashlib.sha256(batch_log.read_bytes()).hexdigest(),
             "logged_batches": 8 * outer_rounds,

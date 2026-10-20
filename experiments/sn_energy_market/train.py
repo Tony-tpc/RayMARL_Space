@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "environments/sn_energy_market/src"))
 
 from snmarket import EnvironmentConfig
 
+from experiments.sn_energy_market.evaluation import supply_cash_feasibility
 from experiments.sn_energy_market.profile_dataset import (
     DatasetEnvFactory,
     ProfileDataset,
@@ -29,7 +30,7 @@ from experiments.sn_energy_market.profile_dataset import (
 from experiments.sn_energy_market.training_env import MarketEnvFactory
 
 
-def model_settings(hidden_dim):
+def model_settings(hidden_dim, resolution_minutes=30):
     """Experiment priors and value units; physical actions remain freely sampled."""
     return {
         "hidden_dim": hidden_dim,
@@ -37,6 +38,7 @@ def model_settings(hidden_dim):
         "uc_initial_std": [0.08, 0.05, 0.2, 0.2, 0.1, 0.2],
         "uc_head_scale": 0.01,
         "value_scale": {"uc": 20.0, "consumer": 10.0},
+        "uc_time_features": {"elapsed": 0, "remaining": 1, "cycle_steps": 1440 / resolution_minutes},
     }
 
 
@@ -352,7 +354,6 @@ def main(argv=None):
 
     import ray
     import torch
-
     from raymarl.algorithms.stackelberg import StackelbergConfig
 
     torch.set_num_threads(args.torch_threads)
@@ -375,7 +376,7 @@ def main(argv=None):
                 test_seeds=splits.get("test", ()),
             )
             .debugging(seed=args.seed)
-            .rl_module(model_config=model_settings(budget["hidden_dim"]))
+            .rl_module(model_config=model_settings(budget["hidden_dim"], environment.system.resolution_minutes))
             .learners(num_learners=0, num_gpus_per_learner=int(args.device == "cuda"))
             .training(
                 gamma=budget["gamma"],
@@ -392,6 +393,7 @@ def main(argv=None):
                 minibatch_size=budget["minibatch_size"],
                 storage_path=str(output),
                 checkpoint_interval=1,
+                candidate_feasibility=supply_cash_feasibility,
             )
         )
         algorithm = configuration.build_algo()

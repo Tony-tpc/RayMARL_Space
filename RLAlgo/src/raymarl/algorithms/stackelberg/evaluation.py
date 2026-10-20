@@ -22,14 +22,16 @@ def paired_gain(candidate, incumbent, agent="uc", z=1.96):
     }
 
 
-def select_candidate(evaluations, *, z=1.96, min_gain=0.0):
+def select_candidate(evaluations, *, z=1.96, min_gain=0.0, feasible=None):
+    """Keep the paired-return rule; candidate zero is a fallback only if feasible."""
+    feasible = [True] * len(evaluations) if feasible is None else feasible
     comparisons = [paired_gain(rows, evaluations[0], z=z) for rows in evaluations]
     eligible = [
         i
         for i in range(1, len(evaluations))
-        if comparisons[i]["lower"] is not None and comparisons[i]["lower"] > min_gain
+        if feasible[i] and comparisons[i]["lower"] is not None and comparisons[i]["lower"] > min_gain
     ]
-    selected = max(eligible, key=lambda i: comparisons[i]["mean"]) if eligible else 0
+    selected = max(eligible, key=lambda i: comparisons[i]["mean"]) if eligible else (0 if feasible[0] else None)
     return selected, comparisons
 
 

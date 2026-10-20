@@ -66,6 +66,21 @@ def compare(reference, current):
     }
 
 
+def full_month_performance(evaluation):
+    episodes = evaluation["critic"]["episodes"]
+    periods = sum(row["periods"] for row in episodes)
+    totals = {key: sum(row["metrics"][key] for row in episodes) for key in episodes[0]["metrics"]}
+    return {
+        "periods": periods,
+        "service_rate_pct": 100 * (1 - totals["native_lost_kwh"] / totals["native_requested_kwh"]),
+        "lost_kwh": totals["native_lost_kwh"],
+        "requested_kwh": totals["native_requested_kwh"],
+        "cash_aud_total": totals["uc_cash"],
+        "cash_aud_per_day": totals["uc_cash"] * 48 / periods,
+        "book_profit_aud_per_day": totals["uc_book_profit"] * 48 / periods,
+    }
+
+
 def consumer_curves(rows):
     """Equal-sized batches: mean scaled loss and pooled raw-unit RMSE over consumers."""
     result = []
@@ -76,6 +91,8 @@ def consumer_curves(rows):
         values = [row["modules"][key] for key in keys]
         combined = {}
         for name in values[0]:
+            if not name.startswith(("critic_loss", "critic_rmse", "policy_loss", "value_scale")):
+                continue
             data = [value[name] for value in values]
             if any(value is None for value in data):
                 assert all(value is None for value in data)
@@ -99,8 +116,7 @@ def summarize(report_path, output):
     log_path = ROOT / current["batch_loss_log"]
     rows = load_batches(log_path)
     assert current["status"] == "completed"
-    assert current["initial"]["performance"] == reference["initial"]["performance"]
-    assert current["initial"]["critic"]["modules"] == reference["initial"]["critic"]["modules"]
+    assert performance(current["initial"]) == performance(reference["initial"])
     assert current["initial"]["critic"]["periods"] == reference["initial"]["critic"]["periods"]
     assert current["ppo_sampled_periods"] == reference["ppo_sampled_periods"] == 1536
     assert current["critic_auxiliary_periods"] == reference["critic_auxiliary_periods"] == 0
@@ -109,6 +125,9 @@ def summarize(report_path, output):
     assert all(row["branch_status"] != "pending" and row["samples"] == 64 for row in rows)
     assert hashlib.sha256(log_path.read_bytes()).hexdigest() == current["batch_loss_sha256"]
     assert hashlib.sha256(reference_path.read_bytes()).hexdigest() == current["reference_sha256"]
+    full_reference_path = ROOT / current["full_month_reference"]
+    assert hashlib.sha256(full_reference_path.read_bytes()).hexdigest() == current["full_month_reference_sha256"]
+    full_reference = json.loads(full_reference_path.read_text(encoding="utf-8"))
     output.mkdir(parents=True, exist_ok=True)
     summary = {
         "status": "completed", "test_loaded": False, "test_evaluated": False,
@@ -117,14 +136,32 @@ def summarize(report_path, output):
         "reference": current["reference_report"], "reference_sha256": current["reference_sha256"],
         "batch_loss_sha256": current["batch_loss_sha256"],
         "budget": {"outer_rounds": 3, "batches": 24, "batch_steps": 64, "ppo_periods": 1536,
-                   "main_periods": 768, "critic_epochs": 4, "actor_epochs": 2, "minibatch_size": 32,
+                   "main_periods": current["main_advanced_periods"],
+                   "critic_epochs": 4, "actor_epochs": 2, "minibatch_size": 32,
                    "critic_steps_executed_per_module": 192, "auxiliary_periods": 0},
         "learning_contract": current["learning_contract"],
         "start": current["start"], "end": current["end"],
         "selected_candidates": [row["round"]["selected_candidate"] for row in current["rounds"]],
-        "initial_matches_reference": True,
+        "initial_actor_performance_matches_reference": True,
+        "initial_critic": current["initial"]["critic"]["modules"],
         "initial_performance": performance(current["initial"]),
         "comparison": compare(reference, current),
+        "full_month_reference": current["full_month_reference"],
+        "full_month_reference_sha256": current["full_month_reference_sha256"],
+        "full_month_performance": {
+            "previous": full_month_performance(full_reference),
+            "initial": full_month_performance(current["initial"]),
+            "current": full_month_performance(current["final"]),
+        },
+        "candidate_checks": [
+            {"round": row["round"]["outer_round"],
+             "committed": row["round"]["round_committed"],
+             "candidates": [
+                 {"index": c["index"], "feasibility": c["feasibility"], "paired_uc_gain": c["paired_uc_gain"]}
+                 for c in row["round"]["candidates"]
+             ]}
+            for row in current["rounds"]
+        ],
         "validation_episodes": current["final"]["critic"]["episodes"],
         "checkpoint_exact_replay": current["checkpoint_exact_replay"],
         "retained_optimizer_steps": current["retained_optimizer_steps"],
@@ -154,12 +191,17 @@ def summarize(report_path, output):
                          "phase": row["phase"], "candidate_index": row["candidate_index"],
                          "module": key, "branch_status": row["branch_status"],
                          "critic_retained": row["retained_updates"][key]["critic"],
-                         "actor_retained": row["retained_updates"][key]["actor"], **values})
+                         "actor_retained": row["retained_updates"][key]["actor"],
+                         **{k: v for k, v in values.items() if isinstance(v, (float, int)) or v is None}})
     with (output / "batch_losses.csv").open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(flat[0]))
         writer.writeheader()
         writer.writerows(flat)
-    plot_batches(rows, output / "plots")
+    uc_rows = copy.deepcopy(rows)
+    for row in uc_rows:
+        row["modules"] = {"uc": row["modules"]["uc"]}
+        row["retained_updates"] = {"uc": row["retained_updates"]["uc"]}
+    plot_batches(uc_rows, output / "plots")
     plot_batches(consumer_curves(rows), output / "plots")
     return summary
 
