@@ -1,0 +1,5260 @@
+{
+  "status": "completed",
+  "test_loaded": false,
+  "test_evaluated": false,
+  "report": "outputs\\ausgrid-layernorm-pilot\\20261020\\report.json",
+  "report_sha256": "fa0017c7866b82fcd2d669b3433ac2dee5a6b3f95bc57482d050086a3858c6f7",
+  "reference": "outputs\\ausgrid-batch-critic-pilot\\20261020\\report.json",
+  "reference_sha256": "ad2d352d1df0e3ba5eea282d9f0f15e807bedcf2ef1e3626794d29672e424290",
+  "batch_loss_sha256": "82a94825475f7b0d911f928261ef011dc503d54fe02da3cbc2787a96e6337c16",
+  "budget": {
+    "outer_rounds": 3,
+    "batches": 24,
+    "batch_steps": 64,
+    "ppo_periods": 1536,
+    "main_periods": 768,
+    "critic_epochs": 4,
+    "actor_epochs": 2,
+    "minibatch_size": 32,
+    "critic_steps_executed_per_module": 192,
+    "auxiliary_periods": 0
+  },
+  "learning_contract": {
+    "acceptance_z": 1.96,
+    "actor_lr": 0.0003,
+    "clip_param": 0.2,
+    "consumer_probability": "conditional_beta_physical_density",
+    "critic_epochs": 4,
+    "critic_lambda": 1.0,
+    "critic_lr": 0.001,
+    "deviation_updates": 0,
+    "entropy_coeff": 0.0,
+    "evaluation_return": "sampled_discounted_window",
+    "evaluation_steps": 96,
+    "gamma": 0.9801,
+    "grad_clip": 0.5,
+    "inner_updates": 2,
+    "input_transform": "signed_log1p",
+    "lambda_gae": 0.9025,
+    "min_uc_gain": 0.0,
+    "minibatch_size": 32,
+    "model": {
+      "hidden_dim": 32,
+      "uc_head_scale": 0.01,
+      "uc_initial_mean": [
+        0.95,
+        0.02,
+        0.5,
+        0.5,
+        0.0,
+        0.5
+      ],
+      "uc_initial_std": [
+        0.08,
+        0.05,
+        0.2,
+        0.2,
+        0.1,
+        0.2
+      ],
+      "value_scale": {
+        "consumer": 10.0,
+        "uc": 20.0
+      }
+    },
+    "normalize_advantages": true,
+    "num_epochs": 2,
+    "response_updates": 2,
+    "rollout_length": 64,
+    "sampling_protocol": "continuous_main_common_response_snapshot_selected_branch_v1",
+    "scenario": {
+      "cadence_assumption": "UC overdue assessments preserve hourly strength; energy rates, hourly rates and already specified per-period amounts unchanged",
+      "config": {
+        "market": {
+          "der_bid_cap": 1.5,
+          "der_reference_rate_per_kwh": 0.3,
+          "dr_event_intervals": [
+            [
+              34,
+              40
+            ]
+          ],
+          "dr_incentive_per_kwh": 0.5,
+          "dr_procurement_max_kw": 4.15008,
+          "mechanism_version": "v9_announced_supply_adequacy",
+          "shift_backlog_limit_kwh": [
+            16.963679999999997,
+            6.240000000000001,
+            4.320000000000001,
+            8.947679999999995,
+            9.513600000000002,
+            12.000479999999994,
+            8.52623999999998,
+            22.19855999999995,
+            7.785600000000001,
+            20.966400000000004,
+            8.535359999999988,
+            12.374400000000001,
+            18.941279999999995,
+            4.886400000000001,
+            7.382400000000001,
+            9.811679999999994
+          ],
+          "shift_deadline_steps": 48,
+          "tier_thresholds_kwh": [
+            100.0,
+            200.0
+          ],
+          "uc_flat_rates": [
+            0.4,
+            0.5,
+            0.6
+          ],
+          "uc_high_intervals_hours": [
+            [
+              9.0,
+              15.0
+            ]
+          ],
+          "uc_high_rates": [
+            0.6,
+            0.7,
+            0.8
+          ],
+          "uc_peak_intervals_hours": [
+            [
+              20.0,
+              22.0
+            ]
+          ],
+          "uc_peak_rates": [
+            0.7,
+            0.8,
+            0.9
+          ]
+        },
+        "rewards": {
+          "actual_compensation_per_kwh": 1.0,
+          "adjustment_epsilon_kw": 1.0,
+          "adjustment_rate_per_kwh": 0.5,
+          "consumer_native_loss_rate_per_kwh": 2.0,
+          "consumer_overdue_rate_per_kwh_hour": 0.5,
+          "consumer_terminal_pending_rate_per_kwh": 3.0,
+          "consumer_wait_rate_per_kwh_hour": 0.1,
+          "curtailment_rate_per_kwh": 0.1,
+          "der_operating_rate_per_kwh": 0.0,
+          "dr_value_rate_per_kwh": 0.0,
+          "ess_throughput_rate_per_kwh": 0.02,
+          "external_cost_per_period": 0.0,
+          "terminal_energy_value_per_kwh": 0.0,
+          "uc_due_rate_per_kwh": 2.0,
+          "uc_supply_shortfall_rate_per_kwh": 2.0,
+          "uc_terminal_pending_rate_per_kwh": 2.0
+        },
+        "system": {
+          "dr_limit_ratio": 0.2,
+          "episode_mode": "finite",
+          "ess_charge_efficiency": 0.95,
+          "ess_charge_max_kw": 5.1876,
+          "ess_discharge_efficiency": 0.95,
+          "ess_discharge_max_kw": 5.1876,
+          "ess_energy_capacity_kwh": 10.3752,
+          "ess_energy_min_kwh": 0.0,
+          "ess_initial_energy_kwh": 5.1876,
+          "grid_import_max_kw": 20.7504,
+          "horizon_steps": 1488,
+          "num_consumers": 16,
+          "resolution_minutes": 30,
+          "start_datetime": "2010-07-01T00:00:00+10:00"
+        }
+      },
+      "episode_boundary": "complete month from day one; terminal valuation once at month end",
+      "household_ids": [
+        7,
+        19,
+        20,
+        29,
+        30,
+        38,
+        49,
+        64,
+        67,
+        84,
+        106,
+        155,
+        160,
+        169,
+        177,
+        184
+      ],
+      "initial_state": "month start; empty queues; zero monthly UC energy; configured initial ESS",
+      "loaded_splits": [
+        "train",
+        "validation"
+      ],
+      "manifest_sha256": "1aca2e4b8eb68c4ddb49313a616eb6b6ef8fa2632f22a988b049c06dbfcec097",
+      "resource_calibration": {
+        "applied": {
+          "dr_procurement_max_kw": 4.15008,
+          "ess_charge_max_kw": 5.1876,
+          "ess_discharge_max_kw": 5.1876,
+          "ess_energy_capacity_kwh": 10.3752,
+          "ess_energy_min_kwh": 0.0,
+          "ess_initial_energy_kwh": 5.1876,
+          "grid_import_max_kw": 20.7504,
+          "shift_backlog_limit_kwh": [
+            16.963679999999997,
+            6.240000000000001,
+            4.320000000000001,
+            8.947679999999995,
+            9.513600000000002,
+            12.000479999999994,
+            8.52623999999998,
+            22.19855999999995,
+            7.785600000000001,
+            20.966400000000004,
+            8.535359999999988,
+            12.374400000000001,
+            18.941279999999995,
+            4.886400000000001,
+            7.382400000000001,
+            9.811679999999994
+          ]
+        },
+        "training_reference": {
+          "aggregate_load_q95_kw": 20.7504,
+          "dr_procurement_max_kw": 4.15008,
+          "ess_energy_capacity_kwh": 10.3752,
+          "ess_power_kw": 5.1876,
+          "fit_split": "train",
+          "flex_ratio": 0.2,
+          "grid_import_max_kw": 20.7504,
+          "quantile_method": "linear",
+          "resource_ratios": {
+            "ess_duration_hours": 2.0,
+            "ess_power_to_q95_load": 0.25,
+            "grid_to_q95_load": 1.0,
+            "initial_soc_fraction": 0.5,
+            "queue_flexible_hours": 24.0
+          },
+          "shift_backlog_limit_kwh": [
+            16.963679999999997,
+            6.240000000000001,
+            4.320000000000001,
+            8.947679999999995,
+            9.513600000000002,
+            12.000479999999994,
+            8.52623999999998,
+            22.19855999999995,
+            7.785600000000001,
+            20.966400000000004,
+            8.535359999999988,
+            12.374400000000001,
+            18.941279999999995,
+            4.886400000000001,
+            7.382400000000001,
+            9.811679999999994
+          ]
+        }
+      },
+      "scenario_prices": {
+        "all_monetary_coefficients": "AUD scenario values, not observed tariffs",
+        "currency": "AUD",
+        "offpeak_per_kwh": 0.35,
+        "peak_hours": [
+          17,
+          22
+        ],
+        "peak_per_kwh": 0.65
+      },
+      "seed_windows": {
+        "10042": {
+          "name": "2011-07",
+          "split": "validation",
+          "start": 0,
+          "start_datetime": "2011-07-01T00:00:00+10:00",
+          "stop": 1488
+        },
+        "10043": {
+          "name": "2011-08",
+          "split": "validation",
+          "start": 1488,
+          "start_datetime": "2011-08-01T00:00:00+10:00",
+          "stop": 2976
+        },
+        "10044": {
+          "name": "2011-09",
+          "split": "validation",
+          "start": 2976,
+          "start_datetime": "2011-09-01T00:00:00+10:00",
+          "stop": 4416
+        },
+        "10045": {
+          "name": "2011-10",
+          "split": "validation",
+          "start": 4416,
+          "start_datetime": "2011-10-01T00:00:00+10:00",
+          "stop": 5904
+        },
+        "10046": {
+          "name": "2011-11",
+          "split": "validation",
+          "start": 5904,
+          "start_datetime": "2011-11-01T00:00:00+10:00",
+          "stop": 7344
+        },
+        "10047": {
+          "name": "2011-12",
+          "split": "validation",
+          "start": 7344,
+          "start_datetime": "2011-12-01T00:00:00+10:00",
+          "stop": 8832
+        },
+        "10048": {
+          "name": "2012-01",
+          "split": "validation",
+          "start": 8832,
+          "start_datetime": "2012-01-01T00:00:00+10:00",
+          "stop": 10320
+        },
+        "10049": {
+          "name": "2012-02",
+          "split": "validation",
+          "start": 10320,
+          "start_datetime": "2012-02-01T00:00:00+10:00",
+          "stop": 11712
+        },
+        "10050": {
+          "name": "2012-03",
+          "split": "validation",
+          "start": 11712,
+          "start_datetime": "2012-03-01T00:00:00+10:00",
+          "stop": 13200
+        },
+        "10051": {
+          "name": "2012-04",
+          "split": "validation",
+          "start": 13200,
+          "start_datetime": "2012-04-01T00:00:00+10:00",
+          "stop": 14640
+        },
+        "10052": {
+          "name": "2012-05",
+          "split": "validation",
+          "start": 14640,
+          "start_datetime": "2012-05-01T00:00:00+10:00",
+          "stop": 16128
+        },
+        "10053": {
+          "name": "2012-06",
+          "split": "validation",
+          "start": 16128,
+          "start_datetime": "2012-06-01T00:00:00+10:00",
+          "stop": 17568
+        },
+        "42": {
+          "name": "2010-07",
+          "split": "train",
+          "start": 0,
+          "start_datetime": "2010-07-01T00:00:00+10:00",
+          "stop": 1488
+        },
+        "43": {
+          "name": "2010-08",
+          "split": "train",
+          "start": 1488,
+          "start_datetime": "2010-08-01T00:00:00+10:00",
+          "stop": 2976
+        },
+        "44": {
+          "name": "2010-09",
+          "split": "train",
+          "start": 2976,
+          "start_datetime": "2010-09-01T00:00:00+10:00",
+          "stop": 4416
+        },
+        "45": {
+          "name": "2010-10",
+          "split": "train",
+          "start": 4416,
+          "start_datetime": "2010-10-01T00:00:00+10:00",
+          "stop": 5904
+        },
+        "46": {
+          "name": "2010-11",
+          "split": "train",
+          "start": 5904,
+          "start_datetime": "2010-11-01T00:00:00+10:00",
+          "stop": 7344
+        },
+        "47": {
+          "name": "2010-12",
+          "split": "train",
+          "start": 7344,
+          "start_datetime": "2010-12-01T00:00:00+10:00",
+          "stop": 8832
+        },
+        "48": {
+          "name": "2011-01",
+          "split": "train",
+          "start": 8832,
+          "start_datetime": "2011-01-01T00:00:00+10:00",
+          "stop": 10320
+        },
+        "49": {
+          "name": "2011-02",
+          "split": "train",
+          "start": 10320,
+          "start_datetime": "2011-02-01T00:00:00+10:00",
+          "stop": 11664
+        },
+        "50": {
+          "name": "2011-03",
+          "split": "train",
+          "start": 11664,
+          "start_datetime": "2011-03-01T00:00:00+10:00",
+          "stop": 13152
+        },
+        "51": {
+          "name": "2011-04",
+          "split": "train",
+          "start": 13152,
+          "start_datetime": "2011-04-01T00:00:00+10:00",
+          "stop": 14592
+        },
+        "52": {
+          "name": "2011-05",
+          "split": "train",
+          "start": 14592,
+          "start_datetime": "2011-05-01T00:00:00+10:00",
+          "stop": 16080
+        },
+        "53": {
+          "name": "2011-06",
+          "split": "train",
+          "start": 16080,
+          "start_datetime": "2011-06-01T00:00:00+10:00",
+          "stop": 17520
+        }
+      },
+      "source_sha256": {
+        "profile_dataset.py": "7fd3818da13bbd08a7f54b7de66f57f8af28e1486fecb93b6a8fbf88c8838a45",
+        "training_env.py": "26cc204055589fe62461393513d247a28adafe9de0c0dfc5c315d540074bbe2d"
+      },
+      "type": "experiments.sn_energy_market.profile_dataset.DatasetEnvFactory"
+    },
+    "seed": 42,
+    "stopping_patience": 0,
+    "stopping_tolerances": {
+      "confidence_half_width": 0.1,
+      "consumer_gain": 0.1,
+      "policy_change": 0.001,
+      "uc_gain": 0.1
+    },
+    "test_seeds": [],
+    "train_seeds": [
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53
+    ],
+    "uc_candidates": 1,
+    "uc_probability": "raw_diagonal_gaussian",
+    "uc_updates_per_candidate": 2,
+    "update_protocol": "all_critics_then_selected_actors_common_consumer_state_v1",
+    "validation_seeds": [
+      10042,
+      10045,
+      10048,
+      10051
+    ],
+    "value_architecture": "layernorm_tanh",
+    "vf_loss_coeff": 0.5
+  },
+  "start": {
+    "seed": 42,
+    "period": 0,
+    "timestamp": "2010-07-01T00:00:00+10:00",
+    "terminated": false,
+    "main_periods": 0,
+    "soc_kwh": 5.1876,
+    "monthly_uc_kwh": 0.0,
+    "tasks": 0
+  },
+  "end": {
+    "seed": 42,
+    "period": 768,
+    "timestamp": "2010-07-17T00:00:00+10:00",
+    "terminated": false,
+    "main_periods": 768,
+    "soc_kwh": 7.293920083339329,
+    "monthly_uc_kwh": 3952.819792631145,
+    "tasks": 223
+  },
+  "selected_candidates": [
+    0,
+    0,
+    0
+  ],
+  "initial_actor_performance_matches_reference": true,
+  "initial_critic": {
+    "uc": {
+      "all": {
+        "samples": 5904,
+        "rmse": 35.16744192635408,
+        "bias": -30.702392236839266,
+        "prediction_mean": -5.096435488259727,
+        "return_mean": 25.60595674857954,
+        "explained_variance": -0.05462562708028096
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 18.065066194979664,
+        "bias": -14.802050594981374,
+        "prediction_mean": -4.412083899291853,
+        "return_mean": 10.38996669568952,
+        "explained_variance": -0.05307042770270454
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 36.176218082828555,
+        "bias": -33.436958007829915,
+        "prediction_mean": -5.283491128683091,
+        "return_mean": 28.15346687914683,
+        "explained_variance": -0.021681207369474098
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 44.90752996783971,
+        "bias": -42.949625605087874,
+        "prediction_mean": -5.559036370626716,
+        "return_mean": 37.39058923446116,
+        "explained_variance": -0.0173822011059539
+      }
+    },
+    "consumer_0": {
+      "all": {
+        "samples": 5904,
+        "rmse": 5.8909786910958095,
+        "bias": 4.151409046730263,
+        "prediction_mean": -5.5206028781730305,
+        "return_mean": -9.672011924903293,
+        "explained_variance": -0.15282279695682233
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 2.82017933265979,
+        "bias": 1.8505282008218837,
+        "prediction_mean": -6.5278733290731905,
+        "return_mean": -8.378401529895076,
+        "explained_variance": -0.40916533821204615
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 6.743588112638593,
+        "bias": 4.815780166221855,
+        "prediction_mean": -5.653010737275084,
+        "return_mean": -10.46879090349694,
+        "explained_variance": -0.07507781443646899
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 7.040366663348867,
+        "bias": 5.673743675955183,
+        "prediction_mean": -4.46043700840353,
+        "return_mean": -10.134180684358713,
+        "explained_variance": 0.07152754718561671
+      }
+    },
+    "consumer_1": {
+      "all": {
+        "samples": 5904,
+        "rmse": 8.138470916699175,
+        "bias": 7.9670016725739305,
+        "prediction_mean": 4.626208504303523,
+        "return_mean": -3.340793168270408,
+        "explained_variance": -0.24260849061200918
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 8.24065603617613,
+        "bias": 8.126643311332801,
+        "prediction_mean": 4.8641182867189245,
+        "return_mean": -3.2625250246138764,
+        "explained_variance": -0.19781933153361742
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 8.339235019901759,
+        "bias": 8.178642723302552,
+        "prediction_mean": 4.773994512607654,
+        "return_mean": -3.4046482106948983,
+        "explained_variance": -0.1351014021889534
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 7.8485950232435595,
+        "bias": 7.621622426539055,
+        "prediction_mean": 4.26742172223884,
+        "return_mean": -3.3542007043002138,
+        "explained_variance": -0.2888475321192363
+      }
+    },
+    "consumer_2": {
+      "all": {
+        "samples": 5904,
+        "rmse": 2.7923226786170843,
+        "bias": 0.7608622200084663,
+        "prediction_mean": -4.018380670568484,
+        "return_mean": -4.779242890576951,
+        "explained_variance": 0.00945960914540045
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 2.894132378045879,
+        "bias": 1.4121229292783741,
+        "prediction_mean": -3.403206206858158,
+        "return_mean": -4.8153291361365325,
+        "explained_variance": -0.020071283857097333
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 1.4642028440378185,
+        "bias": -0.5476427059402813,
+        "prediction_mean": -4.090987384070953,
+        "return_mean": -3.5433446781306714,
+        "explained_variance": 0.028211030399102444
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 3.5379780824159592,
+        "bias": 1.3722521890120376,
+        "prediction_mean": -4.523094856808352,
+        "return_mean": -5.895347045820389,
+        "explained_variance": -0.0040130115220169404
+      }
+    },
+    "consumer_3": {
+      "all": {
+        "samples": 5904,
+        "rmse": 9.161370874984204,
+        "bias": 8.091230209298898,
+        "prediction_mean": -0.06365336458574788,
+        "return_mean": -8.154883573884645,
+        "explained_variance": -0.07378527571374494
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 7.798316296746617,
+        "bias": 7.219950245975244,
+        "prediction_mean": 0.13758873054757714,
+        "return_mean": -7.0823615154276665,
+        "explained_variance": -0.0682201491044212
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 9.631557364619752,
+        "bias": 8.436454996046054,
+        "prediction_mean": 0.041885082198617356,
+        "return_mean": -8.394569913847436,
+        "explained_variance": -0.05775764285172946
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 9.859775850942327,
+        "bias": 8.580583861928197,
+        "prediction_mean": -0.34903061288127374,
+        "return_mean": -8.92961447480947,
+        "explained_variance": -0.1283568463434135
+      }
+    },
+    "consumer_4": {
+      "all": {
+        "samples": 5904,
+        "rmse": 5.4671141086050055,
+        "bias": 4.55281429362328,
+        "prediction_mean": -1.3503736283296977,
+        "return_mean": -5.903187921952977,
+        "explained_variance": -0.15073450388429577
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 5.585568168530088,
+        "bias": 5.154240311488163,
+        "prediction_mean": -0.4712216782383621,
+        "return_mean": -5.625461989726525,
+        "explained_variance": -0.26539590003550617
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 5.451055782211985,
+        "bias": 4.817843558234898,
+        "prediction_mean": -1.5127038682190082,
+        "return_mean": -6.330547426453906,
+        "explained_variance": -0.1417156186321058
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 5.369780158695903,
+        "bias": 3.746809379691652,
+        "prediction_mean": -2.0171845215408837,
+        "return_mean": -5.763993901232536,
+        "explained_variance": -0.07152266935927765
+      }
+    },
+    "consumer_5": {
+      "all": {
+        "samples": 5904,
+        "rmse": 11.752664999786731,
+        "bias": 10.902246570531013,
+        "prediction_mean": 3.3065708718037983,
+        "return_mean": -7.595675698727216,
+        "explained_variance": -0.11135039522205825
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 10.855640648601394,
+        "bias": 10.36050553593561,
+        "prediction_mean": 2.9058131853040927,
+        "return_mean": -7.454692350631518,
+        "explained_variance": -0.1896194245685252
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 12.671753316274192,
+        "bias": 11.825475242157683,
+        "prediction_mean": 3.404822252628704,
+        "return_mean": -8.420652989528978,
+        "explained_variance": -0.1163353576264643
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 11.666550192008561,
+        "bias": 10.547374350036812,
+        "prediction_mean": 3.587972086385008,
+        "return_mean": -6.959402263651803,
+        "explained_variance": -0.07894042338298868
+      }
+    },
+    "consumer_6": {
+      "all": {
+        "samples": 5904,
+        "rmse": 4.818946960876302,
+        "bias": 4.074458218649412,
+        "prediction_mean": -3.365377491183559,
+        "return_mean": -7.439835709832972,
+        "explained_variance": -0.07136147915521773
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 4.483506373368884,
+        "bias": 3.9034552502488933,
+        "prediction_mean": -3.207766301309069,
+        "return_mean": -7.111221551557962,
+        "explained_variance": -0.08839838885020135
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 4.3483309120077065,
+        "bias": 3.881985482544758,
+        "prediction_mean": -3.3671368670339388,
+        "return_mean": -7.2491223495786965,
+        "explained_variance": -0.10595536851044529
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 5.489830518054614,
+        "bias": 4.412575153072829,
+        "prediction_mean": -3.510355922833894,
+        "return_mean": -7.922931075906724,
+        "explained_variance": -0.07492877650490071
+      }
+    },
+    "consumer_7": {
+      "all": {
+        "samples": 5904,
+        "rmse": 13.811015455456344,
+        "bias": 13.30167185525086,
+        "prediction_mean": 3.4646865311444692,
+        "return_mean": -9.836985324106392,
+        "explained_variance": -0.09575586612934406
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 11.54664554625146,
+        "bias": 11.237517654331173,
+        "prediction_mean": 3.014675058129554,
+        "return_mean": -8.22284259620162,
+        "explained_variance": -0.23451973344879562
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 14.608969024168097,
+        "bias": 14.20728169172508,
+        "prediction_mean": 3.498929250985384,
+        "return_mean": -10.708352440739699,
+        "explained_variance": -0.013723942092260133
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 14.93524800694121,
+        "bias": 14.379387543107109,
+        "prediction_mean": 3.851448162004005,
+        "return_mean": -10.527939381103105,
+        "explained_variance": 0.013252952993227707
+      }
+    },
+    "consumer_8": {
+      "all": {
+        "samples": 5904,
+        "rmse": 13.608695701379196,
+        "bias": 13.401342686597705,
+        "prediction_mean": 4.387119327598633,
+        "return_mean": -9.014223358999072,
+        "explained_variance": -0.052564980085621604
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 12.269672318886535,
+        "bias": 12.201727220651401,
+        "prediction_mean": 4.717962206651767,
+        "return_mean": -7.483765013999634,
+        "explained_variance": 0.007391308324520951
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 14.1074726756436,
+        "bias": 13.989208669509072,
+        "prediction_mean": 4.510021218905846,
+        "return_mean": -9.479187450603225,
+        "explained_variance": -0.0030903319812833896
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 14.302834224686682,
+        "bias": 13.97041197314183,
+        "prediction_mean": 3.9650311691238898,
+        "return_mean": -10.00538080401794,
+        "explained_variance": -0.30207556569886385
+      }
+    },
+    "consumer_9": {
+      "all": {
+        "samples": 5904,
+        "rmse": 13.705772544831552,
+        "bias": 13.168863430851149,
+        "prediction_mean": -2.619665684998742,
+        "return_mean": -15.78852911584989,
+        "explained_variance": -0.06529379111421418
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 13.514338609847105,
+        "bias": 12.835162457631077,
+        "prediction_mean": -2.3992432900316394,
+        "return_mean": -15.234405747662716,
+        "explained_variance": -0.01021808151486625
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 14.549728232873349,
+        "bias": 14.32451842207311,
+        "prediction_mean": -2.7017708237593374,
+        "return_mean": -17.026289245832448,
+        "explained_variance": -0.11956867685723638
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 13.058055644953278,
+        "bias": 12.404255042012181,
+        "prediction_mean": -2.7483329000745633,
+        "return_mean": -15.152587942086745,
+        "explained_variance": -0.1288373199965691
+      }
+    },
+    "consumer_10": {
+      "all": {
+        "samples": 5904,
+        "rmse": 7.119057560513964,
+        "bias": 5.303843094449012,
+        "prediction_mean": -1.6046817399293871,
+        "return_mean": -6.908524834378399,
+        "explained_variance": -0.01819436387743467
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 4.9368611922834305,
+        "bias": 3.999458838708415,
+        "prediction_mean": -1.013166282318222,
+        "return_mean": -5.012625121026637,
+        "explained_variance": -0.07925508731859376
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 8.493628006853989,
+        "bias": 6.049991392678974,
+        "prediction_mean": -1.7250280157507707,
+        "return_mean": -7.775019408429745,
+        "explained_variance": -0.05817228029027155
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 7.429025416710337,
+        "bias": 5.8231323572496025,
+        "prediction_mean": -2.0429786532222067,
+        "return_mean": -7.866111010471809,
+        "explained_variance": -0.06782554358866211
+      }
+    },
+    "consumer_11": {
+      "all": {
+        "samples": 5904,
+        "rmse": 12.482112885011903,
+        "bias": 12.31123331089241,
+        "prediction_mean": 6.522358718037928,
+        "return_mean": -5.788874592854482,
+        "explained_variance": 0.039829481573654735
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 11.687252070623266,
+        "bias": 11.590821265865506,
+        "prediction_mean": 6.325750125696262,
+        "return_mean": -5.265071140169245,
+        "explained_variance": 0.03278507272509057
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 12.6651040936253,
+        "bias": 12.494782317118,
+        "prediction_mean": 6.510454006493092,
+        "return_mean": -5.9843283106249086,
+        "explained_variance": 0.05096868616572481
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 13.015123196745655,
+        "bias": 12.81064078884712,
+        "prediction_mean": 6.716324582118396,
+        "return_mean": -6.094316206728724,
+        "explained_variance": 0.10161488458479861
+      }
+    },
+    "consumer_12": {
+      "all": {
+        "samples": 5904,
+        "rmse": 15.840345297456475,
+        "bias": 15.169515080584821,
+        "prediction_mean": -2.4791869680652128,
+        "return_mean": -17.648702048650033,
+        "explained_variance": 0.06877272372805932
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 15.726914547023851,
+        "bias": 15.336644715629083,
+        "prediction_mean": -1.7597100691248972,
+        "return_mean": -17.09635478475398,
+        "explained_variance": 0.08228385530912563
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 16.72805438461869,
+        "bias": 16.29505397105568,
+        "prediction_mean": -2.8738876584296427,
+        "return_mean": -19.16894162948532,
+        "explained_variance": 0.022583749981777146
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 15.078236686726076,
+        "bias": 13.967032731268421,
+        "prediction_mean": -2.781304371391618,
+        "return_mean": -16.748337102660038,
+        "explained_variance": 0.07141159118915696
+      }
+    },
+    "consumer_13": {
+      "all": {
+        "samples": 5904,
+        "rmse": 2.987384328094401,
+        "bias": 2.4157800236895697,
+        "prediction_mean": -2.3281031922717403,
+        "return_mean": -4.7438832159613105,
+        "explained_variance": -0.21580850002124796
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 1.7992544067290326,
+        "bias": 1.4488295705229681,
+        "prediction_mean": -2.8137109943355125,
+        "return_mean": -4.26254056485848,
+        "explained_variance": -0.28634302409018453
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 3.191208178280997,
+        "bias": 2.7076400460499785,
+        "prediction_mean": -2.246346756070852,
+        "return_mean": -4.9539868021208315,
+        "explained_variance": -0.09630343955385579
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 3.611558215308121,
+        "bias": 3.0437711221139345,
+        "prediction_mean": -1.952427503096965,
+        "return_mean": -4.996198625210899,
+        "explained_variance": -0.020589015256744947
+      }
+    },
+    "consumer_14": {
+      "all": {
+        "samples": 5904,
+        "rmse": 5.658680769146337,
+        "bias": 4.096170303178322,
+        "prediction_mean": -3.516594628573756,
+        "return_mean": -7.612764931752078,
+        "explained_variance": -0.0644493840881919
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 4.77357332717149,
+        "bias": 2.9405725079816705,
+        "prediction_mean": -3.6177177959432205,
+        "return_mean": -6.558290303924891,
+        "explained_variance": -0.04033975416035829
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 6.1168760266519016,
+        "bias": 4.9914185153752255,
+        "prediction_mean": -3.3910268818338714,
+        "return_mean": -8.382445397209098,
+        "explained_variance": -0.036697752315290266
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 5.965823564234273,
+        "bias": 4.338355961782738,
+        "prediction_mean": -3.539333772174148,
+        "return_mean": -7.8776897339568865,
+        "explained_variance": -0.08594913437370977
+      }
+    },
+    "consumer_15": {
+      "all": {
+        "samples": 5904,
+        "rmse": 6.655292630235276,
+        "bias": 4.465889439059128,
+        "prediction_mean": -4.024687819344403,
+        "return_mean": -8.490577258403532,
+        "explained_variance": -0.01440293827731498
+      },
+      "early_1_10": {
+        "samples": 1920,
+        "rmse": 5.567190287571716,
+        "bias": 4.266285940278297,
+        "prediction_mean": -2.9873773832495014,
+        "return_mean": -7.253663323527799,
+        "explained_variance": -0.006067602847564801
+      },
+      "middle_11_20": {
+        "samples": 1920,
+        "rmse": 7.963754689440772,
+        "bias": 5.35361686023299,
+        "prediction_mean": -4.121119461456934,
+        "return_mean": -9.474736321689925,
+        "explained_variance": -0.00726304720793336
+      },
+      "late_21_end": {
+        "samples": 2064,
+        "rmse": 6.234616978229826,
+        "bias": 3.8257741624144495,
+        "prediction_mean": -4.899923906769863,
+        "return_mean": -8.725698069184313,
+        "explained_variance": -0.08427531192821713
+      }
+    }
+  },
+  "initial_performance": {
+    "sampled": {
+      "service_rate_pct": 99.77191145303902,
+      "native_lost_kwh_total": 3.8456707855450043,
+      "native_requested_kwh_total": 1686.0429148171968,
+      "uc_cash_aud_per_48h": 32.52430583189858,
+      "uc_book_profit_aud_per_48h": 19.763594155971976,
+      "uc_discounted_return": 4.758361442982736
+    },
+    "mean": {
+      "service_rate_pct": 99.88392814622442,
+      "native_lost_kwh_total": 1.9927574652346038,
+      "native_requested_kwh_total": 1716.830911555472,
+      "uc_cash_aud_per_48h": 33.6953304120164,
+      "uc_book_profit_aud_per_48h": 21.279138986945302,
+      "uc_discounted_return": 6.735192838788664
+    }
+  },
+  "comparison": {
+    "performance": {
+      "sampled": {
+        "previous": {
+          "service_rate_pct": 99.72785450910618,
+          "native_lost_kwh_total": 4.577657344825537,
+          "native_requested_kwh_total": 1682.0625356646137,
+          "uc_cash_aud_per_48h": 35.349010461784225,
+          "uc_book_profit_aud_per_48h": 22.67732880965042,
+          "uc_discounted_return": 6.548403275917118
+        },
+        "current": {
+          "service_rate_pct": 99.80185174453727,
+          "native_lost_kwh_total": 3.3322350836398194,
+          "native_requested_kwh_total": 1681.687823018289,
+          "uc_cash_aud_per_48h": 32.82775291172252,
+          "uc_book_profit_aud_per_48h": 20.146981349332965,
+          "uc_discounted_return": 5.5155201237113065
+        },
+        "delta": {
+          "service_rate_pct": 0.0739972354310936,
+          "native_lost_kwh_total": -1.245422261185718,
+          "native_requested_kwh_total": -0.3747126463247241,
+          "uc_cash_aud_per_48h": -2.521257550061705,
+          "uc_book_profit_aud_per_48h": -2.5303474603174543,
+          "uc_discounted_return": -1.0328831522058115
+        }
+      },
+      "mean": {
+        "previous": {
+          "service_rate_pct": 99.88654038826752,
+          "native_lost_kwh_total": 1.943738817487826,
+          "native_requested_kwh_total": 1713.1548291129088,
+          "uc_cash_aud_per_48h": 35.99139178452816,
+          "uc_book_profit_aud_per_48h": 23.57919763881948,
+          "uc_discounted_return": 7.999651640236722
+        },
+        "current": {
+          "service_rate_pct": 99.88622550305743,
+          "native_lost_kwh_total": 1.9497234738224356,
+          "native_requested_kwh_total": 1713.673561489445,
+          "uc_cash_aud_per_48h": 33.591235739026764,
+          "uc_book_profit_aud_per_48h": 21.17744632662456,
+          "uc_discounted_return": 6.770464330450115
+        },
+        "delta": {
+          "service_rate_pct": -0.000314885210087823,
+          "native_lost_kwh_total": 0.005984656334609539,
+          "native_requested_kwh_total": 0.5187323765362635,
+          "uc_cash_aud_per_48h": -2.4001560455013973,
+          "uc_book_profit_aud_per_48h": -2.4017513121949214,
+          "uc_discounted_return": -1.2291873097866075
+        }
+      }
+    },
+    "critic": {
+      "uc": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 17.515286510874198,
+            "bias": -4.93991849868091,
+            "prediction_mean": 19.944758329691926,
+            "return_mean": 24.884676828372836,
+            "explained_variance": 0.07005436251996622
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 16.12860229753391,
+            "bias": 3.199109591571875,
+            "prediction_mean": 28.629944993551508,
+            "return_mean": 25.430835401979635,
+            "explained_variance": 0.0321279965695882
+          },
+          "rmse_delta": -1.3866842133402884,
+          "rmse_change_pct": -7.916994178081982
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 14.115135039292392,
+            "bias": 8.931531725985304,
+            "prediction_mean": 18.764739519606035,
+            "return_mean": 9.833207793620732,
+            "explained_variance": 0.04087349216552416
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 19.855893521714876,
+            "bias": 17.416707450560757,
+            "prediction_mean": 28.141145157814027,
+            "return_mean": 10.724437707253268,
+            "explained_variance": 0.01470185539592983
+          },
+          "rmse_delta": 5.740758482422484,
+          "rmse_change_pct": 40.670942689828316
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 17.226700100012962,
+            "bias": -7.596100153405719,
+            "prediction_mean": 20.32079962392648,
+            "return_mean": 27.9168997773322,
+            "explained_variance": 0.01219296745396281
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 13.247683142445114,
+            "bias": 0.481991209234027,
+            "prediction_mean": 28.724692210555077,
+            "return_mean": 28.242701001321052,
+            "explained_variance": 0.00545292316279522
+          },
+          "rmse_delta": -3.9790169575678487,
+          "rmse_change_pct": -23.097963826309687
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 20.399918964217512,
+            "bias": -15.372726470719424,
+            "prediction_mean": 20.692644390948985,
+            "return_mean": 36.06537086166841,
+            "explained_variance": 0.01890486979079986
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 14.63184503882323,
+            "bias": -7.499010851824436,
+            "prediction_mean": 28.99650556911794,
+            "return_mean": 36.49551642094237,
+            "explained_variance": -0.00027899391697072673
+          },
+          "rmse_delta": -5.768073925394283,
+          "rmse_change_pct": -28.274984501221677
+        }
+      },
+      "consumer_0": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 4.2638549792527,
+            "bias": -1.6326404163350732,
+            "prediction_mean": -11.353018000843079,
+            "return_mean": -9.720377584508006,
+            "explained_variance": 0.0013072196933883173
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 4.1159721749315095,
+            "bias": -1.4938682336655336,
+            "prediction_mean": -11.160991853814783,
+            "return_mean": -9.667123620149251,
+            "explained_variance": 0.0022966535325863457
+          },
+          "rmse_delta": -0.14788280432119016,
+          "rmse_change_pct": -3.4682887912643956
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 3.4237879017935198,
+            "bias": -2.986483937335309,
+            "prediction_mean": -11.359515378872553,
+            "return_mean": -8.373031441537245,
+            "explained_variance": -0.00027746181609544784
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 3.370788519118519,
+            "bias": -2.8628641359417646,
+            "prediction_mean": -11.201362821459771,
+            "return_mean": -8.338498685518006,
+            "explained_variance": 0.008116505232271032
+          },
+          "rmse_delta": -0.05299938267500082,
+          "rmse_change_pct": -1.5479750555587146
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.699621310979759,
+            "bias": -0.7576946009838721,
+            "prediction_mean": -11.355532576640448,
+            "return_mean": -10.597837975656574,
+            "explained_variance": 0.00038374563369325543
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.497998179118911,
+            "bias": -0.6341276469903913,
+            "prediction_mean": -11.155995378394922,
+            "return_mean": -10.521867731404532,
+            "explained_variance": 0.0049898714236700226
+          },
+          "rmse_delta": -0.20162313186084813,
+          "rmse_change_pct": -4.290199539903239
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 4.533713323331871,
+            "bias": -1.187154178522019,
+            "prediction_mean": -11.344634787980901,
+            "return_mean": -10.157480609458881,
+            "explained_variance": 0.0036822141025945054
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 4.366901940023415,
+            "bias": -1.0201423586877765,
+            "prediction_mean": -11.12808534941932,
+            "return_mean": -10.107942990731543,
+            "explained_variance": 0.006591064623303278
+          },
+          "rmse_delta": -0.16681138330845613,
+          "rmse_change_pct": -3.679354458739015
+        }
+      },
+      "consumer_1": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 2.1636014903067706,
+            "bias": 1.575733975710355,
+            "prediction_mean": -1.7764763758999869,
+            "return_mean": -3.352210351610342,
+            "explained_variance": 0.0047670511703078455
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 2.0407946587798005,
+            "bias": 1.459974997512959,
+            "prediction_mean": -1.8391241356326635,
+            "return_mean": -3.299099133145622,
+            "explained_variance": 0.007909180190794451
+          },
+          "rmse_delta": -0.12280683152697014,
+          "rmse_change_pct": -5.676037480892926
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 1.979985491697358,
+            "bias": 1.5288754914903095,
+            "prediction_mean": -1.7788817744702101,
+            "return_mean": -3.307757265960519,
+            "explained_variance": 0.005996208881499876
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 1.8302493516398763,
+            "bias": 1.3966134057203041,
+            "prediction_mean": -1.873261635315915,
+            "return_mean": -3.269875041036219,
+            "explained_variance": 0.01360855061555688
+          },
+          "rmse_delta": -0.1497361400574817,
+          "rmse_change_pct": -7.562486729593121
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 2.2286908218417225,
+            "bias": 1.6337821913829702,
+            "prediction_mean": -1.7809870963916183,
+            "return_mean": -3.4147692877745888,
+            "explained_variance": 0.004382167918095536
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 2.1061935592525822,
+            "bias": 1.523829978997924,
+            "prediction_mean": -1.830674598676463,
+            "return_mean": -3.3545045776743865,
+            "explained_variance": 0.0073749444047218615
+          },
+          "rmse_delta": -0.12249726258914029,
+          "rmse_change_pct": -5.496377576855293
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 2.2633987112498004,
+            "bias": 1.5653249231963362,
+            "prediction_mean": -1.7700427767726803,
+            "return_mean": -3.3353676999690163,
+            "explained_variance": 0.00422903204329117
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 2.161185663525454,
+            "bias": 1.4595160303573216,
+            "prediction_mean": -1.815228356351686,
+            "return_mean": -3.2747443867090076,
+            "explained_variance": 0.006679731762677443
+          },
+          "rmse_delta": -0.10221304772434658,
+          "rmse_change_pct": -4.5159099550740045
+        }
+      },
+      "consumer_2": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 4.329105701998258,
+            "bias": -3.386419708379372,
+            "prediction_mean": -8.197351022626004,
+            "return_mean": -4.810931314246631,
+            "explained_variance": 2.024358214991473e-05
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 4.025926807400386,
+            "bias": -2.9613554789858356,
+            "prediction_mean": -7.802636554570702,
+            "return_mean": -4.841281075584867,
+            "explained_variance": -0.0013841295041152613
+          },
+          "rmse_delta": -0.3031788945978722,
+          "rmse_change_pct": -7.003268468541412
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.188381437556119,
+            "bias": -3.317526790453426,
+            "prediction_mean": -8.201587589581807,
+            "return_mean": -4.884060799128381,
+            "explained_variance": 0.00029448188570402323
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 3.943937132504708,
+            "bias": -2.912046668150216,
+            "prediction_mean": -7.818108291427294,
+            "return_mean": -4.906061623277079,
+            "explained_variance": -0.0021699185157801892
+          },
+          "rmse_delta": -0.2444443050514109,
+          "rmse_change_pct": -5.836247454912846
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.845136195114835,
+            "bias": -4.646219160264225,
+            "prediction_mean": -8.195523230731487,
+            "return_mean": -3.5493040704672625,
+            "explained_variance": -0.0004214182246817799
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.4504315791094395,
+            "bias": -4.21821193513743,
+            "prediction_mean": -7.799074992040793,
+            "return_mean": -3.5808630569033633,
+            "explained_variance": 0.0020081274478760403
+          },
+          "rmse_delta": -0.3947046160053951,
+          "rmse_change_pct": -8.146409102046725
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 3.9309353209702667,
+            "bias": -2.2785996767896926,
+            "prediction_mean": -8.195110301638758,
+            "return_mean": -5.916510624849066,
+            "explained_variance": -5.042510165753633e-05
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 3.669976887265422,
+            "bias": -1.8380553438081837,
+            "prediction_mean": -7.791557322638903,
+            "return_mean": -5.953501978830721,
+            "explained_variance": -0.000410730005427018
+          },
+          "rmse_delta": -0.2609584337048445,
+          "rmse_change_pct": -6.638583756713468
+        }
+      },
+      "consumer_3": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 6.719943794821313,
+            "bias": -5.192515694445122,
+            "prediction_mean": -13.289562979203252,
+            "return_mean": -8.09704728475813,
+            "explained_variance": -0.0011725358506784467
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 6.582102436911381,
+            "bias": -5.022699907554613,
+            "prediction_mean": -13.086268723334078,
+            "return_mean": -8.063568815779464,
+            "explained_variance": -0.022833208454680287
+          },
+          "rmse_delta": -0.13784135790993268,
+          "rmse_change_pct": -2.051227839378056
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 6.982812283919896,
+            "bias": -6.406003697680628,
+            "prediction_mean": -13.289548229674498,
+            "return_mean": -6.883544531993871,
+            "explained_variance": -0.003433173501359077
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 6.850826935594962,
+            "bias": -6.2756544092804685,
+            "prediction_mean": -13.175255617002646,
+            "return_mean": -6.899601207722177,
+            "explained_variance": -0.025731553198208745
+          },
+          "rmse_delta": -0.13198534832493358,
+          "rmse_change_pct": -1.8901460179428176
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 6.786155813889357,
+            "bias": -4.8790347416318545,
+            "prediction_mean": -13.296820808947086,
+            "return_mean": -8.417786067315232,
+            "explained_variance": -0.001843622847752746
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 6.531492717228335,
+            "bias": -4.665641439905405,
+            "prediction_mean": -13.053030318021774,
+            "return_mean": -8.38738887811637,
+            "explained_variance": -0.01522674910404298
+          },
+          "rmse_delta": -0.25466309666102216,
+          "rmse_change_pct": -3.7526856683690935
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 6.4011756942816875,
+            "bias": -4.355299833587227,
+            "prediction_mean": -13.282825230165969,
+            "return_mean": -8.927525396578744,
+            "explained_variance": 0.0003919163878592924
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 6.370520484745454,
+            "bias": -4.189308247948429,
+            "prediction_mean": -13.034409664398016,
+            "return_mean": -8.845101416449586,
+            "explained_variance": -0.016910362170744042
+          },
+          "rmse_delta": -0.03065520953623313,
+          "rmse_change_pct": -0.4788996740648477
+        }
+      },
+      "consumer_4": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 5.651062706819781,
+            "bias": -4.915422352607271,
+            "prediction_mean": -10.770688168886231,
+            "return_mean": -5.85526581627896,
+            "explained_variance": 0.002760408543077242
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 6.541040180135613,
+            "bias": -5.898712524030651,
+            "prediction_mean": -11.798355046972674,
+            "return_mean": -5.899642522942021,
+            "explained_variance": -0.0001713078530742873
+          },
+          "rmse_delta": 0.8899774733158319,
+          "rmse_change_pct": 15.748851490212544
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 5.518656326870653,
+            "bias": -5.202712611502544,
+            "prediction_mean": -10.825593588749568,
+            "return_mean": -5.622880977247024,
+            "explained_variance": 0.00012570437834968917
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 6.718471103755673,
+            "bias": -6.456457818201503,
+            "prediction_mean": -12.045218142370382,
+            "return_mean": -5.588760324168882,
+            "explained_variance": -0.03871915874873433
+          },
+          "rmse_delta": 1.1998147768850194,
+          "rmse_change_pct": 21.741067133371807
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 5.120622856774793,
+            "bias": -4.520230865880721,
+            "prediction_mean": -10.760172777871292,
+            "return_mean": -6.23994191199057,
+            "explained_variance": 0.003806081669870842
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 5.967298123504159,
+            "bias": -5.455712012628277,
+            "prediction_mean": -11.766247167686622,
+            "return_mean": -6.310535155058345,
+            "explained_variance": 0.014758433850901476
+          },
+          "rmse_delta": 0.846675266729366,
+          "rmse_change_pct": 16.534614839075278
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 6.214931104598562,
+            "bias": -5.015795587799158,
+            "prediction_mean": -10.7293951187947,
+            "return_mean": -5.713599530995542,
+            "explained_variance": 0.00478535717244144
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 6.875504855579561,
+            "bias": -5.791973191222766,
+            "prediction_mean": -11.598582752915316,
+            "return_mean": -5.806609561692551,
+            "explained_variance": 0.018735581149741942
+          },
+          "rmse_delta": 0.6605737509809995,
+          "rmse_change_pct": 10.628818563929476
+        }
+      },
+      "consumer_5": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 10.229272642826938,
+            "bias": -9.303652766616326,
+            "prediction_mean": -16.924959404358695,
+            "return_mean": -7.62130663774237,
+            "explained_variance": 0.004207661347238489
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 10.289723666584123,
+            "bias": -9.40489615357217,
+            "prediction_mean": -16.948438137527404,
+            "return_mean": -7.543541983955235,
+            "explained_variance": -0.002866011272536051
+          },
+          "rmse_delta": 0.06045102375718514,
+          "rmse_change_pct": 0.5909611158871009
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 9.988459999883178,
+            "bias": -9.528177627265347,
+            "prediction_mean": -16.958948504924773,
+            "return_mean": -7.430770877659427,
+            "explained_variance": 0.0018779381228894998
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 10.071679590699036,
+            "bias": -9.60757224086222,
+            "prediction_mean": -17.029004176457722,
+            "return_mean": -7.421431935595504,
+            "explained_variance": -0.004958015462926069
+          },
+          "rmse_delta": 0.08321959081585817,
+          "rmse_change_pct": 0.8331573717753393
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 9.599943520369646,
+            "bias": -8.496836467403424,
+            "prediction_mean": -16.932383385300636,
+            "return_mean": -8.435546917897211,
+            "explained_variance": 0.0006033935809895974
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 9.613008458217992,
+            "bias": -8.572535685899483,
+            "prediction_mean": -16.93558510641257,
+            "return_mean": -8.363049420513086,
+            "explained_variance": -0.006921899137788401
+          },
+          "rmse_delta": 0.013064937848346503,
+          "rmse_change_pct": 0.13609390326749793
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 10.9897905708469,
+            "bias": -9.845319221094355,
+            "prediction_mean": -16.88643560760705,
+            "return_mean": -7.041116386512696,
+            "explained_variance": 0.006263871839247814
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 11.069650904922263,
+            "bias": -9.990649065556019,
+            "prediction_mean": -16.885449293047884,
+            "return_mean": -6.8948002274918645,
+            "explained_variance": -0.0005816251594652488
+          },
+          "rmse_delta": 0.07986033407536297,
+          "rmse_change_pct": 0.7266774881699023
+        }
+      },
+      "consumer_6": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 4.952078320627857,
+            "bias": -4.260176464770467,
+            "prediction_mean": -11.793081121554543,
+            "return_mean": -7.532904656784076,
+            "explained_variance": -0.0006097215425096003
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 5.042215953635543,
+            "bias": -4.340229419449125,
+            "prediction_mean": -11.842160011048563,
+            "return_mean": -7.501930591599437,
+            "explained_variance": -0.0002122825971584419
+          },
+          "rmse_delta": 0.09013763300768574,
+          "rmse_change_pct": 1.8201980496192371
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 5.103335058975437,
+            "bias": -4.662812508641423,
+            "prediction_mean": -11.791978580753009,
+            "return_mean": -7.129166072111586,
+            "explained_variance": -0.0013347310145623847
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 5.246454513912196,
+            "bias": -4.784874112524899,
+            "prediction_mean": -11.854680123428503,
+            "return_mean": -7.069806010903605,
+            "explained_variance": 0.0013283016190460684
+          },
+          "rmse_delta": 0.14311945493675893,
+          "rmse_change_pct": 2.8044299126519068
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.81875799200319,
+            "bias": -4.442421481576535,
+            "prediction_mean": -11.795217054585615,
+            "return_mean": -7.352795573009081,
+            "explained_variance": -0.00023273260898948323
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.871392505399601,
+            "bias": -4.470176864266365,
+            "prediction_mean": -11.838219210505486,
+            "return_mean": -7.36804234623912,
+            "explained_variance": 0.0004999880635970788
+          },
+          "rmse_delta": 0.05263451339641012,
+          "rmse_change_pct": 1.0922838101385945
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 4.931532404724109,
+            "bias": -3.7161010594895143,
+            "prediction_mean": -11.792119826457297,
+            "return_mean": -8.076018766967783,
+            "explained_variance": -0.0003886183528971632
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 5.00445112482409,
+            "bias": -3.8057251051300436,
+            "prediction_mean": -11.83417925585148,
+            "return_mean": -8.028454150721435,
+            "explained_variance": 0.0005905497347571398
+          },
+          "rmse_delta": 0.07291872009998102,
+          "rmse_change_pct": 1.4786219397064038
+        }
+      },
+      "consumer_7": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 4.0650693784616845,
+            "bias": -1.9969118722863852,
+            "prediction_mean": -11.852179690912811,
+            "return_mean": -9.855267818626425,
+            "explained_variance": 0.0004390408582736205
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 4.235484604612289,
+            "bias": -2.223199375017898,
+            "prediction_mean": -11.992744159730792,
+            "return_mean": -9.769544784712894,
+            "explained_variance": -0.025888872585927425
+          },
+          "rmse_delta": 0.17041522615060423,
+          "rmse_change_pct": 4.192184936708099
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.324756950172848,
+            "bias": -3.618151604166474,
+            "prediction_mean": -11.866793251534302,
+            "return_mean": -8.248641647367828,
+            "explained_variance": -0.0006438037892129156
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.83221309002789,
+            "bias": -4.142378455081905,
+            "prediction_mean": -12.278510568042597,
+            "return_mean": -8.136132112960691,
+            "explained_variance": -0.039176525098008064
+          },
+          "rmse_delta": 0.5074561398550426,
+          "rmse_change_pct": 11.733749334393483
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 3.5345095008961014,
+            "bias": -1.1070646136475166,
+            "prediction_mean": -11.855986858407656,
+            "return_mean": -10.74892224476014,
+            "explained_variance": 0.0001983568551265913
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 3.692108004269479,
+            "bias": -1.259639765964397,
+            "prediction_mean": -11.964993286629518,
+            "return_mean": -10.70535352066512,
+            "explained_variance": 0.010674474851365523
+          },
+          "rmse_delta": 0.15759850337337777,
+          "rmse_change_pct": 4.458850749543086
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 4.2718599232332055,
+            "bias": -1.3165467808992046,
+            "prediction_mean": -11.835044129874355,
+            "return_mean": -10.51849734897515,
+            "explained_variance": 0.004677726142262362
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 4.112543985236025,
+            "bias": -1.3342510298918469,
+            "prediction_mean": -11.75272970837216,
+            "return_mean": -10.418478678480312,
+            "explained_variance": 0.033256434374324684
+          },
+          "rmse_delta": -0.1593159379971807,
+          "rmse_change_pct": -3.7294279508257033
+        }
+      },
+      "consumer_8": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 2.5148719453096864,
+            "bias": -0.9751592639906406,
+            "prediction_mean": -10.293173152579847,
+            "return_mean": -9.318013888589208,
+            "explained_variance": -0.0006719415489848668
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 2.311590237228516,
+            "bias": -0.42087125226560396,
+            "prediction_mean": -9.594551641766618,
+            "return_mean": -9.173680389501014,
+            "explained_variance": -0.009927680185784382
+          },
+          "rmse_delta": -0.2032817080811702,
+          "rmse_change_pct": -8.083183259501414
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 2.8318041942126815,
+            "bias": -2.4726272686274866,
+            "prediction_mean": -10.307227670649688,
+            "return_mean": -7.8346004020222,
+            "explained_variance": 0.010785950010186895
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 2.313339216451333,
+            "bias": -1.9539763071336167,
+            "prediction_mean": -9.633768804868062,
+            "return_mean": -7.679792497734445,
+            "explained_variance": 0.01723084220715465
+          },
+          "rmse_delta": -0.5184649777613486,
+          "rmse_change_pct": -18.30864502640854
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 1.883010421717181,
+            "bias": -0.5068740854055968,
+            "prediction_mean": -10.291296227276325,
+            "return_mean": -9.784422141870728,
+            "explained_variance": 0.0010862569242395814
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 1.7598149788262196,
+            "bias": 0.042782346385586166,
+            "prediction_mean": -9.578196672598521,
+            "return_mean": -9.620979018984109,
+            "explained_variance": 0.006173281516430595
+          },
+          "rmse_delta": -0.1231954428909614,
+          "rmse_change_pct": -6.542472705945801
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 2.7079972912045576,
+            "bias": -0.01777989091919622,
+            "prediction_mean": -10.281845159308855,
+            "return_mean": -10.26406526838966,
+            "explained_variance": 0.003965307911119154
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 2.725012462756486,
+            "bias": 0.5739673116570215,
+            "prediction_mean": -9.573284484619318,
+            "return_mean": -10.147251796276338,
+            "explained_variance": -0.0031120980352434824
+          },
+          "rmse_delta": 0.017015171551928443,
+          "rmse_change_pct": 0.6283304494872688
+        }
+      },
+      "consumer_9": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 9.033118532641087,
+            "bias": -8.258090959291811,
+            "prediction_mean": -24.291362804772085,
+            "return_mean": -16.033271845480275,
+            "explained_variance": 0.015078248168488684
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 9.383159148610549,
+            "bias": -8.623533830367792,
+            "prediction_mean": -24.467800774548436,
+            "return_mean": -15.844266944180644,
+            "explained_variance": 0.0020263903383372917
+          },
+          "rmse_delta": 0.350040615969462,
+          "rmse_change_pct": 3.875080512943496
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 9.822385368331622,
+            "bias": -8.909094501591635,
+            "prediction_mean": -24.352035089333853,
+            "return_mean": -15.442940587742216,
+            "explained_variance": -0.00451002602333328
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 10.176358964156165,
+            "bias": -9.321918020354179,
+            "prediction_mean": -24.47602901061376,
+            "return_mean": -15.15411099025958,
+            "explained_variance": -0.004169057643546914
+          },
+          "rmse_delta": 0.35397359582454335,
+          "rmse_change_pct": 3.603743719583541
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 7.408598409266663,
+            "bias": -7.033106214178383,
+            "prediction_mean": -24.30885813931624,
+            "return_mean": -17.275751925137858,
+            "explained_variance": 0.005980782037793175
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 7.713260990448379,
+            "bias": -7.293062054171117,
+            "prediction_mean": -24.473469331860542,
+            "return_mean": -17.180407277689426,
+            "explained_variance": 0.001479362111502902
+          },
+          "rmse_delta": 0.3046625811817165,
+          "rmse_change_pct": 4.112283651394111
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 9.62288448957997,
+            "bias": -8.792026961909118,
+            "prediction_mean": -24.218648740487506,
+            "return_mean": -15.426621778578387,
+            "explained_variance": 0.036214986794364634
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 10.008444138126045,
+            "bias": -9.211522282656432,
+            "prediction_mean": -24.45487352489501,
+            "return_mean": -15.243351242238578,
+            "explained_variance": 0.007535524451288911
+          },
+          "rmse_delta": 0.3855596485460744,
+          "rmse_change_pct": 4.006695175064956
+        }
+      },
+      "consumer_10": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 7.255583122736959,
+            "bias": -5.416119178634618,
+            "prediction_mean": -12.383541664133872,
+            "return_mean": -6.967422485499254,
+            "explained_variance": -0.0016595700068160468
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 6.6406724938108175,
+            "bias": -4.649375909240312,
+            "prediction_mean": -11.601714523665628,
+            "return_mean": -6.952338614425314,
+            "explained_variance": -0.004152771008385958
+          },
+          "rmse_delta": -0.6149106289261415,
+          "rmse_change_pct": -8.474999438696862
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 7.879903719780439,
+            "bias": -7.367158688864886,
+            "prediction_mean": -12.408122501770656,
+            "return_mean": -5.04096381290577,
+            "explained_variance": 0.000213738438823996
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 7.182069891829181,
+            "bias": -6.623132169883958,
+            "prediction_mean": -11.638611257076263,
+            "return_mean": -5.015479087192307,
+            "explained_variance": 0.002776515357042375
+          },
+          "rmse_delta": -0.6978338279512579,
+          "rmse_change_pct": -8.855867441622777
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 7.465869894691791,
+            "bias": -4.469272355545574,
+            "prediction_mean": -12.388265817860763,
+            "return_mean": -7.918993462315188,
+            "explained_variance": -0.0008934463472038967
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 6.877728216123674,
+            "bias": -3.763559322461935,
+            "prediction_mean": -11.597029528021812,
+            "return_mean": -7.833470205559879,
+            "explained_variance": -0.0020521179473593776
+          },
+          "rmse_delta": -0.5881416785681175,
+          "rmse_change_pct": -7.877738118451328
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 6.401062769258203,
+            "bias": -4.481986446410226,
+            "prediction_mean": -12.356281207051389,
+            "return_mean": -7.874294760641162,
+            "explained_variance": 0.002301625205942459
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 5.8443142715059695,
+            "bias": -3.6373390033191346,
+            "prediction_mean": -11.571750116440677,
+            "return_mean": -7.934411113121542,
+            "explained_variance": -0.0010109391713757354
+          },
+          "rmse_delta": -0.5567484977522339,
+          "rmse_change_pct": -8.697750948890526
+        }
+      },
+      "consumer_11": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 4.371316739231834,
+            "bias": -3.7773998468780414,
+            "prediction_mean": -9.46181460706199,
+            "return_mean": -5.68441476018395,
+            "explained_variance": -0.18422585762806443
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 3.7189943523883136,
+            "bias": -3.013500876534017,
+            "prediction_mean": -8.640266449228536,
+            "return_mean": -5.626765572694518,
+            "explained_variance": -0.14013123056113064
+          },
+          "rmse_delta": -0.6523223868435206,
+          "rmse_change_pct": -14.922789304857197
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.6674286737389,
+            "bias": -4.329110751763458,
+            "prediction_mean": -9.519781031211217,
+            "return_mean": -5.190670279447759,
+            "explained_variance": -0.2752573337403941
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.053795242370599,
+            "bias": -3.6879234216318726,
+            "prediction_mean": -8.813097826143105,
+            "return_mean": -5.125174404511233,
+            "explained_variance": -0.19192655995633778
+          },
+          "rmse_delta": -0.6136334313683012,
+          "rmse_change_pct": -13.147141054792865
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.22662157171433,
+            "bias": -3.5893880860894627,
+            "prediction_mean": -9.43578625669082,
+            "return_mean": -5.846398170601358,
+            "explained_variance": -0.2040307579367706
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 3.559394884344016,
+            "bias": -2.8038903893913414,
+            "prediction_mean": -8.604678882906834,
+            "return_mean": -5.800788493515493,
+            "explained_variance": -0.1401433766156106
+          },
+          "rmse_delta": -0.6672266873703139,
+          "rmse_change_pct": -15.786288789977586
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 4.216152828277409,
+            "bias": -3.43907506167168,
+            "prediction_mean": -9.432104770989381,
+            "return_mean": -5.9930297093177005,
+            "explained_variance": -0.12763002889454023
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 3.534221810863216,
+            "bias": -2.581117566808269,
+            "prediction_mean": -8.512597788211911,
+            "return_mean": -5.9314802214036435,
+            "explained_variance": -0.07369198573857538
+          },
+          "rmse_delta": -0.6819310174141924,
+          "rmse_change_pct": -16.174248069010545
+        }
+      },
+      "consumer_12": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 5.83955067925211,
+            "bias": -3.3907560913450485,
+            "prediction_mean": -20.898539048223313,
+            "return_mean": -17.507782956878263,
+            "explained_variance": 0.0002338972285347296
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 6.1345282156934715,
+            "bias": -3.984895442351662,
+            "prediction_mean": -21.47780953836312,
+            "return_mean": -17.492914096011454,
+            "explained_variance": 0.007526401136264016
+          },
+          "rmse_delta": 0.2949775364413618,
+          "rmse_change_pct": 5.051373858084918
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 5.552735921963362,
+            "bias": -4.009153321220022,
+            "prediction_mean": -20.89926109611988,
+            "return_mean": -16.890107774899857,
+            "explained_variance": 0.0005189955052592454
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 5.970240620336472,
+            "bias": -4.612069987155108,
+            "prediction_mean": -21.545425948500633,
+            "return_mean": -16.933355961345523,
+            "explained_variance": 0.006991984983124033
+          },
+          "rmse_delta": 0.41750469837311055,
+          "rmse_change_pct": 7.518900668798367
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.263512137855316,
+            "bias": -1.9294630720580395,
+            "prediction_mean": -20.898472891251245,
+            "return_mean": -18.969009819193207,
+            "explained_variance": 0.00019223886486408048
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.446162100791306,
+            "bias": -2.5502319831403133,
+            "prediction_mean": -21.472462032238642,
+            "return_mean": -18.922230049098328,
+            "explained_variance": 0.011502167923216455
+          },
+          "rmse_delta": 0.18264996293599012,
+          "rmse_change_pct": 4.284025869523367
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 7.207758794206836,
+            "bias": -4.17484519777485,
+            "prediction_mean": -20.89792891713076,
+            "return_mean": -16.72308371935591,
+            "explained_variance": 0.00015825997442986406
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 7.4900002501552345,
+            "bias": -4.736047920870641,
+            "prediction_mean": -21.419884976490522,
+            "return_mean": -16.683837055619883,
+            "explained_variance": 0.006862859139179944
+          },
+          "rmse_delta": 0.2822414559483981,
+          "rmse_change_pct": 3.9158005145128794
+        }
+      },
+      "consumer_13": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 3.8991982051810394,
+            "bias": -3.552006327550108,
+            "prediction_mean": -8.319696065936954,
+            "return_mean": -4.767689738386847,
+            "explained_variance": -0.04421239443200986
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 3.2676496262562527,
+            "bias": -2.881036894277446,
+            "prediction_mean": -7.6128226264220915,
+            "return_mean": -4.731785732144645,
+            "explained_variance": -0.01389663783639028
+          },
+          "rmse_delta": -0.6315485789247868,
+          "rmse_change_pct": -16.196883197310154
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.258717989970714,
+            "bias": -4.16285174614622,
+            "prediction_mean": -8.46694081177314,
+            "return_mean": -4.304089065626922,
+            "explained_variance": -0.022099270010992766
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 3.499680984627471,
+            "bias": -3.379684666604461,
+            "prediction_mean": -7.6785221519569555,
+            "return_mean": -4.298837485352495,
+            "explained_variance": 0.008225491750961211
+          },
+          "rmse_delta": -0.7590370053432434,
+          "rmse_change_pct": -17.823133795916434
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 3.7182453058995577,
+            "bias": -3.2910331623611104,
+            "prediction_mean": -8.298190194368363,
+            "return_mean": -5.007157032007251,
+            "explained_variance": -0.02855336284137233
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 3.152482625582742,
+            "bias": -2.692755928290078,
+            "prediction_mean": -7.603194046020508,
+            "return_mean": -4.91043811773043,
+            "explained_variance": -0.007396252060134723
+          },
+          "rmse_delta": -0.5657626803168156,
+          "rmse_change_pct": -15.215851396871194
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 3.7091331470409004,
+            "bias": -3.2265437662411647,
+            "prediction_mean": -8.202729671269424,
+            "return_mean": -4.976185905028259,
+            "explained_variance": -3.5171638867570465e-05
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 3.1471661076241744,
+            "bias": -2.5923235860545177,
+            "prediction_mean": -7.560663607693458,
+            "return_mean": -4.96834002163894,
+            "explained_variance": 0.0020070706482766543
+          },
+          "rmse_delta": -0.561967039416726,
+          "rmse_change_pct": -15.150899607501456
+        }
+      },
+      "consumer_14": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 4.996157941186449,
+            "bias": -3.2691574074183034,
+            "prediction_mean": -10.848604256867716,
+            "return_mean": -7.579446849449414,
+            "explained_variance": 0.00026299657972239654
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 4.9049524622680405,
+            "bias": -3.1779264189612673,
+            "prediction_mean": -10.760015960792861,
+            "return_mean": -7.5820895418315954,
+            "explained_variance": -0.0028411815721789413
+          },
+          "rmse_delta": -0.09120547891840847,
+          "rmse_change_pct": -1.8255123235105253
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 5.677581434487856,
+            "bias": -4.307073988700628,
+            "prediction_mean": -10.848710403839748,
+            "return_mean": -6.541636415139119,
+            "explained_variance": -1.9013250562194273e-05
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 5.570652199627173,
+            "bias": -4.364925324614623,
+            "prediction_mean": -10.774679594735305,
+            "return_mean": -6.409754270120682,
+            "explained_variance": -0.0017260604022619752
+          },
+          "rmse_delta": -0.10692923486068295,
+          "rmse_change_pct": -1.8833588931222112
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 4.280270067485249,
+            "bias": -2.4658147377094815,
+            "prediction_mean": -10.849527130524317,
+            "return_mean": -8.383712392814836,
+            "explained_variance": 2.4249649202334744e-05
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 4.179390398611299,
+            "bias": -2.3180474312161437,
+            "prediction_mean": -10.755518712600072,
+            "return_mean": -8.437471281383928,
+            "explained_variance": -0.0017051948967881092
+          },
+          "rmse_delta": -0.10087966887394995,
+          "rmse_change_pct": -2.3568528920704046
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 4.936928645728046,
+            "bias": -3.050949117582486,
+            "prediction_mean": -10.847647028375965,
+            "return_mean": -7.79669791079348,
+            "explained_variance": 0.0006599557603106376
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 4.868560537695445,
+            "bias": -2.8736288209070975,
+            "prediction_mean": -10.75055885776993,
+            "return_mean": -7.876930036862831,
+            "explained_variance": -0.0019298971037347012
+          },
+          "rmse_delta": -0.06836810803260107,
+          "rmse_change_pct": -1.384830791341507
+        }
+      },
+      "consumer_15": {
+        "all": {
+          "previous": {
+            "samples": 5904,
+            "rmse": 6.63027217400527,
+            "bias": -4.512001117651425,
+            "prediction_mean": -12.8827409900947,
+            "return_mean": -8.370739872443274,
+            "explained_variance": 0.000469192653621775
+          },
+          "current": {
+            "samples": 5904,
+            "rmse": 6.250178390793725,
+            "bias": -3.831332110841187,
+            "prediction_mean": -12.273396403970434,
+            "return_mean": -8.442064293129246,
+            "explained_variance": -0.009973377158827512
+          },
+          "rmse_delta": -0.38009378321154497,
+          "rmse_change_pct": -5.732702568406555
+        },
+        "early_1_10": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 6.7303144397215195,
+            "bias": -5.7558127247516975,
+            "prediction_mean": -12.8863072792689,
+            "return_mean": -7.1304945545172025,
+            "explained_variance": 0.0007685128270707997
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 6.235944273734188,
+            "bias": -5.095873541061545,
+            "prediction_mean": -12.310393391549587,
+            "return_mean": -7.214519850488043,
+            "explained_variance": -0.007254481138336821
+          },
+          "rmse_delta": -0.4943701659873314,
+          "rmse_change_pct": -7.345424503045761
+        },
+        "middle_11_20": {
+          "previous": {
+            "samples": 1920,
+            "rmse": 6.867610364579569,
+            "bias": -3.5331287219907077,
+            "prediction_mean": -12.88683964361747,
+            "return_mean": -9.353710921626764,
+            "explained_variance": -0.0003384060623214946
+          },
+          "current": {
+            "samples": 1920,
+            "rmse": 6.560467299987098,
+            "bias": -2.8676653479590257,
+            "prediction_mean": -12.262700999279817,
+            "return_mean": -9.395035651320791,
+            "explained_variance": -0.009391480063754454
+          },
+          "rmse_delta": -0.30714306459247087,
+          "rmse_change_pct": -4.472342609542812
+        },
+        "late_21_end": {
+          "previous": {
+            "samples": 2064,
+            "rmse": 6.303735393865654,
+            "bias": -4.265546037242537,
+            "prediction_mean": -12.875610810841701,
+            "return_mean": -8.610064773599165,
+            "explained_variance": 0.0017666468280933545
+          },
+          "current": {
+            "samples": 2064,
+            "rmse": 5.960904591463635,
+            "bias": -3.5514486993637955,
+            "prediction_mean": -12.248929815236913,
+            "return_mean": -8.697481115873115,
+            "explained_variance": -0.00804843294769908
+          },
+          "rmse_delta": -0.3428308024020197,
+          "rmse_change_pct": -5.438534154457663
+        }
+      }
+    },
+    "consumer_mean_rmse": {
+      "all": {
+        "previous": 5.432128647166234,
+        "current": 5.34281158812752
+      },
+      "early_1_10": {
+        "previous": 5.558190449567256,
+        "current": 5.491668851899091
+      },
+      "middle_11_20": {
+        "previous": 5.109198511567441,
+        "current": 4.9986640388009524
+      },
+      "late_21_end": {
+        "previous": 5.540186900774874,
+        "current": 5.450585001019493
+      }
+    },
+    "consumers_with_lower_full_month_rmse": 10
+  },
+  "full_month_reference": "outputs\\ausgrid-year-study\\20261020\\validation-0003.json",
+  "full_month_reference_sha256": "87b87383f95e7a157bd840eaea3b46b054e6032712a6cd487ce43fa94d8a0619",
+  "full_month_performance": {
+    "previous": {
+      "periods": 5904,
+      "service_rate_pct": 99.10506529289319,
+      "lost_kwh": 234.2880460429163,
+      "requested_kwh": 26179.345172602705,
+      "cash_aud_total": 4709.22984756565,
+      "cash_aud_per_day": 38.28642152492398,
+      "book_profit_aud_per_day": 32.97458986556177
+    },
+    "initial": {
+      "periods": 5904,
+      "service_rate_pct": 99.16044593496012,
+      "lost_kwh": 220.05540140072853,
+      "requested_kwh": 26210.98635146006,
+      "cash_aud_total": 4712.219091495747,
+      "cash_aud_per_day": 38.31072432110364,
+      "book_profit_aud_per_day": 32.95041980638399
+    },
+    "current": {
+      "periods": 5904,
+      "service_rate_pct": 99.19052902598499,
+      "lost_kwh": 211.77389257618398,
+      "requested_kwh": 26162.011903376366,
+      "cash_aud_total": 4697.543432830438,
+      "cash_aud_per_day": 38.19141002301169,
+      "book_profit_aud_per_day": 32.82709969197171
+    }
+  },
+  "candidate_gains": [
+    {
+      "round": 1,
+      "selected": 0,
+      "candidates": [
+        {
+          "index": 0,
+          "paired_uc_gain": {
+            "mean": 0.0,
+            "standard_error": 0.0,
+            "lower": 0.0,
+            "upper": 0.0,
+            "seeds": 4
+          }
+        },
+        {
+          "index": 1,
+          "paired_uc_gain": {
+            "mean": -0.03782624507247248,
+            "standard_error": 0.032960816218532106,
+            "lower": -0.1024294448607954,
+            "upper": 0.02677695471585044,
+            "seeds": 4
+          }
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "selected": 0,
+      "candidates": [
+        {
+          "index": 0,
+          "paired_uc_gain": {
+            "mean": 0.0,
+            "standard_error": 0.0,
+            "lower": 0.0,
+            "upper": 0.0,
+            "seeds": 4
+          }
+        },
+        {
+          "index": 1,
+          "paired_uc_gain": {
+            "mean": -0.2662489969316665,
+            "standard_error": 0.10765782732289587,
+            "lower": -0.47725833848454235,
+            "upper": -0.05523965537879058,
+            "seeds": 4
+          }
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "selected": 0,
+      "candidates": [
+        {
+          "index": 0,
+          "paired_uc_gain": {
+            "mean": 0.0,
+            "standard_error": 0.0,
+            "lower": 0.0,
+            "upper": 0.0,
+            "seeds": 4
+          }
+        },
+        {
+          "index": 1,
+          "paired_uc_gain": {
+            "mean": 0.17685874839403715,
+            "standard_error": 0.3780170672571713,
+            "lower": -0.5640547034300186,
+            "upper": 0.9177722002180929,
+            "seeds": 4
+          }
+        }
+      ]
+    }
+  ],
+  "validation_episodes": [
+    {
+      "seed": 10042,
+      "periods": 1488,
+      "true_terminal": true,
+      "metrics": {
+        "uc_cash": 1375.7790032404291,
+        "uc_book_profit": 1278.2936372783224,
+        "native_lost_kwh": 166.54077257005,
+        "native_requested_kwh": 8332.790166610717,
+        "served_kwh": 8341.10592202489,
+        "grid_kwh": 7290.215127027937,
+        "der_spill_kwh": 910.83253424243,
+        "dr_net_kwh": 180.21251869754272,
+        "dr_payment": 72.78226672025913,
+        "supply_shortfall_kwh": 327.9238112088506,
+        "consumer_cost": 5361.57887142981,
+        "physical_periods": 1488.0,
+        "consumer_cost/consumer_0": 428.57698043165874,
+        "consumer_cost/consumer_1": 44.15247402466546,
+        "consumer_cost/consumer_2": 116.77694313371208,
+        "consumer_cost/consumer_3": 423.4488443288713,
+        "consumer_cost/consumer_4": 282.6864190878411,
+        "consumer_cost/consumer_5": 402.3295729071967,
+        "consumer_cost/consumer_6": 285.3711516740163,
+        "consumer_cost/consumer_7": 429.8279082331346,
+        "consumer_cost/consumer_8": 264.12353944656365,
+        "consumer_cost/consumer_9": 449.2176609889592,
+        "consumer_cost/consumer_10": 383.30179049820646,
+        "consumer_cost/consumer_11": 251.21981540850814,
+        "consumer_cost/consumer_12": 570.2032828832334,
+        "consumer_cost/consumer_13": 196.36308739198626,
+        "consumer_cost/consumer_14": 368.07514152374756,
+        "consumer_cost/consumer_15": 465.90425946751026
+      },
+      "returns": {
+        "uc": 5.078013337955919,
+        "consumer_0": -9.92208015165462,
+        "consumer_1": -1.4707691757815107,
+        "consumer_2": -3.531363249592868,
+        "consumer_3": -6.777785916077255,
+        "consumer_4": -6.298922416967089,
+        "consumer_5": -8.145255869582513,
+        "consumer_6": -5.908501294525596,
+        "consumer_7": -9.70347622350714,
+        "consumer_8": -5.712086061367233,
+        "consumer_9": -9.831569416050435,
+        "consumer_10": -6.39050750267039,
+        "consumer_11": -5.7825072475382955,
+        "consumer_12": -13.052315130196908,
+        "consumer_13": -3.7070430442275044,
+        "consumer_14": -12.885718720393383,
+        "consumer_15": -6.6173132081322175
+      }
+    },
+    {
+      "seed": 10045,
+      "periods": 1488,
+      "true_terminal": true,
+      "metrics": {
+        "uc_cash": 1056.411442896656,
+        "uc_book_profit": 852.4498358742136,
+        "native_lost_kwh": 13.951368853984311,
+        "native_requested_kwh": 5614.862062130711,
+        "served_kwh": 5728.387071670724,
+        "grid_kwh": 4624.280046872057,
+        "der_spill_kwh": 1973.47377108563,
+        "dr_net_kwh": 99.7428368055242,
+        "dr_payment": 48.08659078519167,
+        "supply_shortfall_kwh": 47.34505000069877,
+        "consumer_cost": 3304.167409966175,
+        "physical_periods": 1488.0,
+        "consumer_cost/consumer_0": 255.5339041599715,
+        "consumer_cost/consumer_1": 109.64119474581048,
+        "consumer_cost/consumer_2": 110.51678821750063,
+        "consumer_cost/consumer_3": 178.01595321857306,
+        "consumer_cost/consumer_4": 153.08718315884786,
+        "consumer_cost/consumer_5": 180.6225494812664,
+        "consumer_cost/consumer_6": 191.6737379918861,
+        "consumer_cost/consumer_7": 260.0553544617347,
+        "consumer_cost/consumer_8": 246.93055696419432,
+        "consumer_cost/consumer_9": 444.96245923322675,
+        "consumer_cost/consumer_10": 162.61585511490918,
+        "consumer_cost/consumer_11": 142.63179132444486,
+        "consumer_cost/consumer_12": 409.6267735104495,
+        "consumer_cost/consumer_13": 116.00415416750113,
+        "consumer_cost/consumer_14": 171.92958800623157,
+        "consumer_cost/consumer_15": 170.31956620962873
+      },
+      "returns": {
+        "uc": 6.801875584389971,
+        "consumer_0": -7.508387543085034,
+        "consumer_1": -4.671464902137703,
+        "consumer_2": -3.3167440325854725,
+        "consumer_3": -7.27844530134228,
+        "consumer_4": -6.218818159010332,
+        "consumer_5": -6.037280923235922,
+        "consumer_6": -7.255215928473358,
+        "consumer_7": -5.466484751700839,
+        "consumer_8": -7.269709441309562,
+        "consumer_9": -12.401262725756082,
+        "consumer_10": -3.2187620592760235,
+        "consumer_11": -5.358465047282473,
+        "consumer_12": -12.528772253958016,
+        "consumer_13": -3.838211123144905,
+        "consumer_14": -3.373314828122876,
+        "consumer_15": -6.0750055109085315
+      }
+    },
+    {
+      "seed": 10048,
+      "periods": 1488,
+      "true_terminal": true,
+      "metrics": {
+        "uc_cash": 1301.4079772627665,
+        "uc_book_profit": 1097.7182409985674,
+        "native_lost_kwh": 16.322186639754893,
+        "native_requested_kwh": 6495.145469946539,
+        "served_kwh": 6626.348256519009,
+        "grid_kwh": 5306.749093851903,
+        "der_spill_kwh": 1974.3317524022596,
+        "dr_net_kwh": 115.07806945221866,
+        "dr_payment": 49.95024691222789,
+        "supply_shortfall_kwh": 46.44630069573509,
+        "consumer_cost": 3890.507892259541,
+        "physical_periods": 1488.0,
+        "consumer_cost/consumer_0": 268.1520486595091,
+        "consumer_cost/consumer_1": 126.08191100185107,
+        "consumer_cost/consumer_2": 204.9104891516463,
+        "consumer_cost/consumer_3": 174.41950921562272,
+        "consumer_cost/consumer_4": 155.59833051031723,
+        "consumer_cost/consumer_5": 205.8615146160734,
+        "consumer_cost/consumer_6": 240.43231463482402,
+        "consumer_cost/consumer_7": 216.8303827615914,
+        "consumer_cost/consumer_8": 285.36110056221685,
+        "consumer_cost/consumer_9": 564.5582821649815,
+        "consumer_cost/consumer_10": 187.1047860542345,
+        "consumer_cost/consumer_11": 132.81417010884584,
+        "consumer_cost/consumer_12": 636.7800151639678,
+        "consumer_cost/consumer_13": 125.16868085384361,
+        "consumer_cost/consumer_14": 191.74277296248502,
+        "consumer_cost/consumer_15": 174.6915838375332
+      },
+      "returns": {
+        "uc": 10.908922708329689,
+        "consumer_0": -7.68613352231872,
+        "consumer_1": -3.068918939051991,
+        "consumer_2": -5.050917767802856,
+        "consumer_3": -4.357865566263804,
+        "consumer_4": -5.781771796455885,
+        "consumer_5": -4.438731809773206,
+        "consumer_6": -4.887340203436131,
+        "consumer_7": -6.381412010736936,
+        "consumer_8": -6.412904897322189,
+        "consumer_9": -20.299481990398437,
+        "consumer_10": -4.96553440103081,
+        "consumer_11": -3.5946435110652843,
+        "consumer_12": -14.430654143525588,
+        "consumer_13": -3.31045150304699,
+        "consumer_14": -4.012951519308435,
+        "consumer_15": -4.295371200006649
+      }
+    },
+    {
+      "seed": 10051,
+      "periods": 1440,
+      "true_terminal": true,
+      "metrics": {
+        "uc_cash": 963.9450094305868,
+        "uc_book_profit": 809.2715479614172,
+        "native_lost_kwh": 14.95956451239476,
+        "native_requested_kwh": 5719.2142046884,
+        "served_kwh": 5831.05396238236,
+        "grid_kwh": 4953.869266286883,
+        "der_spill_kwh": 1485.3385182209563,
+        "dr_net_kwh": 106.47619982718827,
+        "dr_payment": 50.560152626589655,
+        "supply_shortfall_kwh": 45.83082314559016,
+        "consumer_cost": 3407.53664697239,
+        "physical_periods": 1440.0,
+        "consumer_cost/consumer_0": 215.57877815670724,
+        "consumer_cost/consumer_1": 120.12328249192886,
+        "consumer_cost/consumer_2": 150.9165248182207,
+        "consumer_cost/consumer_3": 194.00686977082574,
+        "consumer_cost/consumer_4": 124.54981354359016,
+        "consumer_cost/consumer_5": 119.94482226328098,
+        "consumer_cost/consumer_6": 187.00224455857924,
+        "consumer_cost/consumer_7": 270.7414873398214,
+        "consumer_cost/consumer_8": 307.36774176893096,
+        "consumer_cost/consumer_9": 452.7072715656526,
+        "consumer_cost/consumer_10": 99.32580922566461,
+        "consumer_cost/consumer_11": 152.5510932105618,
+        "consumer_cost/consumer_12": 492.0623180387192,
+        "consumer_cost/consumer_13": 132.541511441421,
+        "consumer_cost/consumer_14": 186.38448668826595,
+        "consumer_cost/consumer_15": 201.73259209021734
+      },
+      "returns": {
+        "uc": 5.263458512484204,
+        "consumer_0": -7.589473801774463,
+        "consumer_1": -3.4294191191676133,
+        "consumer_2": -2.7123087557967596,
+        "consumer_3": -4.548561920007951,
+        "consumer_4": -4.938020672303206,
+        "consumer_5": -4.305707205703181,
+        "consumer_6": -5.4981971644462115,
+        "consumer_7": -8.68556595730231,
+        "consumer_8": -7.1035133043026795,
+        "consumer_9": -8.390130911985883,
+        "consumer_10": -1.2610883129430213,
+        "consumer_11": -3.7629390586275266,
+        "consumer_12": -14.510153811183445,
+        "consumer_13": -3.5732514761677017,
+        "consumer_14": -7.5979483540218515,
+        "consumer_15": -4.227741803073206
+      }
+    }
+  ],
+  "checkpoint_exact_replay": true,
+  "retained_optimizer_steps": [
+    {
+      "uc_actor": [],
+      "uc_value": [
+        96
+      ],
+      "consumer_0_actor": [
+        48
+      ],
+      "consumer_0_value": [
+        96
+      ],
+      "consumer_1_actor": [
+        48
+      ],
+      "consumer_1_value": [
+        96
+      ],
+      "consumer_2_actor": [
+        48
+      ],
+      "consumer_2_value": [
+        96
+      ],
+      "consumer_3_actor": [
+        48
+      ],
+      "consumer_3_value": [
+        96
+      ],
+      "consumer_4_actor": [
+        48
+      ],
+      "consumer_4_value": [
+        96
+      ],
+      "consumer_5_actor": [
+        48
+      ],
+      "consumer_5_value": [
+        96
+      ],
+      "consumer_6_actor": [
+        48
+      ],
+      "consumer_6_value": [
+        96
+      ],
+      "consumer_7_actor": [
+        48
+      ],
+      "consumer_7_value": [
+        96
+      ],
+      "consumer_8_actor": [
+        48
+      ],
+      "consumer_8_value": [
+        96
+      ],
+      "consumer_9_actor": [
+        48
+      ],
+      "consumer_9_value": [
+        96
+      ],
+      "consumer_10_actor": [
+        48
+      ],
+      "consumer_10_value": [
+        96
+      ],
+      "consumer_11_actor": [
+        48
+      ],
+      "consumer_11_value": [
+        96
+      ],
+      "consumer_12_actor": [
+        48
+      ],
+      "consumer_12_value": [
+        96
+      ],
+      "consumer_13_actor": [
+        48
+      ],
+      "consumer_13_value": [
+        96
+      ],
+      "consumer_14_actor": [
+        48
+      ],
+      "consumer_14_value": [
+        96
+      ],
+      "consumer_15_actor": [
+        48
+      ],
+      "consumer_15_value": [
+        96
+      ]
+    }
+  ],
+  "environment_source_unchanged": true,
+  "environment_source_sha256": {
+    "environments/sn_energy_market/src/snmarket/__init__.py": "1a2f61a17ba26e681ce4c37cb2f90c51f679bb81ee09298d888006810486ef3c",
+    "environments/sn_energy_market/src/snmarket/action.py": "3621fae375958b06eedd3d36dad1ab8c275106070eab35e039822b8a20174d38",
+    "environments/sn_energy_market/src/snmarket/config.py": "995d25390588566157510c6a088eca3f78e12891f5efda932e010cd5256ae1a3",
+    "environments/sn_energy_market/src/snmarket/consumer.py": "a05c84bc432cdbeedbaaf2d670ecf67a76d210a0a1bd2a8650feda17a3217946",
+    "environments/sn_energy_market/src/snmarket/contracts.py": "e9739885a622dc8d16a61e6d0197b35f7e9a0ebb681bde73002421284d06cf36",
+    "environments/sn_energy_market/src/snmarket/dr.py": "a28430b6b5feee788f51c02808157e7ef9df5c687922ac8ba92fd37332096845",
+    "environments/sn_energy_market/src/snmarket/engine.py": "2f96239cc4cbfd2c6bd29f9024274041886e40b265f90686cabce83798740656",
+    "environments/sn_energy_market/src/snmarket/incentive.py": "2adec800e2ab8288fe01134f25a80149579be472f00f1b65642a039aa8850089",
+    "environments/sn_energy_market/src/snmarket/market.py": "9fca257d83668aa2b7d344a214a597faa689b5eabce6da2d6d9c134906dcfb42",
+    "environments/sn_energy_market/src/snmarket/metrics.py": "e871324bbf045e43bbe95e81281ab61333aa8f88c3f3cd7c60d0a4c1110afe65",
+    "environments/sn_energy_market/src/snmarket/observation.py": "c3f15abbeeb9200f4d507bec73cc1ba48c847983de34c130a853b1fc3c620936",
+    "environments/sn_energy_market/src/snmarket/physics.py": "07540bf9b4c285563993ac530c9b74a599e96f537d4d729179ea96f8e3a3189b",
+    "environments/sn_energy_market/src/snmarket/profiles.py": "ef31c5771873bda8160398ca00be660dc1a24c9c89cd634ccf07a26a66bd00d3",
+    "environments/sn_energy_market/src/snmarket/reward.py": "ffa53c36e6dbcc5c697b51cd90b3635d7f9e2fea93034d18a1a343200e874d87",
+    "environments/sn_energy_market/src/snmarket/rllib_env.py": "bc4a8b33adb39578a86a0e940da9a89fffd77dc49ac537ca74b486dfb3410669",
+    "environments/sn_energy_market/src/snmarket/settlement.py": "762b9f22466a080e4dabb556f97a4328820505a99de2e58383b14fe1b7e51cf1",
+    "environments/sn_energy_market/src/snmarket/tariff.py": "e9833deadd2327d89bb28f0b8f21cee60a11b912f1a98dbc5d63d81ce13e0e5e",
+    "environments/sn_energy_market/src/snmarket/uc.py": "cff819b7a144c25054feb38906979698245e363b154020da320b87d9cc1ed993"
+  },
+  "source_sha256": {
+    "RLAlgo/src/raymarl/algorithms/stackelberg/__init__.py": "53b1b1e6bf7518ff605e6a3db8423e65355c2eb7dd5f6207a9aa224e33ad18eb",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/algorithm.py": "33141955df322e2c8cb760aacafa07fb930c66af8b1aad89d32f7a34170c678e",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/batch_log.py": "7033651f35c8b01ccaf14e3ff8b57f18296cca5ac4b7b7707f756b19746051d0",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/config.py": "45db4193a1dc647b5c8aedcbb1ce25fff8cd9adb44bb34563be9ff5aca4cc215",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/contracts.py": "548cc5eafb2cf1ea6df5872a3dfb85c19aaaf107cfff78b930bda2ac22492c19",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/evaluation.py": "5101e8c01c48e77d15f32696d115eff90388d24abb806b2d24be512f90b8b364",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/inference.py": "d2a3e8aa2d13c6f1af9537243cc91fd5b479f8bb78791443ce2c8e1038c952e2",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/learner.py": "91d965db44574ef3c614ff66c9a996130732dddde444f9db2e1d746cb12ef976",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/rl_module.py": "90284f5da96cb011e7755a45d74effed37045429b7dc04d2d3ac788aa7da3b9c",
+    "RLAlgo/src/raymarl/algorithms/stackelberg/runner.py": "3ee7e734036a81b14205773dc9ef51d4139e0ddc8d1a9a458e337994eed2b2f1",
+    "experiments/sn_energy_market/ausgrid.py": "687a7f688d470ebe021eb850083e02b4c51e3cf95bcc788089288154b5398f18",
+    "experiments/sn_energy_market/batch_critic_pilot.py": "d447cdb1d0f741582ecd8525e0f2d107cc6ce8d9f12dfd85d7cc5b9050f976fc",
+    "experiments/sn_energy_market/evaluation.py": "62cfb8110bdc6a39e72d89d52b01dc6bb0a988ed8ccc74ef5e2b40c3f55194ec",
+    "experiments/sn_energy_market/plot_batch_losses.py": "a04937b26d1d8cecd289610861a54c4b7579a656228ff3b9ef89975bce2b412b",
+    "experiments/sn_energy_market/profile_dataset.py": "7fd3818da13bbd08a7f54b7de66f57f8af28e1486fecb93b6a8fbf88c8838a45",
+    "experiments/sn_energy_market/smoke_test.py": "b3ca466b7cce4773e45c604ab2c9a65a68bdb58b6015da373503de2fb111e01e",
+    "experiments/sn_energy_market/summarize_batch_critic.py": "113ddbac8cc26e870f2e7092a85dbbc92bf9544aacfe60d1ef9f5d0717e8cc4c",
+    "experiments/sn_energy_market/tests/test_ausgrid.py": "ccf8478a183b36b5c0bd14371bb4c3d6854aaf2fdef7eccb11596c4a0c91032e",
+    "experiments/sn_energy_market/tests/test_evaluation.py": "aae251019e3cfd02ce34b5f228d11c8a547dd41d9a1b632370821c77f7cc7b19",
+    "experiments/sn_energy_market/tests/test_profile_dataset.py": "703347b92b5cbc20ef56ac4704a6df87bc0af606561b75beb5cf01ae9fc1e477",
+    "experiments/sn_energy_market/tests/test_training_audit.py": "d75a982a8951488ebe5eef8d12265fb5c0228381419e5a3bdf3ee3f509198ff7",
+    "experiments/sn_energy_market/tests/test_training_entry.py": "346b0a85b2812c90d1306adc01d7b60218924beb80ea774cd0d4682387b3674f",
+    "experiments/sn_energy_market/tests/test_training_env.py": "b01a16130d9807aba0d534487b5636879ab588f1fd985bb7fb121797bb95099e",
+    "experiments/sn_energy_market/tests/test_training_split_boundary.py": "4f34e2874d32c67cfce9977e8074b41da62507c4eed9b906278081c1c10ceaf7",
+    "experiments/sn_energy_market/train.py": "1198fdd4b42f9e337275178153fbfe69971b24cf59faaf03361ccda20593fd1f",
+    "experiments/sn_energy_market/training_audit.py": "89c567e3cd4c454384bc3a92ae535de890a43956273dddc0c0a480458e4d73d9",
+    "experiments/sn_energy_market/training_env.py": "26cc204055589fe62461393513d247a28adafe9de0c0dfc5c315d540074bbe2d",
+    "experiments/sn_energy_market/validate_dataset.py": "fb2a0be1996655e882dbd903bb8deb39c13322eb23805aba3b19b7d8bbf19b58",
+    "experiments/sn_energy_market/validate_v9.py": "9f96d91778a07f5c3f0e87d72a15856f08e8420f563e36334c04d05e52798598",
+    "experiments/sn_energy_market/validation_helpers.py": "330182a1ce65175a7af6c67e27236fa8eb8c91087c55869b1403fa40d64e24db"
+  },
+  "audit_maximums": {
+    "energy_residual": 0.0,
+    "power_residual": 7.105427357601002e-15,
+    "queue_residual": 5.4539706084710815e-15,
+    "cash_residual": 3.552713678800501e-15,
+    "reward_residual": 0.0,
+    "oracle_maximum_absolute_residual": 3.552713678800501e-15,
+    "oracle_compared_fields": 744.0,
+    "gae_residual": 5.684341886080802e-14,
+    "value_target_residual": 6.394884621840902e-14,
+    "behavior_logp_residual": 1.6689300537109375e-06,
+    "post_clip_gradient_norm": 0.500001231037594
+  },
+  "audit_coverage": {
+    "necessary_shortage_periods": 575,
+    "new_task_ids": 131885,
+    "consumer_records": 275200,
+    "due_consumer_periods": 11754,
+    "due_over_capacity": 2695,
+    "early_repayment": 133511,
+    "shift_out": 131883,
+    "charge_periods": 7046,
+    "discharge_periods": 8211,
+    "idle_periods": 1943,
+    "negative_signed_DR": 1,
+    "event_on": 2148,
+    "event_off": 15052,
+    "zero_price_event": 0,
+    "monthly_rollover": 8,
+    "true_terminal": 8,
+    "native_shortage": 575,
+    "full_service": 16625,
+    "exact_bid_ties": 0,
+    "tariff_band_flat": 11472,
+    "empty_tariff_schedule": 0,
+    "multiple_tariff_intervals": 0,
+    "fractional_tariff_hours": 0,
+    "periods/validation_initial": 6672,
+    "retained_task_ids": 3508172,
+    "tariff_band_high": 4296,
+    "oracle_comparisons": 358,
+    "tariff_band_peak": 1432,
+    "periods/round_1": 1280,
+    "zero_width_coordinates": 1330,
+    "sampled_agent_rows": 26384,
+    "frozen_optimizer_checks": 5352,
+    "periods/round_2": 1280,
+    "periods/round_3": 1280,
+    "periods/validation_3": 6672,
+    "periods/checkpoint_replay": 16
+  },
+  "optimizer_audit": {
+    "consumer_0/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2626939063895733,
+      "raw_norm_max": 1.3821664998421976,
+      "clipped_norm_max": 0.4999997032380868,
+      "parameter_delta_max": 0.015036393803965868
+    },
+    "consumer_0/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.0022248660963877158,
+      "raw_norm_max": 5.377217003566238,
+      "clipped_norm_max": 0.5000009061215486,
+      "parameter_delta_max": 0.1461583209583748
+    },
+    "consumer_1/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2135726087640957,
+      "raw_norm_max": 0.9360482700006275,
+      "clipped_norm_max": 0.4999995062609047,
+      "parameter_delta_max": 0.015378016353110665
+    },
+    "consumer_1/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 7.498226993487425e-05,
+      "raw_norm_max": 7.853913525025576,
+      "clipped_norm_max": 0.500000725224622,
+      "parameter_delta_max": 0.14978565770445934
+    },
+    "consumer_10/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.15229137982022706,
+      "raw_norm_max": 1.0550332957980952,
+      "clipped_norm_max": 0.4999996263103254,
+      "parameter_delta_max": 0.01510333594066714
+    },
+    "consumer_10/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.005995841057574353,
+      "raw_norm_max": 9.869835790476179,
+      "clipped_norm_max": 0.5000009007098684,
+      "parameter_delta_max": 0.1499632015024257
+    },
+    "consumer_11/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.27082017477936954,
+      "raw_norm_max": 1.0256589778519531,
+      "clipped_norm_max": 0.4999996282637044,
+      "parameter_delta_max": 0.01500571755243583
+    },
+    "consumer_11/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.006174781080955078,
+      "raw_norm_max": 5.7604370206760445,
+      "clipped_norm_max": 0.5000005099797882,
+      "parameter_delta_max": 0.15027408362410097
+    },
+    "consumer_12/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.20743944791341898,
+      "raw_norm_max": 1.0292884668545341,
+      "clipped_norm_max": 0.4999996009253981,
+      "parameter_delta_max": 0.016308987836670712
+    },
+    "consumer_12/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.006111237835367174,
+      "raw_norm_max": 15.249709922982095,
+      "clipped_norm_max": 0.5000008002636529,
+      "parameter_delta_max": 0.15054374527790024
+    },
+    "consumer_13/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.21148175678639072,
+      "raw_norm_max": 1.1691543269996079,
+      "clipped_norm_max": 0.49999964641827055,
+      "parameter_delta_max": 0.014745456291209495
+    },
+    "consumer_13/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.0020819298712525117,
+      "raw_norm_max": 3.556138282066786,
+      "clipped_norm_max": 0.5000006355890505,
+      "parameter_delta_max": 0.1506937246975276
+    },
+    "consumer_14/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.29555179363932116,
+      "raw_norm_max": 1.350446861932092,
+      "clipped_norm_max": 0.4999997131431841,
+      "parameter_delta_max": 0.014942231442360588
+    },
+    "consumer_14/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.008040689827391789,
+      "raw_norm_max": 5.9090281735616355,
+      "clipped_norm_max": 0.500001109117884,
+      "parameter_delta_max": 0.15021199885835315
+    },
+    "consumer_15/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.21714994327813364,
+      "raw_norm_max": 1.0756489716177364,
+      "clipped_norm_max": 0.4999995961147519,
+      "parameter_delta_max": 0.014827193784331474
+    },
+    "consumer_15/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.004018790556609836,
+      "raw_norm_max": 9.00312934084097,
+      "clipped_norm_max": 0.5000006232864549,
+      "parameter_delta_max": 0.1505903694346663
+    },
+    "consumer_2/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2531085590530632,
+      "raw_norm_max": 1.1722976132573348,
+      "clipped_norm_max": 0.4999996283081845,
+      "parameter_delta_max": 0.0156744342026784
+    },
+    "consumer_2/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.010429062033475812,
+      "raw_norm_max": 5.768222543222665,
+      "clipped_norm_max": 0.5000011908660346,
+      "parameter_delta_max": 0.14937205073471227
+    },
+    "consumer_3/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2465970580512009,
+      "raw_norm_max": 0.9876326003065098,
+      "clipped_norm_max": 0.4999995641871497,
+      "parameter_delta_max": 0.015224170674995386
+    },
+    "consumer_3/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.004787890815444765,
+      "raw_norm_max": 7.954682940857126,
+      "clipped_norm_max": 0.5000005297592252,
+      "parameter_delta_max": 0.14967356651918026
+    },
+    "consumer_4/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2057399070952261,
+      "raw_norm_max": 1.3181243600483636,
+      "clipped_norm_max": 0.49999972598622605,
+      "parameter_delta_max": 0.016316686881917886
+    },
+    "consumer_4/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.004176413940548307,
+      "raw_norm_max": 18.363818278915772,
+      "clipped_norm_max": 0.500001231037594,
+      "parameter_delta_max": 0.14955895136093617
+    },
+    "consumer_5/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2589236753930735,
+      "raw_norm_max": 1.2820595434938304,
+      "clipped_norm_max": 0.4999996875234804,
+      "parameter_delta_max": 0.01565390509239942
+    },
+    "consumer_5/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.010803285176427693,
+      "raw_norm_max": 9.828918434698078,
+      "clipped_norm_max": 0.5000010587809302,
+      "parameter_delta_max": 0.15011581341994898
+    },
+    "consumer_6/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.24957229885846158,
+      "raw_norm_max": 1.28949348571795,
+      "clipped_norm_max": 0.4999996790177596,
+      "parameter_delta_max": 0.01455295104857709
+    },
+    "consumer_6/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.003159050337474225,
+      "raw_norm_max": 6.988445845193895,
+      "clipped_norm_max": 0.5000006562905916,
+      "parameter_delta_max": 0.14978535523818456
+    },
+    "consumer_7/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2114406219537866,
+      "raw_norm_max": 1.0677550232919444,
+      "clipped_norm_max": 0.49999962258921343,
+      "parameter_delta_max": 0.01578148706613727
+    },
+    "consumer_7/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.003915169520695612,
+      "raw_norm_max": 12.935088041395714,
+      "clipped_norm_max": 0.5000008380226371,
+      "parameter_delta_max": 0.14956255771526733
+    },
+    "consumer_8/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.2540415905185764,
+      "raw_norm_max": 0.8012586185909696,
+      "clipped_norm_max": 0.4999994100447606,
+      "parameter_delta_max": 0.014848604211381213
+    },
+    "consumer_8/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.0010182009492656027,
+      "raw_norm_max": 4.640197035149896,
+      "clipped_norm_max": 0.500000942517723,
+      "parameter_delta_max": 0.15044856368502127
+    },
+    "consumer_9/actor": {
+      "optimizer_steps": 72,
+      "nonzero_gradient_steps": 72,
+      "nonzero_parameter_steps": 72,
+      "raw_norm_min": 0.22395290089906944,
+      "raw_norm_max": 1.1869739087640825,
+      "clipped_norm_max": 0.49999965931467094,
+      "parameter_delta_max": 0.016319334259306366
+    },
+    "consumer_9/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.006512865707353821,
+      "raw_norm_max": 14.71002721337187,
+      "clipped_norm_max": 0.5000009658541227,
+      "parameter_delta_max": 0.14974234709633608
+    },
+    "uc/actor": {
+      "optimizer_steps": 24,
+      "nonzero_gradient_steps": 24,
+      "nonzero_parameter_steps": 24,
+      "raw_norm_min": 2.8439998876569894,
+      "raw_norm_max": 13.570805747725496,
+      "clipped_norm_max": 0.49999998679908175,
+      "parameter_delta_max": 0.017992053668677056
+    },
+    "uc/value": {
+      "optimizer_steps": 192,
+      "nonzero_gradient_steps": 192,
+      "nonzero_parameter_steps": 192,
+      "raw_norm_min": 0.05385155389580043,
+      "raw_norm_max": 8.047559368460423,
+      "clipped_norm_max": 0.4999999636997083,
+      "parameter_delta_max": 0.05153958222284253
+    }
+  },
+  "sampled_dates": {
+    "round_1": [
+      "2010-07-01T00:00:00+10:00",
+      "2010-07-01T00:30:00+10:00",
+      "2010-07-01T01:00:00+10:00",
+      "2010-07-01T01:30:00+10:00",
+      "2010-07-01T02:00:00+10:00",
+      "2010-07-01T02:30:00+10:00",
+      "2010-07-01T03:00:00+10:00",
+      "2010-07-01T03:30:00+10:00",
+      "2010-07-01T04:00:00+10:00",
+      "2010-07-01T04:30:00+10:00",
+      "2010-07-01T05:00:00+10:00",
+      "2010-07-01T05:30:00+10:00",
+      "2010-07-01T06:00:00+10:00",
+      "2010-07-01T06:30:00+10:00",
+      "2010-07-01T07:00:00+10:00",
+      "2010-07-01T07:30:00+10:00",
+      "2010-07-01T08:00:00+10:00",
+      "2010-07-01T08:30:00+10:00",
+      "2010-07-01T09:00:00+10:00",
+      "2010-07-01T09:30:00+10:00",
+      "2010-07-01T10:00:00+10:00",
+      "2010-07-01T10:30:00+10:00",
+      "2010-07-01T11:00:00+10:00",
+      "2010-07-01T11:30:00+10:00",
+      "2010-07-01T12:00:00+10:00",
+      "2010-07-01T12:30:00+10:00",
+      "2010-07-01T13:00:00+10:00",
+      "2010-07-01T13:30:00+10:00",
+      "2010-07-01T14:00:00+10:00",
+      "2010-07-01T14:30:00+10:00",
+      "2010-07-01T15:00:00+10:00",
+      "2010-07-01T15:30:00+10:00",
+      "2010-07-01T16:00:00+10:00",
+      "2010-07-01T16:30:00+10:00",
+      "2010-07-01T17:00:00+10:00",
+      "2010-07-01T17:30:00+10:00",
+      "2010-07-01T18:00:00+10:00",
+      "2010-07-01T18:30:00+10:00",
+      "2010-07-01T19:00:00+10:00",
+      "2010-07-01T19:30:00+10:00",
+      "2010-07-01T20:00:00+10:00",
+      "2010-07-01T20:30:00+10:00",
+      "2010-07-01T21:00:00+10:00",
+      "2010-07-01T21:30:00+10:00",
+      "2010-07-01T22:00:00+10:00",
+      "2010-07-01T22:30:00+10:00",
+      "2010-07-01T23:00:00+10:00",
+      "2010-07-01T23:30:00+10:00",
+      "2010-07-02T00:00:00+10:00",
+      "2010-07-02T00:30:00+10:00",
+      "2010-07-02T01:00:00+10:00",
+      "2010-07-02T01:30:00+10:00",
+      "2010-07-02T02:00:00+10:00",
+      "2010-07-02T02:30:00+10:00",
+      "2010-07-02T03:00:00+10:00",
+      "2010-07-02T03:30:00+10:00",
+      "2010-07-02T04:00:00+10:00",
+      "2010-07-02T04:30:00+10:00",
+      "2010-07-02T05:00:00+10:00",
+      "2010-07-02T05:30:00+10:00",
+      "2010-07-02T06:00:00+10:00",
+      "2010-07-02T06:30:00+10:00",
+      "2010-07-02T07:00:00+10:00",
+      "2010-07-02T07:30:00+10:00",
+      "2010-07-02T08:00:00+10:00",
+      "2010-07-02T08:30:00+10:00",
+      "2010-07-02T09:00:00+10:00",
+      "2010-07-02T09:30:00+10:00",
+      "2010-07-02T10:00:00+10:00",
+      "2010-07-02T10:30:00+10:00",
+      "2010-07-02T11:00:00+10:00",
+      "2010-07-02T11:30:00+10:00",
+      "2010-07-02T12:00:00+10:00",
+      "2010-07-02T12:30:00+10:00",
+      "2010-07-02T13:00:00+10:00",
+      "2010-07-02T13:30:00+10:00",
+      "2010-07-02T14:00:00+10:00",
+      "2010-07-02T14:30:00+10:00",
+      "2010-07-02T15:00:00+10:00",
+      "2010-07-02T15:30:00+10:00",
+      "2010-07-02T16:00:00+10:00",
+      "2010-07-02T16:30:00+10:00",
+      "2010-07-02T17:00:00+10:00",
+      "2010-07-02T17:30:00+10:00",
+      "2010-07-02T18:00:00+10:00",
+      "2010-07-02T18:30:00+10:00",
+      "2010-07-02T19:00:00+10:00",
+      "2010-07-02T19:30:00+10:00",
+      "2010-07-02T20:00:00+10:00",
+      "2010-07-02T20:30:00+10:00",
+      "2010-07-02T21:00:00+10:00",
+      "2010-07-02T21:30:00+10:00",
+      "2010-07-02T22:00:00+10:00",
+      "2010-07-02T22:30:00+10:00",
+      "2010-07-02T23:00:00+10:00",
+      "2010-07-02T23:30:00+10:00",
+      "2010-07-03T00:00:00+10:00",
+      "2010-07-03T00:30:00+10:00",
+      "2010-07-03T01:00:00+10:00",
+      "2010-07-03T01:30:00+10:00",
+      "2010-07-03T02:00:00+10:00",
+      "2010-07-03T02:30:00+10:00",
+      "2010-07-03T03:00:00+10:00",
+      "2010-07-03T03:30:00+10:00",
+      "2010-07-03T04:00:00+10:00",
+      "2010-07-03T04:30:00+10:00",
+      "2010-07-03T05:00:00+10:00",
+      "2010-07-03T05:30:00+10:00",
+      "2010-07-03T06:00:00+10:00",
+      "2010-07-03T06:30:00+10:00",
+      "2010-07-03T07:00:00+10:00",
+      "2010-07-03T07:30:00+10:00",
+      "2010-07-03T08:00:00+10:00",
+      "2010-07-03T08:30:00+10:00",
+      "2010-07-03T09:00:00+10:00",
+      "2010-07-03T09:30:00+10:00",
+      "2010-07-03T10:00:00+10:00",
+      "2010-07-03T10:30:00+10:00",
+      "2010-07-03T11:00:00+10:00",
+      "2010-07-03T11:30:00+10:00",
+      "2010-07-03T12:00:00+10:00",
+      "2010-07-03T12:30:00+10:00",
+      "2010-07-03T13:00:00+10:00",
+      "2010-07-03T13:30:00+10:00",
+      "2010-07-03T14:00:00+10:00",
+      "2010-07-03T14:30:00+10:00",
+      "2010-07-03T15:00:00+10:00",
+      "2010-07-03T15:30:00+10:00",
+      "2010-07-03T16:00:00+10:00",
+      "2010-07-03T16:30:00+10:00",
+      "2010-07-03T17:00:00+10:00",
+      "2010-07-03T17:30:00+10:00",
+      "2010-07-03T18:00:00+10:00",
+      "2010-07-03T18:30:00+10:00",
+      "2010-07-03T19:00:00+10:00",
+      "2010-07-03T19:30:00+10:00",
+      "2010-07-03T20:00:00+10:00",
+      "2010-07-03T20:30:00+10:00",
+      "2010-07-03T21:00:00+10:00",
+      "2010-07-03T21:30:00+10:00",
+      "2010-07-03T22:00:00+10:00",
+      "2010-07-03T22:30:00+10:00",
+      "2010-07-03T23:00:00+10:00",
+      "2010-07-03T23:30:00+10:00",
+      "2010-07-04T00:00:00+10:00",
+      "2010-07-04T00:30:00+10:00",
+      "2010-07-04T01:00:00+10:00",
+      "2010-07-04T01:30:00+10:00",
+      "2010-07-04T02:00:00+10:00",
+      "2010-07-04T02:30:00+10:00",
+      "2010-07-04T03:00:00+10:00",
+      "2010-07-04T03:30:00+10:00",
+      "2010-07-04T04:00:00+10:00",
+      "2010-07-04T04:30:00+10:00",
+      "2010-07-04T05:00:00+10:00",
+      "2010-07-04T05:30:00+10:00",
+      "2010-07-04T06:00:00+10:00",
+      "2010-07-04T06:30:00+10:00",
+      "2010-07-04T07:00:00+10:00",
+      "2010-07-04T07:30:00+10:00",
+      "2010-07-04T08:00:00+10:00",
+      "2010-07-04T08:30:00+10:00",
+      "2010-07-04T09:00:00+10:00",
+      "2010-07-04T09:30:00+10:00",
+      "2010-07-04T10:00:00+10:00",
+      "2010-07-04T10:30:00+10:00",
+      "2010-07-04T11:00:00+10:00",
+      "2010-07-04T11:30:00+10:00",
+      "2010-07-04T12:00:00+10:00",
+      "2010-07-04T12:30:00+10:00",
+      "2010-07-04T13:00:00+10:00",
+      "2010-07-04T13:30:00+10:00",
+      "2010-07-04T14:00:00+10:00",
+      "2010-07-04T14:30:00+10:00",
+      "2010-07-04T15:00:00+10:00",
+      "2010-07-04T15:30:00+10:00",
+      "2010-07-04T16:00:00+10:00",
+      "2010-07-04T16:30:00+10:00",
+      "2010-07-04T17:00:00+10:00",
+      "2010-07-04T17:30:00+10:00",
+      "2010-07-04T18:00:00+10:00",
+      "2010-07-04T18:30:00+10:00",
+      "2010-07-04T19:00:00+10:00",
+      "2010-07-04T19:30:00+10:00",
+      "2010-07-04T20:00:00+10:00",
+      "2010-07-04T20:30:00+10:00",
+      "2010-07-04T21:00:00+10:00",
+      "2010-07-04T21:30:00+10:00",
+      "2010-07-04T22:00:00+10:00",
+      "2010-07-04T22:30:00+10:00",
+      "2010-07-04T23:00:00+10:00",
+      "2010-07-04T23:30:00+10:00",
+      "2010-07-05T00:00:00+10:00",
+      "2010-07-05T00:30:00+10:00",
+      "2010-07-05T01:00:00+10:00",
+      "2010-07-05T01:30:00+10:00",
+      "2010-07-05T02:00:00+10:00",
+      "2010-07-05T02:30:00+10:00",
+      "2010-07-05T03:00:00+10:00",
+      "2010-07-05T03:30:00+10:00",
+      "2010-07-05T04:00:00+10:00",
+      "2010-07-05T04:30:00+10:00",
+      "2010-07-05T05:00:00+10:00",
+      "2010-07-05T05:30:00+10:00",
+      "2010-07-05T06:00:00+10:00",
+      "2010-07-05T06:30:00+10:00",
+      "2010-07-05T07:00:00+10:00",
+      "2010-07-05T07:30:00+10:00",
+      "2010-07-05T08:00:00+10:00",
+      "2010-07-05T08:30:00+10:00",
+      "2010-07-05T09:00:00+10:00",
+      "2010-07-05T09:30:00+10:00",
+      "2010-07-05T10:00:00+10:00",
+      "2010-07-05T10:30:00+10:00",
+      "2010-07-05T11:00:00+10:00",
+      "2010-07-05T11:30:00+10:00",
+      "2010-07-05T12:00:00+10:00",
+      "2010-07-05T12:30:00+10:00",
+      "2010-07-05T13:00:00+10:00",
+      "2010-07-05T13:30:00+10:00",
+      "2010-07-05T14:00:00+10:00",
+      "2010-07-05T14:30:00+10:00",
+      "2010-07-05T15:00:00+10:00",
+      "2010-07-05T15:30:00+10:00",
+      "2010-07-05T16:00:00+10:00",
+      "2010-07-05T16:30:00+10:00",
+      "2010-07-05T17:00:00+10:00",
+      "2010-07-05T17:30:00+10:00",
+      "2010-07-05T18:00:00+10:00",
+      "2010-07-05T18:30:00+10:00",
+      "2010-07-05T19:00:00+10:00",
+      "2010-07-05T19:30:00+10:00",
+      "2010-07-05T20:00:00+10:00",
+      "2010-07-05T20:30:00+10:00",
+      "2010-07-05T21:00:00+10:00",
+      "2010-07-05T21:30:00+10:00",
+      "2010-07-05T22:00:00+10:00",
+      "2010-07-05T22:30:00+10:00",
+      "2010-07-05T23:00:00+10:00",
+      "2010-07-05T23:30:00+10:00",
+      "2010-07-06T00:00:00+10:00",
+      "2010-07-06T00:30:00+10:00",
+      "2010-07-06T01:00:00+10:00",
+      "2010-07-06T01:30:00+10:00",
+      "2010-07-06T02:00:00+10:00",
+      "2010-07-06T02:30:00+10:00",
+      "2010-07-06T03:00:00+10:00",
+      "2010-07-06T03:30:00+10:00",
+      "2010-07-06T04:00:00+10:00",
+      "2010-07-06T04:30:00+10:00",
+      "2010-07-06T05:00:00+10:00",
+      "2010-07-06T05:30:00+10:00",
+      "2010-07-06T06:00:00+10:00",
+      "2010-07-06T06:30:00+10:00",
+      "2010-07-06T07:00:00+10:00",
+      "2010-07-06T07:30:00+10:00"
+    ],
+    "round_2": [
+      "2010-07-06T08:00:00+10:00",
+      "2010-07-06T08:30:00+10:00",
+      "2010-07-06T09:00:00+10:00",
+      "2010-07-06T09:30:00+10:00",
+      "2010-07-06T10:00:00+10:00",
+      "2010-07-06T10:30:00+10:00",
+      "2010-07-06T11:00:00+10:00",
+      "2010-07-06T11:30:00+10:00",
+      "2010-07-06T12:00:00+10:00",
+      "2010-07-06T12:30:00+10:00",
+      "2010-07-06T13:00:00+10:00",
+      "2010-07-06T13:30:00+10:00",
+      "2010-07-06T14:00:00+10:00",
+      "2010-07-06T14:30:00+10:00",
+      "2010-07-06T15:00:00+10:00",
+      "2010-07-06T15:30:00+10:00",
+      "2010-07-06T16:00:00+10:00",
+      "2010-07-06T16:30:00+10:00",
+      "2010-07-06T17:00:00+10:00",
+      "2010-07-06T17:30:00+10:00",
+      "2010-07-06T18:00:00+10:00",
+      "2010-07-06T18:30:00+10:00",
+      "2010-07-06T19:00:00+10:00",
+      "2010-07-06T19:30:00+10:00",
+      "2010-07-06T20:00:00+10:00",
+      "2010-07-06T20:30:00+10:00",
+      "2010-07-06T21:00:00+10:00",
+      "2010-07-06T21:30:00+10:00",
+      "2010-07-06T22:00:00+10:00",
+      "2010-07-06T22:30:00+10:00",
+      "2010-07-06T23:00:00+10:00",
+      "2010-07-06T23:30:00+10:00",
+      "2010-07-07T00:00:00+10:00",
+      "2010-07-07T00:30:00+10:00",
+      "2010-07-07T01:00:00+10:00",
+      "2010-07-07T01:30:00+10:00",
+      "2010-07-07T02:00:00+10:00",
+      "2010-07-07T02:30:00+10:00",
+      "2010-07-07T03:00:00+10:00",
+      "2010-07-07T03:30:00+10:00",
+      "2010-07-07T04:00:00+10:00",
+      "2010-07-07T04:30:00+10:00",
+      "2010-07-07T05:00:00+10:00",
+      "2010-07-07T05:30:00+10:00",
+      "2010-07-07T06:00:00+10:00",
+      "2010-07-07T06:30:00+10:00",
+      "2010-07-07T07:00:00+10:00",
+      "2010-07-07T07:30:00+10:00",
+      "2010-07-07T08:00:00+10:00",
+      "2010-07-07T08:30:00+10:00",
+      "2010-07-07T09:00:00+10:00",
+      "2010-07-07T09:30:00+10:00",
+      "2010-07-07T10:00:00+10:00",
+      "2010-07-07T10:30:00+10:00",
+      "2010-07-07T11:00:00+10:00",
+      "2010-07-07T11:30:00+10:00",
+      "2010-07-07T12:00:00+10:00",
+      "2010-07-07T12:30:00+10:00",
+      "2010-07-07T13:00:00+10:00",
+      "2010-07-07T13:30:00+10:00",
+      "2010-07-07T14:00:00+10:00",
+      "2010-07-07T14:30:00+10:00",
+      "2010-07-07T15:00:00+10:00",
+      "2010-07-07T15:30:00+10:00",
+      "2010-07-07T16:00:00+10:00",
+      "2010-07-07T16:30:00+10:00",
+      "2010-07-07T17:00:00+10:00",
+      "2010-07-07T17:30:00+10:00",
+      "2010-07-07T18:00:00+10:00",
+      "2010-07-07T18:30:00+10:00",
+      "2010-07-07T19:00:00+10:00",
+      "2010-07-07T19:30:00+10:00",
+      "2010-07-07T20:00:00+10:00",
+      "2010-07-07T20:30:00+10:00",
+      "2010-07-07T21:00:00+10:00",
+      "2010-07-07T21:30:00+10:00",
+      "2010-07-07T22:00:00+10:00",
+      "2010-07-07T22:30:00+10:00",
+      "2010-07-07T23:00:00+10:00",
+      "2010-07-07T23:30:00+10:00",
+      "2010-07-08T00:00:00+10:00",
+      "2010-07-08T00:30:00+10:00",
+      "2010-07-08T01:00:00+10:00",
+      "2010-07-08T01:30:00+10:00",
+      "2010-07-08T02:00:00+10:00",
+      "2010-07-08T02:30:00+10:00",
+      "2010-07-08T03:00:00+10:00",
+      "2010-07-08T03:30:00+10:00",
+      "2010-07-08T04:00:00+10:00",
+      "2010-07-08T04:30:00+10:00",
+      "2010-07-08T05:00:00+10:00",
+      "2010-07-08T05:30:00+10:00",
+      "2010-07-08T06:00:00+10:00",
+      "2010-07-08T06:30:00+10:00",
+      "2010-07-08T07:00:00+10:00",
+      "2010-07-08T07:30:00+10:00",
+      "2010-07-08T08:00:00+10:00",
+      "2010-07-08T08:30:00+10:00",
+      "2010-07-08T09:00:00+10:00",
+      "2010-07-08T09:30:00+10:00",
+      "2010-07-08T10:00:00+10:00",
+      "2010-07-08T10:30:00+10:00",
+      "2010-07-08T11:00:00+10:00",
+      "2010-07-08T11:30:00+10:00",
+      "2010-07-08T12:00:00+10:00",
+      "2010-07-08T12:30:00+10:00",
+      "2010-07-08T13:00:00+10:00",
+      "2010-07-08T13:30:00+10:00",
+      "2010-07-08T14:00:00+10:00",
+      "2010-07-08T14:30:00+10:00",
+      "2010-07-08T15:00:00+10:00",
+      "2010-07-08T15:30:00+10:00",
+      "2010-07-08T16:00:00+10:00",
+      "2010-07-08T16:30:00+10:00",
+      "2010-07-08T17:00:00+10:00",
+      "2010-07-08T17:30:00+10:00",
+      "2010-07-08T18:00:00+10:00",
+      "2010-07-08T18:30:00+10:00",
+      "2010-07-08T19:00:00+10:00",
+      "2010-07-08T19:30:00+10:00",
+      "2010-07-08T20:00:00+10:00",
+      "2010-07-08T20:30:00+10:00",
+      "2010-07-08T21:00:00+10:00",
+      "2010-07-08T21:30:00+10:00",
+      "2010-07-08T22:00:00+10:00",
+      "2010-07-08T22:30:00+10:00",
+      "2010-07-08T23:00:00+10:00",
+      "2010-07-08T23:30:00+10:00",
+      "2010-07-09T00:00:00+10:00",
+      "2010-07-09T00:30:00+10:00",
+      "2010-07-09T01:00:00+10:00",
+      "2010-07-09T01:30:00+10:00",
+      "2010-07-09T02:00:00+10:00",
+      "2010-07-09T02:30:00+10:00",
+      "2010-07-09T03:00:00+10:00",
+      "2010-07-09T03:30:00+10:00",
+      "2010-07-09T04:00:00+10:00",
+      "2010-07-09T04:30:00+10:00",
+      "2010-07-09T05:00:00+10:00",
+      "2010-07-09T05:30:00+10:00",
+      "2010-07-09T06:00:00+10:00",
+      "2010-07-09T06:30:00+10:00",
+      "2010-07-09T07:00:00+10:00",
+      "2010-07-09T07:30:00+10:00",
+      "2010-07-09T08:00:00+10:00",
+      "2010-07-09T08:30:00+10:00",
+      "2010-07-09T09:00:00+10:00",
+      "2010-07-09T09:30:00+10:00",
+      "2010-07-09T10:00:00+10:00",
+      "2010-07-09T10:30:00+10:00",
+      "2010-07-09T11:00:00+10:00",
+      "2010-07-09T11:30:00+10:00",
+      "2010-07-09T12:00:00+10:00",
+      "2010-07-09T12:30:00+10:00",
+      "2010-07-09T13:00:00+10:00",
+      "2010-07-09T13:30:00+10:00",
+      "2010-07-09T14:00:00+10:00",
+      "2010-07-09T14:30:00+10:00",
+      "2010-07-09T15:00:00+10:00",
+      "2010-07-09T15:30:00+10:00",
+      "2010-07-09T16:00:00+10:00",
+      "2010-07-09T16:30:00+10:00",
+      "2010-07-09T17:00:00+10:00",
+      "2010-07-09T17:30:00+10:00",
+      "2010-07-09T18:00:00+10:00",
+      "2010-07-09T18:30:00+10:00",
+      "2010-07-09T19:00:00+10:00",
+      "2010-07-09T19:30:00+10:00",
+      "2010-07-09T20:00:00+10:00",
+      "2010-07-09T20:30:00+10:00",
+      "2010-07-09T21:00:00+10:00",
+      "2010-07-09T21:30:00+10:00",
+      "2010-07-09T22:00:00+10:00",
+      "2010-07-09T22:30:00+10:00",
+      "2010-07-09T23:00:00+10:00",
+      "2010-07-09T23:30:00+10:00",
+      "2010-07-10T00:00:00+10:00",
+      "2010-07-10T00:30:00+10:00",
+      "2010-07-10T01:00:00+10:00",
+      "2010-07-10T01:30:00+10:00",
+      "2010-07-10T02:00:00+10:00",
+      "2010-07-10T02:30:00+10:00",
+      "2010-07-10T03:00:00+10:00",
+      "2010-07-10T03:30:00+10:00",
+      "2010-07-10T04:00:00+10:00",
+      "2010-07-10T04:30:00+10:00",
+      "2010-07-10T05:00:00+10:00",
+      "2010-07-10T05:30:00+10:00",
+      "2010-07-10T06:00:00+10:00",
+      "2010-07-10T06:30:00+10:00",
+      "2010-07-10T07:00:00+10:00",
+      "2010-07-10T07:30:00+10:00",
+      "2010-07-10T08:00:00+10:00",
+      "2010-07-10T08:30:00+10:00",
+      "2010-07-10T09:00:00+10:00",
+      "2010-07-10T09:30:00+10:00",
+      "2010-07-10T10:00:00+10:00",
+      "2010-07-10T10:30:00+10:00",
+      "2010-07-10T11:00:00+10:00",
+      "2010-07-10T11:30:00+10:00",
+      "2010-07-10T12:00:00+10:00",
+      "2010-07-10T12:30:00+10:00",
+      "2010-07-10T13:00:00+10:00",
+      "2010-07-10T13:30:00+10:00",
+      "2010-07-10T14:00:00+10:00",
+      "2010-07-10T14:30:00+10:00",
+      "2010-07-10T15:00:00+10:00",
+      "2010-07-10T15:30:00+10:00",
+      "2010-07-10T16:00:00+10:00",
+      "2010-07-10T16:30:00+10:00",
+      "2010-07-10T17:00:00+10:00",
+      "2010-07-10T17:30:00+10:00",
+      "2010-07-10T18:00:00+10:00",
+      "2010-07-10T18:30:00+10:00",
+      "2010-07-10T19:00:00+10:00",
+      "2010-07-10T19:30:00+10:00",
+      "2010-07-10T20:00:00+10:00",
+      "2010-07-10T20:30:00+10:00",
+      "2010-07-10T21:00:00+10:00",
+      "2010-07-10T21:30:00+10:00",
+      "2010-07-10T22:00:00+10:00",
+      "2010-07-10T22:30:00+10:00",
+      "2010-07-10T23:00:00+10:00",
+      "2010-07-10T23:30:00+10:00",
+      "2010-07-11T00:00:00+10:00",
+      "2010-07-11T00:30:00+10:00",
+      "2010-07-11T01:00:00+10:00",
+      "2010-07-11T01:30:00+10:00",
+      "2010-07-11T02:00:00+10:00",
+      "2010-07-11T02:30:00+10:00",
+      "2010-07-11T03:00:00+10:00",
+      "2010-07-11T03:30:00+10:00",
+      "2010-07-11T04:00:00+10:00",
+      "2010-07-11T04:30:00+10:00",
+      "2010-07-11T05:00:00+10:00",
+      "2010-07-11T05:30:00+10:00",
+      "2010-07-11T06:00:00+10:00",
+      "2010-07-11T06:30:00+10:00",
+      "2010-07-11T07:00:00+10:00",
+      "2010-07-11T07:30:00+10:00",
+      "2010-07-11T08:00:00+10:00",
+      "2010-07-11T08:30:00+10:00",
+      "2010-07-11T09:00:00+10:00",
+      "2010-07-11T09:30:00+10:00",
+      "2010-07-11T10:00:00+10:00",
+      "2010-07-11T10:30:00+10:00",
+      "2010-07-11T11:00:00+10:00",
+      "2010-07-11T11:30:00+10:00",
+      "2010-07-11T12:00:00+10:00",
+      "2010-07-11T12:30:00+10:00",
+      "2010-07-11T13:00:00+10:00",
+      "2010-07-11T13:30:00+10:00",
+      "2010-07-11T14:00:00+10:00",
+      "2010-07-11T14:30:00+10:00",
+      "2010-07-11T15:00:00+10:00",
+      "2010-07-11T15:30:00+10:00"
+    ],
+    "round_3": [
+      "2010-07-11T16:00:00+10:00",
+      "2010-07-11T16:30:00+10:00",
+      "2010-07-11T17:00:00+10:00",
+      "2010-07-11T17:30:00+10:00",
+      "2010-07-11T18:00:00+10:00",
+      "2010-07-11T18:30:00+10:00",
+      "2010-07-11T19:00:00+10:00",
+      "2010-07-11T19:30:00+10:00",
+      "2010-07-11T20:00:00+10:00",
+      "2010-07-11T20:30:00+10:00",
+      "2010-07-11T21:00:00+10:00",
+      "2010-07-11T21:30:00+10:00",
+      "2010-07-11T22:00:00+10:00",
+      "2010-07-11T22:30:00+10:00",
+      "2010-07-11T23:00:00+10:00",
+      "2010-07-11T23:30:00+10:00",
+      "2010-07-12T00:00:00+10:00",
+      "2010-07-12T00:30:00+10:00",
+      "2010-07-12T01:00:00+10:00",
+      "2010-07-12T01:30:00+10:00",
+      "2010-07-12T02:00:00+10:00",
+      "2010-07-12T02:30:00+10:00",
+      "2010-07-12T03:00:00+10:00",
+      "2010-07-12T03:30:00+10:00",
+      "2010-07-12T04:00:00+10:00",
+      "2010-07-12T04:30:00+10:00",
+      "2010-07-12T05:00:00+10:00",
+      "2010-07-12T05:30:00+10:00",
+      "2010-07-12T06:00:00+10:00",
+      "2010-07-12T06:30:00+10:00",
+      "2010-07-12T07:00:00+10:00",
+      "2010-07-12T07:30:00+10:00",
+      "2010-07-12T08:00:00+10:00",
+      "2010-07-12T08:30:00+10:00",
+      "2010-07-12T09:00:00+10:00",
+      "2010-07-12T09:30:00+10:00",
+      "2010-07-12T10:00:00+10:00",
+      "2010-07-12T10:30:00+10:00",
+      "2010-07-12T11:00:00+10:00",
+      "2010-07-12T11:30:00+10:00",
+      "2010-07-12T12:00:00+10:00",
+      "2010-07-12T12:30:00+10:00",
+      "2010-07-12T13:00:00+10:00",
+      "2010-07-12T13:30:00+10:00",
+      "2010-07-12T14:00:00+10:00",
+      "2010-07-12T14:30:00+10:00",
+      "2010-07-12T15:00:00+10:00",
+      "2010-07-12T15:30:00+10:00",
+      "2010-07-12T16:00:00+10:00",
+      "2010-07-12T16:30:00+10:00",
+      "2010-07-12T17:00:00+10:00",
+      "2010-07-12T17:30:00+10:00",
+      "2010-07-12T18:00:00+10:00",
+      "2010-07-12T18:30:00+10:00",
+      "2010-07-12T19:00:00+10:00",
+      "2010-07-12T19:30:00+10:00",
+      "2010-07-12T20:00:00+10:00",
+      "2010-07-12T20:30:00+10:00",
+      "2010-07-12T21:00:00+10:00",
+      "2010-07-12T21:30:00+10:00",
+      "2010-07-12T22:00:00+10:00",
+      "2010-07-12T22:30:00+10:00",
+      "2010-07-12T23:00:00+10:00",
+      "2010-07-12T23:30:00+10:00",
+      "2010-07-13T00:00:00+10:00",
+      "2010-07-13T00:30:00+10:00",
+      "2010-07-13T01:00:00+10:00",
+      "2010-07-13T01:30:00+10:00",
+      "2010-07-13T02:00:00+10:00",
+      "2010-07-13T02:30:00+10:00",
+      "2010-07-13T03:00:00+10:00",
+      "2010-07-13T03:30:00+10:00",
+      "2010-07-13T04:00:00+10:00",
+      "2010-07-13T04:30:00+10:00",
+      "2010-07-13T05:00:00+10:00",
+      "2010-07-13T05:30:00+10:00",
+      "2010-07-13T06:00:00+10:00",
+      "2010-07-13T06:30:00+10:00",
+      "2010-07-13T07:00:00+10:00",
+      "2010-07-13T07:30:00+10:00",
+      "2010-07-13T08:00:00+10:00",
+      "2010-07-13T08:30:00+10:00",
+      "2010-07-13T09:00:00+10:00",
+      "2010-07-13T09:30:00+10:00",
+      "2010-07-13T10:00:00+10:00",
+      "2010-07-13T10:30:00+10:00",
+      "2010-07-13T11:00:00+10:00",
+      "2010-07-13T11:30:00+10:00",
+      "2010-07-13T12:00:00+10:00",
+      "2010-07-13T12:30:00+10:00",
+      "2010-07-13T13:00:00+10:00",
+      "2010-07-13T13:30:00+10:00",
+      "2010-07-13T14:00:00+10:00",
+      "2010-07-13T14:30:00+10:00",
+      "2010-07-13T15:00:00+10:00",
+      "2010-07-13T15:30:00+10:00",
+      "2010-07-13T16:00:00+10:00",
+      "2010-07-13T16:30:00+10:00",
+      "2010-07-13T17:00:00+10:00",
+      "2010-07-13T17:30:00+10:00",
+      "2010-07-13T18:00:00+10:00",
+      "2010-07-13T18:30:00+10:00",
+      "2010-07-13T19:00:00+10:00",
+      "2010-07-13T19:30:00+10:00",
+      "2010-07-13T20:00:00+10:00",
+      "2010-07-13T20:30:00+10:00",
+      "2010-07-13T21:00:00+10:00",
+      "2010-07-13T21:30:00+10:00",
+      "2010-07-13T22:00:00+10:00",
+      "2010-07-13T22:30:00+10:00",
+      "2010-07-13T23:00:00+10:00",
+      "2010-07-13T23:30:00+10:00",
+      "2010-07-14T00:00:00+10:00",
+      "2010-07-14T00:30:00+10:00",
+      "2010-07-14T01:00:00+10:00",
+      "2010-07-14T01:30:00+10:00",
+      "2010-07-14T02:00:00+10:00",
+      "2010-07-14T02:30:00+10:00",
+      "2010-07-14T03:00:00+10:00",
+      "2010-07-14T03:30:00+10:00",
+      "2010-07-14T04:00:00+10:00",
+      "2010-07-14T04:30:00+10:00",
+      "2010-07-14T05:00:00+10:00",
+      "2010-07-14T05:30:00+10:00",
+      "2010-07-14T06:00:00+10:00",
+      "2010-07-14T06:30:00+10:00",
+      "2010-07-14T07:00:00+10:00",
+      "2010-07-14T07:30:00+10:00",
+      "2010-07-14T08:00:00+10:00",
+      "2010-07-14T08:30:00+10:00",
+      "2010-07-14T09:00:00+10:00",
+      "2010-07-14T09:30:00+10:00",
+      "2010-07-14T10:00:00+10:00",
+      "2010-07-14T10:30:00+10:00",
+      "2010-07-14T11:00:00+10:00",
+      "2010-07-14T11:30:00+10:00",
+      "2010-07-14T12:00:00+10:00",
+      "2010-07-14T12:30:00+10:00",
+      "2010-07-14T13:00:00+10:00",
+      "2010-07-14T13:30:00+10:00",
+      "2010-07-14T14:00:00+10:00",
+      "2010-07-14T14:30:00+10:00",
+      "2010-07-14T15:00:00+10:00",
+      "2010-07-14T15:30:00+10:00",
+      "2010-07-14T16:00:00+10:00",
+      "2010-07-14T16:30:00+10:00",
+      "2010-07-14T17:00:00+10:00",
+      "2010-07-14T17:30:00+10:00",
+      "2010-07-14T18:00:00+10:00",
+      "2010-07-14T18:30:00+10:00",
+      "2010-07-14T19:00:00+10:00",
+      "2010-07-14T19:30:00+10:00",
+      "2010-07-14T20:00:00+10:00",
+      "2010-07-14T20:30:00+10:00",
+      "2010-07-14T21:00:00+10:00",
+      "2010-07-14T21:30:00+10:00",
+      "2010-07-14T22:00:00+10:00",
+      "2010-07-14T22:30:00+10:00",
+      "2010-07-14T23:00:00+10:00",
+      "2010-07-14T23:30:00+10:00",
+      "2010-07-15T00:00:00+10:00",
+      "2010-07-15T00:30:00+10:00",
+      "2010-07-15T01:00:00+10:00",
+      "2010-07-15T01:30:00+10:00",
+      "2010-07-15T02:00:00+10:00",
+      "2010-07-15T02:30:00+10:00",
+      "2010-07-15T03:00:00+10:00",
+      "2010-07-15T03:30:00+10:00",
+      "2010-07-15T04:00:00+10:00",
+      "2010-07-15T04:30:00+10:00",
+      "2010-07-15T05:00:00+10:00",
+      "2010-07-15T05:30:00+10:00",
+      "2010-07-15T06:00:00+10:00",
+      "2010-07-15T06:30:00+10:00",
+      "2010-07-15T07:00:00+10:00",
+      "2010-07-15T07:30:00+10:00",
+      "2010-07-15T08:00:00+10:00",
+      "2010-07-15T08:30:00+10:00",
+      "2010-07-15T09:00:00+10:00",
+      "2010-07-15T09:30:00+10:00",
+      "2010-07-15T10:00:00+10:00",
+      "2010-07-15T10:30:00+10:00",
+      "2010-07-15T11:00:00+10:00",
+      "2010-07-15T11:30:00+10:00",
+      "2010-07-15T12:00:00+10:00",
+      "2010-07-15T12:30:00+10:00",
+      "2010-07-15T13:00:00+10:00",
+      "2010-07-15T13:30:00+10:00",
+      "2010-07-15T14:00:00+10:00",
+      "2010-07-15T14:30:00+10:00",
+      "2010-07-15T15:00:00+10:00",
+      "2010-07-15T15:30:00+10:00",
+      "2010-07-15T16:00:00+10:00",
+      "2010-07-15T16:30:00+10:00",
+      "2010-07-15T17:00:00+10:00",
+      "2010-07-15T17:30:00+10:00",
+      "2010-07-15T18:00:00+10:00",
+      "2010-07-15T18:30:00+10:00",
+      "2010-07-15T19:00:00+10:00",
+      "2010-07-15T19:30:00+10:00",
+      "2010-07-15T20:00:00+10:00",
+      "2010-07-15T20:30:00+10:00",
+      "2010-07-15T21:00:00+10:00",
+      "2010-07-15T21:30:00+10:00",
+      "2010-07-15T22:00:00+10:00",
+      "2010-07-15T22:30:00+10:00",
+      "2010-07-15T23:00:00+10:00",
+      "2010-07-15T23:30:00+10:00",
+      "2010-07-16T00:00:00+10:00",
+      "2010-07-16T00:30:00+10:00",
+      "2010-07-16T01:00:00+10:00",
+      "2010-07-16T01:30:00+10:00",
+      "2010-07-16T02:00:00+10:00",
+      "2010-07-16T02:30:00+10:00",
+      "2010-07-16T03:00:00+10:00",
+      "2010-07-16T03:30:00+10:00",
+      "2010-07-16T04:00:00+10:00",
+      "2010-07-16T04:30:00+10:00",
+      "2010-07-16T05:00:00+10:00",
+      "2010-07-16T05:30:00+10:00",
+      "2010-07-16T06:00:00+10:00",
+      "2010-07-16T06:30:00+10:00",
+      "2010-07-16T07:00:00+10:00",
+      "2010-07-16T07:30:00+10:00",
+      "2010-07-16T08:00:00+10:00",
+      "2010-07-16T08:30:00+10:00",
+      "2010-07-16T09:00:00+10:00",
+      "2010-07-16T09:30:00+10:00",
+      "2010-07-16T10:00:00+10:00",
+      "2010-07-16T10:30:00+10:00",
+      "2010-07-16T11:00:00+10:00",
+      "2010-07-16T11:30:00+10:00",
+      "2010-07-16T12:00:00+10:00",
+      "2010-07-16T12:30:00+10:00",
+      "2010-07-16T13:00:00+10:00",
+      "2010-07-16T13:30:00+10:00",
+      "2010-07-16T14:00:00+10:00",
+      "2010-07-16T14:30:00+10:00",
+      "2010-07-16T15:00:00+10:00",
+      "2010-07-16T15:30:00+10:00",
+      "2010-07-16T16:00:00+10:00",
+      "2010-07-16T16:30:00+10:00",
+      "2010-07-16T17:00:00+10:00",
+      "2010-07-16T17:30:00+10:00",
+      "2010-07-16T18:00:00+10:00",
+      "2010-07-16T18:30:00+10:00",
+      "2010-07-16T19:00:00+10:00",
+      "2010-07-16T19:30:00+10:00",
+      "2010-07-16T20:00:00+10:00",
+      "2010-07-16T20:30:00+10:00",
+      "2010-07-16T21:00:00+10:00",
+      "2010-07-16T21:30:00+10:00",
+      "2010-07-16T22:00:00+10:00",
+      "2010-07-16T22:30:00+10:00",
+      "2010-07-16T23:00:00+10:00",
+      "2010-07-16T23:30:00+10:00"
+    ]
+  },
+  "batch_fit": {
+    "uc": {
+      "improved_batches": 21,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_0": {
+      "improved_batches": 20,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_1": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_2": {
+      "improved_batches": 19,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_3": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_4": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_5": {
+      "improved_batches": 22,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_6": {
+      "improved_batches": 16,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_7": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_8": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_9": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_10": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_11": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_12": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_13": {
+      "improved_batches": 24,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_14": {
+      "improved_batches": 20,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    },
+    "consumer_15": {
+      "improved_batches": 20,
+      "rolled_back_batches": [
+        3,
+        4,
+        7,
+        8,
+        11,
+        12,
+        15,
+        16,
+        19,
+        20,
+        23,
+        24
+      ]
+    }
+  },
+  "batch_diagnostics": {
+    "uc": {
+      "tanh_saturation_after_mean": [
+        2.0345052083333332e-05,
+        4.0690104166666664e-05
+      ],
+      "raw_gradient_max": 8.047558784484863,
+      "gradient_clip_fraction": 0.8020833333333334,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [],
+      "max_rmse_after_batch": 2
+    },
+    "consumer_0": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 5.377206325531006,
+      "gradient_clip_fraction": 0.109375,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 10
+    },
+    "consumer_1": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 7.853901386260986,
+      "gradient_clip_fraction": 0.026041666666666668,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 1
+    },
+    "consumer_2": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 5.768208026885986,
+      "gradient_clip_fraction": 0.2604166666666667,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 19
+    },
+    "consumer_3": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 7.954677104949951,
+      "gradient_clip_fraction": 0.08333333333333333,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 1
+    },
+    "consumer_4": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 18.363798141479492,
+      "gradient_clip_fraction": 0.11458333333333333,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 1
+    },
+    "consumer_5": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.023030598958333332
+      ],
+      "raw_gradient_max": 9.828903198242188,
+      "gradient_clip_fraction": 0.16666666666666666,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 2
+    },
+    "consumer_6": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 6.988437175750732,
+      "gradient_clip_fraction": 0.08333333333333333,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 7
+    },
+    "consumer_7": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 12.935090065002441,
+      "gradient_clip_fraction": 0.10416666666666667,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 2
+    },
+    "consumer_8": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 4.640195369720459,
+      "gradient_clip_fraction": 0.07291666666666667,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 1
+    },
+    "consumer_9": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 14.710021018981934,
+      "gradient_clip_fraction": 0.08333333333333333,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 19
+    },
+    "consumer_10": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 9.869821548461914,
+      "gradient_clip_fraction": 0.09895833333333333,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 24
+    },
+    "consumer_11": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 5.760432720184326,
+      "gradient_clip_fraction": 0.0625,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 2
+    },
+    "consumer_12": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 15.249685287475586,
+      "gradient_clip_fraction": 0.16666666666666666,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 2
+    },
+    "consumer_13": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 3.5561344623565674,
+      "gradient_clip_fraction": 0.026041666666666668,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 2
+    },
+    "consumer_14": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 5.909021854400635,
+      "gradient_clip_fraction": 0.3333333333333333,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 19
+    },
+    "consumer_15": {
+      "tanh_saturation_after_mean": [
+        0.0,
+        0.0
+      ],
+      "raw_gradient_max": 9.00312328338623,
+      "gradient_clip_fraction": 0.08854166666666667,
+      "retained_critic_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "retained_actor_batches": [
+        1,
+        2,
+        5,
+        6,
+        9,
+        10,
+        13,
+        14,
+        17,
+        18,
+        21,
+        22
+      ],
+      "max_rmse_after_batch": 2
+    }
+  },
+  "unique_training_periods": 768,
+  "training_true_terminals": 0,
+  "reference_retained_optimizer_steps": [
+    {
+      "uc_actor": [
+        24
+      ],
+      "uc_value": [
+        144
+      ],
+      "consumer_0_actor": [
+        48
+      ],
+      "consumer_0_value": [
+        96
+      ],
+      "consumer_1_actor": [
+        48
+      ],
+      "consumer_1_value": [
+        96
+      ],
+      "consumer_2_actor": [
+        48
+      ],
+      "consumer_2_value": [
+        96
+      ],
+      "consumer_3_actor": [
+        48
+      ],
+      "consumer_3_value": [
+        96
+      ],
+      "consumer_4_actor": [
+        48
+      ],
+      "consumer_4_value": [
+        96
+      ],
+      "consumer_5_actor": [
+        48
+      ],
+      "consumer_5_value": [
+        96
+      ],
+      "consumer_6_actor": [
+        48
+      ],
+      "consumer_6_value": [
+        96
+      ],
+      "consumer_7_actor": [
+        48
+      ],
+      "consumer_7_value": [
+        96
+      ],
+      "consumer_8_actor": [
+        48
+      ],
+      "consumer_8_value": [
+        96
+      ],
+      "consumer_9_actor": [
+        48
+      ],
+      "consumer_9_value": [
+        96
+      ],
+      "consumer_10_actor": [
+        48
+      ],
+      "consumer_10_value": [
+        96
+      ],
+      "consumer_11_actor": [
+        48
+      ],
+      "consumer_11_value": [
+        96
+      ],
+      "consumer_12_actor": [
+        48
+      ],
+      "consumer_12_value": [
+        96
+      ],
+      "consumer_13_actor": [
+        48
+      ],
+      "consumer_13_value": [
+        96
+      ],
+      "consumer_14_actor": [
+        48
+      ],
+      "consumer_14_value": [
+        96
+      ],
+      "consumer_15_actor": [
+        48
+      ],
+      "consumer_15_value": [
+        96
+      ]
+    }
+  ],
+  "previous_failed_run": {
+    "report": "experiments/sn_energy_market/results/critic_stability_20261020/comparison.json",
+    "selected_candidates": [
+      null,
+      null,
+      null
+    ],
+    "retained_optimizer_updates": 0
+  },
+  "post_run_formatting": [
+    {
+      "path": "RLAlgo/tests/test_stackelberg_algorithm.py",
+      "before_sha256": "3ef493dc1fbe5f52dc7b0461b4114679a095ab8d86b9d443d5616e6c30aa0a1e",
+      "after_sha256": "1bf60714213761738c77ba6f6eb54cdc72b10b61a3d3eac562fc539e75df2824",
+      "ast_equal": false,
+      "ast_equal_except_import_order": true
+    },
+    {
+      "path": "experiments/sn_energy_market/tests/test_evaluation.py",
+      "before_sha256": "aae251019e3cfd02ce34b5f228d11c8a547dd41d9a1b632370821c77f7cc7b19",
+      "after_sha256": "66f595e5970b040bf00aea9e8eb3fd748f2c09c71196cc47fe2b7ee1d32a86a2",
+      "ast_equal": false,
+      "ast_equal_except_import_order": true
+    },
+    {
+      "path": "experiments/sn_energy_market/train.py",
+      "before_sha256": "1198fdd4b42f9e337275178153fbfe69971b24cf59faaf03361ccda20593fd1f",
+      "after_sha256": "c51df7b8c1af085ce450da188116e04dd4c31350970ca2684c34bd5ee20948a8",
+      "ast_equal": true,
+      "ast_equal_except_import_order": true
+    }
+  ],
+  "verification": {
+    "related_checks_passed": 71,
+    "cuda_deselected": 1,
+    "batch_target_decomposition_max_residual": 7.105427357601002e-15,
+    "fixed_targets_and_frozen_actor_gaps": true,
+    "offline_html_formulas": 544,
+    "offline_html_errors": 0,
+    "post_format_related_checks_passed": 21,
+    "post_format_cuda_deselected": 1,
+    "ruff": "passed",
+    "source_format_scope": "Two test import orders and one blank line; production AST unchanged"
+  }
+}

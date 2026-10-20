@@ -49,14 +49,6 @@ def test_matched_gain_and_selection_preserve_incumbent_and_uncertainty():
         paired_gain(reference, list(reversed(reference)))
 
 
-def test_feasibility_checks_zero_and_preserves_paired_gain_rule():
-    evaluations = [rows([2, 4]), rows([3, 5])]
-    assert select_candidate(evaluations, feasible=[False, True])[0] == 1
-    assert select_candidate(evaluations, feasible=[True, False])[0] == 0
-    assert select_candidate(evaluations, feasible=[False, False])[0] is None
-    assert select_candidate([rows([2, 4]), rows([1, 3])], feasible=[False, True])[0] is None
-
-
 def test_actor_change_counts_scalars_and_ignores_value_network():
     before = {
         "uc": {"actor.a": np.zeros(3), "actor.b": np.zeros(1), "value.a": np.zeros(2)},

@@ -14,32 +14,6 @@ GAMMA = 0.9801
 VALIDATION_SEEDS = (10042, 10045, 10048, 10051)
 
 
-def supply_cash_feasibility(candidate, incumbent):
-    """Empirical constraint on matched validation windows, including candidate zero."""
-    assert [(r["seed"], r["physical_periods"]) for r in candidate] == [
-        (r["seed"], r["physical_periods"]) for r in incumbent
-    ]
-
-    def totals(rows):
-        lost = float(sum(r["metrics"]["native_lost_kwh"] for r in rows))
-        requested = float(sum(r["metrics"]["native_requested_kwh"] for r in rows))
-        return {
-            "lost_ratio": lost / requested if requested else 0.0,
-            "lost_kwh": lost,
-            "cash_aud": float(sum(r["metrics"]["uc_cash"] for r in rows)),
-        }
-
-    before, after = totals(incumbent), totals(candidate)
-    delta = {key: after[key] - before[key] for key in before}
-    checks = {
-        "lost_ratio": delta["lost_ratio"] <= 1e-9,
-        "lost_kwh": delta["lost_kwh"] <= 1e-9,
-        "cash_aud": delta["cash_aud"] >= -1e-9,
-    }
-    return {"passed": all(checks.values()), "checks": checks,
-            "incumbent": before, "candidate": after, "delta": delta}
-
-
 def terminal_returns(rewards, terminated, gamma):
     """Original reward units, complete finite episodes, no synthetic terminal."""
     assert terminated[-1]
@@ -80,9 +54,7 @@ def error_statistics(predictions, targets):
         "rmse": float(np.sqrt(np.mean(error**2))),
         "bias": float(np.mean(error)),
         "prediction_mean": float(np.mean(predictions)),
-        "prediction_std": float(np.std(predictions)),
         "return_mean": float(np.mean(targets)),
-        "return_std": float(np.std(targets)),
         "explained_variance": float(1 - np.var(error) / variance)
         if variance > 0
         else 0.0,

@@ -1,6 +1,6 @@
 # 能源市场实验
 
-当前固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：Critic LayerNorm、UC 时间支路、整轮供电与现金筛选，3 轮共 24 批。月初连续采样、两套固定目标和六维动作保持。新结果见[Critic 稳定性实验](CRITIC_STABILITY_PILOT.md)，原[三轮基线](BATCH_CRITIC_PILOT.md)保留；实现口径见[目标与日志](BATCH_CRITIC_TARGETS.md)。测试集继续保留。
+当前固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：仅保留 Critic LayerNorm 和诊断日志，时间支路与供电／现金硬筛选已回退。沿用连续采样及原候选选择，3 轮共 24 批；动作和环境保持。结果与 GRU 分析见[当前报告](LAYERNORM_PILOT.md)，原[三轮基线](BATCH_CRITIC_PILOT.md)、[上次全回滚实验](CRITIC_STABILITY_PILOT.md)保留，测试集继续保留。
 
 修改前算法已完成 72 轮（576 批）验证，协议与结果见[中长期报告](YEAR_STUDY.md)。本次仅新增一次三轮实验。
 

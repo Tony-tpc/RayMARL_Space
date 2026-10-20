@@ -1118,7 +1118,7 @@ $$
 
 候选集合包含当前 UC 策略。每个候选从同一参考消费者副本开始，采用一致的响应训练预算和匹配的外生验证轨迹，再比较 $\widehat W$、现金、服务和消费者成本。候选接受规则与统计置信区间写入实验协议。
 
-选择后恢复该候选完整响应快照，包括 Actor、Critic、Adam、环境、观测与 RNG；下一批从该分支终点继续。当前能源实验先检查相对轮初已提交联合策略的失供比例、绝对失供量不增加和 UC 现金不减少；候选 0 也接受检查。没有可提交候选时恢复轮初完整快照。优势归一化仅在批内进行；Critic 的 LayerNorm 也没有跨批运行统计。已消耗的全部分支预算和逐批日志编号保留。
+选择后恢复该候选完整响应快照，包括 Actor、Critic、Adam、环境、观测与 RNG；下一批从该分支终点继续。优势归一化仅在批内进行，没有运行中的归一化器。已消耗的全部分支预算和逐批日志编号保留。
 
 ### 14.5 下层单边偏离与上层候选改进
 
@@ -1148,8 +1148,6 @@ $$
 ```python
 runner.start(first_training_month)  # 月初初始化；此后只有真实月末换月
 for outer_round in range(outer_budget):
-    round_start = snapshot_networks_adam_environment_rng()
-    incumbent = cached_committed_validation_or_evaluate()
     adapt(selected_actors=consumers, update_all_critics=True)
     search_deviations_and_restore()  # 小规模协议预算为零
     common = snapshot_networks_adam_environment_rng()
@@ -1162,10 +1160,8 @@ for outer_round in range(outer_budget):
         adapt(selected_actors=consumers, update_all_critics=True)
         branches.append(snapshot_networks_adam_environment_rng())
         scores.append(evaluate_on_validation_and_restore())
-    feasible = feasibility_callback(scores, incumbent)  # 候选 0 也检查
-    selected = select_by_paired_uc_return(scores, feasible)
-    restore(round_start if selected is None else branches[selected])
-    update_committed_validation_if_selected(selected, scores)
+    selected = select_by_paired_uc_return(scores)
+    restore(branches[selected])     # 提交选中响应分支终点
     resolve_batch_log(selected)     # 所有发生过的采样仍计入预算
     search_final_deviations_and_restore()
 ```
@@ -1180,21 +1176,13 @@ for outer_round in range(outer_budget):
 
 每个参与者的 Actor 与 Value 有独立 Adam 优化器。消费者 Value 的集中输入按固定顺序拼接 UC 聚合观测和本轮所有消费者的公告后观测，维度为 `(H+20)+N(H+24)`。各户 Actor 只读取本人观测，UC Actor 与 Value 只读取 UC 聚合观测。PPO 每批先固定 GAE、价值目标及行为概率，再按参与者对整批优势归一化一次；价值目标保持元等值尺度。每批先更新全部 Value，再更新本阶段选中的 Actor；冻结网络梯度为 `None`，其参数与 Adam 动量、步数均保持。
 
-Critic 使用两层 `Linear → LayerNorm → Tanh`，Actor 结构不变。UC Critic 在原隐藏特征输出上增加线性时间支路：
-
-$$
-V_U(x)=c_U\left(w_h^\top h(x)+w_\tau^\top
-  [p,p^2,\sin(2\pi t/T),\cos(2\pi t/T)]+b\right),
-\qquad p=\frac{t}{t+r}.
-$$
-
-这里 $t,r$ 是已有聚合观测的已过／剩余时段，$T$ 是一天的时段数，半小时数据取 48；不增加环境观测或私人信息。四个时间权重零初始化、归属 UC Value 的 Adam，不消耗额外初始化随机数。LayerNorm 按单个状态的隐藏维归一化，无运行均值。固定 Value 单位仍为 UC 20、消费者 10；独立 Critic 多步目标、Actor GAE、MSE 和每批优化预算不变。
+Critic 的两层隐藏网络使用 `Linear → LayerNorm → Tanh`，Actor 保持原网络。LayerNorm 按单个状态的隐藏维归一化，无跨批运行统计；UC 不含额外时间支路。固定 Value 单位仍为 UC 20、消费者 10，既有时间观测仍进入普通网络。
 
 采样切片结束时，采集器暂存环境及随机状态，生成下一轮 UC 公告以计算消费者 bootstrap，再恢复该状态。这样下一批在新的策略参数下重新生成公告，队列、SOC 和日历继续承接上一物理时段。真正终止使用零 bootstrap。连续数据不足以构造下一决策时，调用方先显式追加相邻数据。
 
-每轮包含当前 UC 和若干 PPO 更新后的 UC 候选。所有候选从前置消费者适应结束时的公共快照分叉，恢复同一消费者 Actor、Critic、两套 Adam、物理状态和 RNG；对应 UC 参数及 Adam 取自该候选，响应预算与验证种子一致。能源实验汇总匹配验证窗口的失供比例、失供量与 UC 现金，要求相对轮初已提交联合策略前两项不增加、现金不减少，仅允许 `1e-9` 数值容差。公共算法提供通用 `candidate_feasibility` 回调，能源指标留在实验侧。
+当前仅保留 Critic LayerNorm 与新增诊断日志；已完整移除供电／现金硬筛选、轮初评价缓存及全拒绝恢复路径。新候选不合格时仍提交候选 0，未采用首批 Critic 保留的讨论方案。供电和现金作为评价指标保留。逐批日志记录固定目标、预测、奖励回报、bootstrap 分布、隐藏层饱和比例及梯度范数。LayerNorm 单项短测与 GRU 文献分析见[当前报告](../../../../experiments/sn_energy_market/LAYERNORM_PILOT.md)。
 
-通过检查的新候选仍须满足相对候选 0 的配对 UC 实际折扣收益差下界超过 `min_uc_gain`（默认 0，正态近似系数 1.96），多个合格候选选平均改善最大者。无合格新候选时仅可选择通过检查的候选 0，否则恢复轮初全部网络、Adam、环境与 RNG。候选 0 已重新训练消费者，不能免检；轮初冻结评价缓存随 checkpoint 保存。拒绝轮的实际批数照常计数，不增加预算补跑；固定三次尝试中，完全回滚可能造成后续尝试重复。这是验证窗口上的经验约束，不是完整月或总体供电与现金保证。
+每轮包含当前 UC 和若干 PPO 更新后的 UC 候选。所有候选从前置消费者适应结束时的公共快照分叉，恢复同一消费者 Actor、Critic、两套 Adam、物理状态和 RNG；对应 UC 参数及 Adam 取自该候选，响应更新次数一致；验证使用相同外生轨迹与随机采样种子。对各候选逐场景计算相对当前 UC 的收益差，以均值和配对标准误构造正态近似区间。默认系数为 1.96，仅当区间下界超过 `min_uc_gain`（默认 0）时接受改进候选；多个候选符合时选择均值最大者，其余情况选择已重新响应的当前 UC。现金、实际服务、失供、DR 和消费者成本随候选一起报告。 当前代码的选择约束只有配对 UC 收益规则，未加入供电率不退化门槛。候选 0 是现有 UC 经重新响应后的分支，并不等于回滚到轮初策略。
 
 有限期评价累计至真正终止，包含一次终端追加项。连续运行或显式截断评价使用同一起点、同一长度窗口内的实际折扣回报作为候选与偏离比较量；带 Critic 尾值的估计单独记录，避免不同候选的价值拟合误差直接改变排序。固定窗口是无限期目标的截断估计，实验通过增加窗口长度检验尾部影响；若单期奖励绝对值上界为 $M$，长度 $L$ 的单策略尾部绝对误差不超过 $\gamma^L M/(1-\gamma)$。训练切片的 GAE 仍使用下一决策时刻的 bootstrap。
 
@@ -1202,13 +1190,11 @@ $$
 
 真实数据采用有限月回合：每月从 1 日零时、明确 SOC 和空任务队列开始；64 步批末和外层轮次结束均不重置，当前策略持续形成月累计用电、SOC、队列和历史反馈，真实月末结算一次后进入下一月份。这里的“连续采样”描述批间保留状态，区别于第 12.1 节的无限期 `episode_mode="continuous"` 目标。
 
-固定预算入口 `batch_critic_pilot.py` 默认运行 3 轮、24 批、1,536 个实际 PPO 采样时段。每个提交轮使主轨迹前进 256 步，最多 768 步；整轮拒绝时进度恢复。每轮依次为消费者适应 2 批、UC 提案 2 批、候选 0 响应 2 批、候选 1 响应 2 批。每批 64 步，Critic 4 epoch、Actor 2 epoch、minibatch 32；每个 Critic 实际执行 192 次优化，回滚后保留步数另记。已有 72 轮结果属于修改前算法，源码由 `8509e88` 定位，本次不扩大预算。没有额外 MC 预拟合或月中规则暖启动。
+固定预算入口 `batch_critic_pilot.py` 默认运行 3 轮、24 批、1,536 个实际 PPO 采样时段，选定主轨迹前进 768 步。每轮依次为消费者适应 2 批、UC 提案 2 批、候选 0 响应 2 批、候选 1 响应 2 批。每批 64 步，Critic 4 epoch、Actor 2 epoch、minibatch 32；3 轮时每个 Critic 实际执行 192 次优化，回滚后保留步数另记。显式指定 `outer_rounds=72` 时沿用相同逐批预算，共 576 批、36,864 个 PPO 时段、18,432 个主轨迹时段，每个 Critic 实际执行 4,608 次优化。没有额外 MC 预拟合或月中规则暖启动。
 
-`batch_losses.jsonl` 每批立即记录同一固定目标上的 Critic loss／原单位 RMSE 更新前后值，以及实际更新 Actor 的 policy loss；冻结 Actor 留空。另记录预测、目标、实际回报与 bootstrap 的均值／标准差／范围、两层 Tanh 饱和比例、裁剪前梯度范数及环境指标。诊断不采新数据、不更新参数、不改变 RNG。批号不随回滚重置，前置消费者适应也等待整轮保留判定；曲线直接使用实际批号，不按 epoch 聚合。完整验证月 MC 只做冻结评价，使用 `finally` 恢复采样状态并核对网络及 Adam 未变。
+`batch_losses.jsonl` 每批立即记录同一固定目标上的 Critic loss／原单位 RMSE 更新前后值，以及实际更新 Actor 的 policy loss；冻结 Actor 留空。批号按实际执行递增，不随候选回滚重置。候选决策另追加分支保留标记，曲线直接使用实际批号：小规模为 1—24，中长期为 1—576，不按 epoch 聚合。完整验证月 MC 只做冻结评价，使用 `finally` 恢复采样状态并核对网络及 Adam 未变。
 
 3 轮基线只推进到训练月第 17 日；已完成的 72 轮主轨迹覆盖完整训练年、12 次真实月末及下一循环的 19 天。验证分别统计 1—10 日、11—20 日和 21 日至月末的原单位 RMSE；供电率与 UC 现金分别报告 48 小时窗口和完整月口径。结果见[小规模对照](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)和[72 轮中长期验证](../../../../experiments/sn_energy_market/YEAR_STUDY.md)。逐批 loss 下降不等于验证 RMSE 下降，也不能证明供电保障或均衡收敛。
-
-加入 LayerNorm、UC 时间支路和供电／现金检查后的固定三轮对照另见[Critic 稳定性实验](../../../../experiments/sn_energy_market/CRITIC_STABILITY_PILOT.md)。初始 Actor 与旧基线一致，Critic 初始误差因结构变化单独报告；整轮拒绝时，Critic 拟合进展也随快照回滚。
 
 完整 checkpoint 保存网络、优化器、采集环境、随机状态、进度及停止计数，同时绑定模型、折扣、学习与响应预算、数据切分和场景生成规则。恢复前核对这一训练契约；设备和输出位置属于运行配置。独立 Actor 导出仅包含策略参数与输入规格，可通过同一策略输出接口执行。场景、市场适配和入口位于 `experiments/sn_energy_market/`，算法通过结构化接口调用它们，现有算法和公共训练框架保持独立。运行命令、参数及产物见[训练与评价说明](../../../../experiments/sn_energy_market/TRAINING.md)。
 

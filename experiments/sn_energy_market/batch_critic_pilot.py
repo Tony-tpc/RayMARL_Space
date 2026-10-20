@@ -23,7 +23,6 @@ from experiments.sn_energy_market.evaluation import (
     frozen_evaluation,
     retained_optimizer_steps,
     source_hashes,
-    supply_cash_feasibility,
 )
 from experiments.sn_energy_market.profile_dataset import (
     DatasetEnvFactory,
@@ -32,7 +31,7 @@ from experiments.sn_energy_market.profile_dataset import (
 from experiments.sn_energy_market.train import model_settings, write_json
 from experiments.sn_energy_market.training_audit import TrainingAudit
 
-OUTPUT = ROOT / "outputs/ausgrid-critic-stability-pilot/20261020"
+OUTPUT = ROOT / "outputs/ausgrid-layernorm-pilot/20261020"
 REFERENCE = ROOT / "outputs/ausgrid-batch-critic-pilot/20261020/report.json"
 FULL_MONTH_REFERENCE = ROOT / "outputs/ausgrid-year-study/20261020/validation-0003.json"
 
@@ -72,7 +71,6 @@ def configuration(output):
             stopping_patience=0,
             storage_path=str(output),
             checkpoint_interval=0,
-            candidate_feasibility=supply_cash_feasibility,
         )
     )
 
@@ -91,9 +89,8 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
     # run separately and intentionally change when the implementation is cleaned.
     actual, expected = cfg.learning_contract(), reference["learning_contract"]
     for key, value in actual.items():
-        if key not in {"model", "value_architecture", "candidate_feasibility", "scenario"}:
+        if key not in {"value_architecture", "scenario"}:
             assert value == expected[key], f"Pilot learning setting changed: {key}"
-    assert {k: v for k, v in actual["model"].items() if k != "uc_time_features"} == expected["model"]
     for key in ("manifest_sha256", "loaded_splits", "household_ids", "config",
                 "resource_calibration", "scenario_prices"):
         assert actual["scenario"][key] == expected["scenario"][key], key
@@ -149,7 +146,6 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
                     assert new[key] == old[key], (mode, key)
         assert initial["critic"]["periods"] == reference["initial"]["critic"]["periods"]
         assert start == reference["start"]
-        algorithm.committed_evaluation = copy.deepcopy(initial["performance"]["sampled"]["rows"])
         write_json(output / "validation-0000.json", initial)
         evaluations = {"0": initial}
         rounds = []
@@ -164,9 +160,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
                 "start": before,
                 "end": cursor(algorithm.env_runner),
             }
-            assert row["end"]["main_periods"] - before["main_periods"] == (
-                256 if algorithm.last_round["round_committed"] else 0
-            )
+            assert row["end"]["main_periods"] - before["main_periods"] == 256
             rounds.append(row)
             write_json(output / f"round-{index + 1:04d}.json", row)
             print(json.dumps({"round": index + 1, "selected": algorithm.last_round["selected_candidate"],
@@ -183,7 +177,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
                                   "uc_rmse": evaluation["critic"]["modules"]["uc"]["all"]["rmse"],
                                   "elapsed_seconds": time.monotonic() - started}), flush=True)
         assert algorithm.sampled_periods == 512 * outer_rounds
-        main_periods = 256 * sum(row["round"]["round_committed"] for row in rounds)
+        main_periods = 256 * outer_rounds
         assert cursor(algorithm.env_runner)["main_periods"] == main_periods
         assert len(audit.updates) == 16 * outer_rounds
         from experiments.sn_energy_market.plot_batch_losses import load_batches

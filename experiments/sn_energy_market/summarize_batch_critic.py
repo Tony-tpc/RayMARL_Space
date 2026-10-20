@@ -153,11 +153,11 @@ def summarize(report_path, output):
             "initial": full_month_performance(current["initial"]),
             "current": full_month_performance(current["final"]),
         },
-        "candidate_checks": [
+        "candidate_gains": [
             {"round": row["round"]["outer_round"],
-             "committed": row["round"]["round_committed"],
+             "selected": row["round"]["selected_candidate"],
              "candidates": [
-                 {"index": c["index"], "feasibility": c["feasibility"], "paired_uc_gain": c["paired_uc_gain"]}
+                 {"index": c["index"], "paired_uc_gain": c["paired_uc_gain"]}
                  for c in row["round"]["candidates"]
              ]}
             for row in current["rounds"]

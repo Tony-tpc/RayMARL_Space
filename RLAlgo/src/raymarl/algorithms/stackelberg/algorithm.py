@@ -42,7 +42,6 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.sampled_periods = self.evaluated_periods = self.completed_updates = self.outer_round = 0
         self.last_round = None
         self.stable_rounds = 0
-        self.committed_evaluation = None
         self.batch_loss_log = BatchLossLog(Path(self.logdir) / "batch_losses.jsonl")
 
     @property
@@ -206,10 +205,6 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         cfg = self.config
         self.batch_loss_log.begin_round()
         starting_weights = copy.deepcopy(self.learner_group.get_weights())
-        round_start = self._snapshot()
-        if cfg.candidate_feasibility and self.committed_evaluation is None:
-            self.committed_evaluation = self._evaluate(cfg.validation_seeds)
-        incumbent = copy.deepcopy(self.committed_evaluation)
         # Only a true episode boundary rotates the main training scenario.
         self._adapt(self.consumer_ids, cfg.inner_updates, phase="consumer_adaptation")
         deviations = self.search_deviations()
@@ -242,17 +237,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             self._adapt(self.consumer_ids, cfg.response_updates, phase="response", candidate_index=index)
             evaluated.append(self._evaluate(cfg.validation_seeds))
             pairs.append(self._snapshot())
-        feasibility = [
-            cfg.candidate_feasibility(rows, incumbent) if cfg.candidate_feasibility else {"passed": True}
-            for rows in evaluated
-        ]
-        selected, gains = select_candidate(
-            evaluated, z=cfg.acceptance_z, min_gain=cfg.min_uc_gain,
-            feasible=[check["passed"] for check in feasibility],
-        )
-        self._restore(round_start if selected is None else pairs[selected])
-        if selected is not None:
-            self.committed_evaluation = copy.deepcopy(evaluated[selected])
+        selected, gains = select_candidate(evaluated, z=cfg.acceptance_z, min_gain=cfg.min_uc_gain)
+        self._restore(pairs[selected])
         self.batch_loss_log.resolve(selected)
         final_deviations = self.search_deviations()
         policy_change = actor_parameter_change(starting_weights, self.learner_group.get_weights())
@@ -262,14 +248,11 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.last_round = {
             "outer_round": self.outer_round,
             "selected_candidate": selected,
-            "candidate_accepted": selected is not None and selected != 0,
-            "round_committed": selected is not None,
-            "incumbent_evaluation": incumbent,
+            "candidate_accepted": selected != 0,
             "candidates": [
                 {
                     "index": i,
                     "paired_uc_gain": gains[i],
-                    "feasibility": feasibility[i],
                     "evaluation": summarize_evaluation(rows),
                     "rows": rows,
                 }
@@ -298,9 +281,9 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         }
         self.metrics.log_value(NUM_ENV_STEPS_SAMPLED_LIFETIME, self.sampled_periods, window=1)
         self.metrics.log_value("num_updates_lifetime", self.completed_updates, window=1)
-        self.metrics.log_value("selected_candidate", -1 if selected is None else selected, window=1)
+        self.metrics.log_value("selected_candidate", selected, window=1)
         self.metrics.log_value(
-            "response_uc_return", summarize_evaluation(self.committed_evaluation)["returns"]["uc"], window=1
+            "response_uc_return", summarize_evaluation(evaluated[selected])["returns"]["uc"], window=1
         )
         path = Path(self.logdir) / "rounds.jsonl"
         with path.open("a", encoding="utf-8") as stream:
@@ -316,7 +299,6 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "outer_round": self.outer_round,
             "last_round": copy.deepcopy(self.last_round),
             "stable_rounds": self.stable_rounds,
-            "committed_evaluation": copy.deepcopy(self.committed_evaluation),
         }
         return state
 

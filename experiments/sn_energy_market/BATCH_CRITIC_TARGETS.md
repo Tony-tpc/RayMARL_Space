@@ -34,21 +34,19 @@ y_t^V=\sum_{k=0}^{n-1}\gamma^k r_{t+k}
 | `modules.<id>.policy_loss_before/after` | 实际更新 Actor 在固定行为概率和固定归一化优势上的完整批 PPO clipped surrogate；不含熵项 |
 | `modules.<id>.policy_loss` | `policy_loss_after` 的直接字段；冻结 Actor 的三个 policy loss 字段均为 `null` |
 | `branch_status`、`retained_updates`、`sampling_retained` | 分支决策及每个模块的 Actor／Critic 更新和采样轨迹是否保留 |
-| `diagnostics_before/after` | 预测、固定目标、实际多步奖励、bootstrap、单期奖励的均值／标准差／最小最大值，以及两层 Tanh 的 `abs(h)>0.99` 比例 |
-| `critic_gradient_norms`、`metrics` | 本批各次 Critic 优化的裁剪前梯度范数、采样环境指标；裁剪阈值保持 0.5 |
+| `diagnostics_before/after` | 预测、固定目标、实际多步奖励、bootstrap、单期奖励的均值、标准差、范围及两层 Tanh 饱和比例 |
+| `critic_gradient_norms`、`metrics` | 各次 Critic 优化的裁剪前梯度范数与采样能源指标 |
 
 这里的更新前后 loss 是完整批次重新测量，不是最后一个 minibatch 的缓存指标，也不是 epoch 均值。诊断使用 `no_grad` 和确定性的已保存行动概率计算，不调用随机熵采样，不更新网络、Adam 或 Learner 指标。冻结 Actor 不继承历史 loss。原有 `metrics.jsonl` 另补入 `policy_loss/value_loss/value_rmse/value_explained_variance`，仍是外层聚合，逐批绘图只读取新文件。
 
-候选尚未选定时，消费者前置适应、提案和响应均为 `pending`。选择完成后追加 `event=branch_resolution`，按 `batch_id` 关联原记录；不重写或删除已发生的更新。若运行在选择前中断，曲线保留 pending 标记。
+候选尚未选定时，提案和响应记录为 `pending`。选择完成后追加 `event=branch_resolution`，按 `batch_id` 关联原记录；不重写或删除已发生的更新。若运行在选择前中断，曲线保留 pending 标记。
 
-- 消费者前置适应：整轮提交时保留；全部候选不合格、恢复轮初时也标为回滚。
+- 消费者前置适应：保留其更新和采样推进。
 - 选中候选响应：保留所有 Critic、消费者 Actor 和采样终点；未选响应的更新全部标为回滚，包括候选 0。
 - UC 提案：候选是累积生成的。选择候选 k 时，提案 1 至 k 的 UC Actor／Critic 更新保留；所有提案的消费者 Critic 和提案采样推进均丢弃，故这些记录可能为 `partial`。
 - 偏离搜索：记录其实际更新，但全部标记回滚。
 
 保留标记表示该更新属于本轮选定分支的训练历史，不表示后续优化永远不再改变这些参数。日志不参与选优、状态恢复、预算计数或能源约束。
-
-LayerNorm、UC 时间支路和供电／现金检查见[当前训练协议](TRAINING.md)。批内目标分解仅用于诊断；两套目标、MSE、更新次数及动作和环境模型保持不变。
 
 ## 3. 横轴直接使用 1–24
 

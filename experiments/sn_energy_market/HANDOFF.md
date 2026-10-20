@@ -2,30 +2,35 @@
 
 更新：2026-10-20。
 
-当前实现使用六维 UC、四维 Consumer 行动及既有环境奖励。训练从月初开始，普通 64 步批末和外层轮次保留物理状态；真实月末结算后切换月份。每批更新所有 Critic，再更新该阶段选中的 Actor。Critic 两层隐藏网络加入 LayerNorm，UC Value 另有从既有时间观测派生的四维线性支路，Actor 结构不变。
+## 当前实现
 
-Actor 使用 `lambda_gae=0.9025`，Critic 使用独立 `critic_lambda=1.0` 的批内多步回报。两套目标采样后固定。额外 MC 预拟合、月中规则暖启动和旧导入别名已删除。
+按用户要求，只保留全部 Critic 的 `Linear → LayerNorm → Tanh` 隐藏层和诊断日志。UC 时间支路、供电／现金可行性回调、轮初评价缓存、整轮全拒绝恢复路径及对应测试已完整删除。Actor 网络、六维 UC／四维消费者动作、观测、物理和奖励保持。
 
-候选响应保持公共消费者、Adam、环境和 RNG 起点。候选 0 也与轮初已提交联合策略比较失供比例、绝对失供量及 UC 现金，通过后沿用配对 UC 回报规则。无可提交候选时恢复轮初全部状态；预算和批号不回退、不补跑。能源检查在实验回调中实现，仅是固定验证窗口上的经验约束。逐批日志增加目标分解、预测分布、饱和比例与梯度诊断。
+每批先更新全部 Critic，再更新选定 Actor；Actor λ=0.9025，Critic λ=1.0，批内实际多步回报在普通批末保留旧 Value 尾值、真实终止尾值为零。目标采样后固定；没有额外 MC 预拟合。
+
+本次配置每轮 8 批：消费者适应 2 批 → UC 提案 2 批 → 旧 UC 的消费者响应 2 批 → 新 UC 的消费者响应 2 批。响应分支恢复相同消费者网络、Adam、环境和 RNG，保留对应 UC 网络及 Adam。新候选须通过相对候选 0 的配对 UC 折扣收益规则，否则选择候选 0；不存在整轮全部拒绝。候选 0 的消费者已更新，提交后主轨迹继续推进，Critic 也保留前置适应与所选分支的学习。
+
+采样从训练月月初开始，批间保留 SOC、任务、月累计用电、日历和历史反馈，真实月末才结算并切换月份。验证、bootstrap 前瞻和未选分支不污染主轨迹。日志保留预测、目标、实际多步奖励、bootstrap、Tanh 饱和比例、裁剪前梯度范数和能源指标；批号不随分支恢复重置。
+
+## 本次短测与边界
+
+只运行一次 seed 42、3 轮 24 批短测，输出为 `outputs/ausgrid-layernorm-pilot/20261020/`，日志为 `.tmp/layernorm-pilot-20261020.log`。三轮选择 `[0, 0, 0]`，已完成 1,536 个分支 PPO 时段、768 个主轨迹时段，到达 2010-07-17 零时。每个 Critic 实际执行 192 次优化，所选分支累计保留 96 次；UC Actor 提案未保留，消费者 Actor 各保留 48 次。
+
+这次没有重复同一轮，但没有覆盖训练月末，不能据此宣布解决旧 72 轮实验第 329 批的尖峰。比较基准是不加 LayerNorm 的已训练三轮策略；上次全拒绝后的初值另列。新旧策略的实际轨迹与最终保留优化次数不同，不能把结果解释为同一固定数据上的纯回归比较。
+
+最终四个完整月验证共 5,904 状态，checkpoint 8 步精确重放通过。UC 月初／中旬／月末 RMSE 为 19.8559／13.2477／14.6318，全月 16.1286；相对旧三轮，中旬、月末及全月改善，月初变差。消费者平均全月 RMSE 为 5.3428，旧三轮为 5.4321。完整月供电率 99.1905%，失供 211.7739 kWh，UC 现金 38.1914 AUD/日；供电改善，现金略降。详细 48 小时与完整月口径见当前报告。71 项相关检查通过，1 项 CUDA 检查未运行；测试集未加载或评估。
 
 ## 入口与证据
 
-- [HTML 阅读版](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.html)：离线目录与已渲染的 SVG 公式。
-- [当前建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)：第 14 节对应实现。
-- [训练协议](TRAINING.md)：接口、快照、预算、日志及数据隔离。
-- `batch_critic_pilot.py`：当前默认 3 轮、24 批；每批 Critic 4 epoch、Actor 2 epoch、minibatch 32。
-- [Critic 稳定性实验](CRITIC_STABILITY_PILOT.md)及 `results/critic_stability_20261020/`：新结构、候选筛选与三轮实测诊断。
-- `evaluation.py` / `training_audit.py`：冻结评价与被动审计，现行入口不依赖旧实验脚本。
-- [中长期报告](YEAR_STUDY.md)及 `results/year_study_20261020/`：六个固定验证节点、分日期结果和 1–576 批实测曲线。
-- [小规模基线](BATCH_CRITIC_PILOT.md)及 `results/batch_critic_20261020/`：真实逐批 loss 和新旧对比。
-- [直接对照](ONLINE_CRITIC_PILOT.md)：提交 `ea3d322`；小规模基线运行来源见 `ed56de0` 及产物哈希。
+- [当前报告](LAYERNORM_PILOT.md)：回退范围、三轮结果、真实 1–24 批曲线及 GRU 文献分析。
+- [当前建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)及 [HTML 阅读版](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.html)：第 14 节对应实现，公式离线渲染为 SVG。
+- [训练协议](TRAINING.md)、[逐批目标与日志](BATCH_CRITIC_TARGETS.md)。
+- `batch_critic_pilot.py`：默认三轮，不会覆盖已有输出；每批 64 步、Critic 4 epoch、Actor 2 epoch、minibatch 32。
+- `evaluation.py` / `training_audit.py`：冻结评价和被动审计。
+- [原三轮基线](BATCH_CRITIC_PILOT.md)及 `outputs/ausgrid-batch-critic-pilot/20261020/`。
+- [旧 72 轮实验](YEAR_STUDY.md)及 `outputs/ausgrid-year-study/20261020/`，源码定位 `8509e88`。
+- [已撤销方案的三轮实验](CRITIC_STABILITY_PILOT.md)及 `outputs/ausgrid-critic-stability-pilot/20261020/`，源码定位 `1d223cd`；保留全拒绝及日志故障的历史证据，不改写旧结果。
 
-修改前的 72 轮结果由 `8509e88` 定位，已完整结束。相对第 3 轮，UC 全月 RMSE 从 17.5153 降至 14.9314，中旬／月末降低，月初从 14.1151 升至 20.2190。消费者平均 RMSE 为 5.2078，较第 48 轮反弹。完整月供电率 99.6467%，失供量 90.7091 kWh，UC 现金 38.0646 AUD/日，较第 3 轮略降 0.58%。这些结果不代表本次修改后的算法。
+## 后续工作范围
 
-## 保留范围
-
-`outputs/ausgrid-critic-stability-pilot/20261020/` 保留本次 24 批、初始／最终验证、checkpoint、Actor 和失败／恢复证据；`outputs/ausgrid-year-study/20261020/` 保留旧 72 轮完整报告；`outputs/ausgrid-batch-critic-pilot/20261020/` 保留旧三轮基线；`outputs/ausgrid-online-critic-pilot/20261020/` 保留更早直接对照；环境完整验证保留 `outputs/snmarket-validation/full-current-33f27b7-20261018/`。历史输出的来源哈希不改写。
-
-本次三轮全部拒绝，共消耗 24 批、1,536 个 PPO 时段，每个 Critic 执行 192 次优化，但保留更新和主轨迹进度均为零。最终验证与新结构初值完全一致：UC 全月 RMSE 35.1674、消费者平均 8.7431，未实现拟合改进。两个候选在验证窗口均增加失供并减少现金；完整回滚使后两轮重复同一尝试。当前方案首先需要解决“拒绝后无有效推进”，不能据此继续扩大预算。
-
-首轮回滚完成后发生 NumPy 布尔值的 JSON 序列化错误，已在实验回调中转换原生数值并补充检查。根据八条完整回滚记录重建 seed 42 初态，仅执行剩余 16 批；两次后续尝试的全部逐批诊断与首轮一致，原失败证据保留。详细候选检查数值只保存了第 2、3 轮；不伪造第一轮缺失的逐步 Adam 参数变化记录。125 项相关检查、修复后的 18 项检查及最终 checkpoint 精确重放通过，测试集未加载或评估。
+本次未加入 GRU、首批 Critic 特殊保留、额外训练或新候选约束。GRU 仅作为研究建议，下一项优先检验仅 UC Critic 的历史表示、Actor 暂不变；若实施，应明确循环网络的历史输入、连续序列训练、隐藏状态跨批保留与真实月末重置、分支隔离和 checkpoint 重放。当前单步打乱的 PPO 不能只替换一层网络就获得正确循环训练。详见当前报告；进一步修改和实验需另行确定范围。

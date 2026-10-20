@@ -63,7 +63,7 @@ RayMARL/
 
 该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，验收结果见[固定预算验证报告](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)。
 
-当前双层算法每批更新全部 Critic，仅对选中的 Actor 做策略更新；Critic 加入 LayerNorm 和 UC 时间支路。候选响应恢复相同消费者 Actor／Critic／Adam，候选 0 也检查相对轮初策略的供电和现金不退化。Actor GAE 与 Critic 多步目标独立，月初连续采样、真实月末重置。固定预算入口为 `experiments/sn_energy_market/batch_critic_pilot.py`，最新三轮结果见[Critic 稳定性实验](experiments/sn_energy_market/CRITIC_STABILITY_PILOT.md)，原[三轮基线](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)和[72 轮报告](experiments/sn_energy_market/YEAR_STUDY.md)保留，测试集继续保留。
+当前双层算法每批更新全部 Critic，再更新选定 Actor；Critic 保留 LayerNorm 和逐批诊断。UC 时间支路与供电／现金硬筛选已完全回退，新候选不合格时选择候选 0。月初连续采样、真实月末重置、动作和环境保持。短测与 GRU 分析见[当前报告](experiments/sn_energy_market/LAYERNORM_PILOT.md)，原[三轮基线](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)和[72 轮报告](experiments/sn_energy_market/YEAR_STUDY.md)保留，测试集继续保留。
 
 ## 本地版本管理
 

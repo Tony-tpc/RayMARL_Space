@@ -27,16 +27,15 @@ def module_spec(role, inference_only=False):
     )
 
 
-def test_critic_layernorm_and_zero_time_branch_preserve_actor_initialization(monkeypatch):
+def test_critic_layernorm_preserves_actor_initialization(monkeypatch):
     from raymarl.algorithms.stackelberg import rl_module as implementation
 
     specs = [module_spec("uc"), module_spec("consumer")]
-    specs[0].model_config["uc_time_features"] = {"elapsed": 0, "remaining": 1, "cycle_steps": 48}
     torch.manual_seed(42)
     current = [spec.build() for spec in specs]
     rng = torch.get_rng_state().clone()
     with monkeypatch.context() as patch:
-        patch.setattr(implementation, "ValueNetwork", lambda d, h, t: implementation.mlp(d, h, 1))
+        patch.setattr(implementation, "ValueNetwork", lambda d, h: implementation.mlp(d, h, 1))
         torch.manual_seed(42)
         previous = [spec.build() for spec in specs]
     assert torch.equal(rng, torch.get_rng_state())
@@ -44,15 +43,6 @@ def test_critic_layernorm_and_zero_time_branch_preserve_actor_initialization(mon
         for name, value in new.actor.state_dict().items():
             torch.testing.assert_close(value, old.actor.state_dict()[name], rtol=0, atol=0)
         assert sum(isinstance(layer, torch.nn.LayerNorm) for layer in new.value.encoder) == 2
-    uc = current[0]
-    obs = torch.zeros(2, 7)
-    obs[:, 0], obs[:, 1] = torch.tensor([0., 25.]), torch.tensor([100., 75.])
-    before = uc.compute_values({"obs": obs}).detach()
-    with torch.no_grad():
-        uc.value.time_weight[0] = 2
-    torch.testing.assert_close(uc.compute_values({"obs": obs}) - before, torch.tensor([0., 0.5]))
-    assert "value.time_weight" in dict(uc.named_parameters())
-    assert current[1].value.time_weight is None
 
 
 def legal_bounds(*, zero=False, due=False):

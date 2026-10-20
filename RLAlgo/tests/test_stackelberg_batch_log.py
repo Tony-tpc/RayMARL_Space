@@ -27,7 +27,7 @@ def test_batch_is_flushed_before_selection_and_resolution_only_appends(tmp_path)
     original = path.read_bytes()
     pending = load_batches(path)
     assert [item["batch_id"] for item in pending] == [1, 2, 3, 4]
-    assert [item["branch_status"] for item in pending] == ["pending"] * 4
+    assert [item["branch_status"] for item in pending] == ["retained", "pending", "pending", "pending"]
     log.resolve(0)
     assert path.read_bytes().startswith(original)
     resolved = load_batches(path)
@@ -53,18 +53,6 @@ def test_plot_reader_does_not_invent_missing_batches(tmp_path):
         stream.write(json.dumps(entry) + "\n")
     with pytest.raises(ValueError, match="Duplicate batch"):
         load_batches(path)
-
-
-def test_whole_round_rejection_marks_adaptation_and_candidate_zero_discarded(tmp_path):
-    from experiments.sn_energy_market.plot_batch_losses import load_batches
-
-    log = BatchLossLog(tmp_path / "batch_losses.jsonl")
-    for phase, candidate in (("consumer_adaptation", None), ("uc_proposal", 1), ("response", 0)):
-        log.record(row(phase, candidate))
-    log.resolve(None)
-    for record in load_batches(log.path):
-        assert record["branch_status"] == "rolled_back" and not record["sampling_retained"]
-        assert not any(any(roles.values()) for roles in record["retained_updates"].values())
 
 
 def test_interrupted_round_remains_pending_when_a_later_round_resolves(tmp_path):
