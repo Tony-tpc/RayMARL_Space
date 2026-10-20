@@ -1,6 +1,8 @@
 # 能源市场实验入口
 
-当前固定预算入口为 `online_critic_pilot.py`：冻结 Actor 时仍在线更新全部 Critic，取消额外 MC 预拟合，测试集继续保留。实现和结果见 [在线 Critic 小规模报告](ONLINE_CRITIC_PILOT.md)。前两次连续采样结果见 [历史报告](CONTINUOUS_PILOT.md)，改造前背景保留在 [项目交接文档](HANDOFF.md)。
+当前固定预算入口为 `batch_critic_pilot.py`：Actor GAE 与 Critic 多步目标分开，保留原 3 轮、24 批训练预算，并保存横轴 1—24 的真实 loss。结果和曲线见[本次固定预算对照](BATCH_CRITIC_PILOT.md)，实现细节见[目标分离与逐批日志](BATCH_CRITIC_TARGETS.md)。测试集继续保留。
+
+上一轮固定预算入口为 `online_critic_pilot.py`：冻结 Actor 时仍在线更新全部 Critic，取消额外 MC 预拟合。实现和结果见 [在线 Critic 小规模报告](ONLINE_CRITIC_PILOT.md)。前两次连续采样结果见 [历史报告](CONTINUOUS_PILOT.md)，改造前背景保留在 [项目交接文档](HANDOFF.md)。
 
 本目录组织能源市场的场景、训练、评价和环境验证。算法实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg`；市场执行、结算和状态转移位于 `environments/sn_energy_market/src/snmarket`。
 

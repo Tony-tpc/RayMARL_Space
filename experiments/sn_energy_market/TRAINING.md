@@ -67,7 +67,9 @@ UC Actor 一次输出六维高斯参数，采集器保存未裁剪的原始变�
 
 Value 使用固定输出单位：UC 为 20、Consumer 为 10。网络输出乘该尺度后还原为环境奖励单位，价值损失按 `0.5 × mean(((V−target)/scale)²)` 拟合；GAE、bootstrap、实际奖励和候选评分继续使用原单位。报告中的 `value_rmse` 为原单位误差，`value_loss` 为缩放后的损失。
 
-正常训练每批先更新全部 Value，再更新当前阶段选中的 Actor。`--critic-epochs` 独立控制 Value 轮数，普通训练默认为 4，`--smoke` 默认为 1；`--epochs` 控制 Actor 轮数。采样时生成的 GAE 目标、优势和行为概率在本批优化期间保持固定，Actor 阶段仅对优势做既有的归一化。Critic 的改善用于后续批次的 GAE 和 bootstrap。
+正常训练每批先更新全部 Value，再更新当前阶段选中的 Actor。`--critic-epochs` 独立控制 Value 轮数，普通训练默认为 4，`--smoke` 默认为 1；`--epochs` 控制 Actor 轮数。Actor 保留原有 `lambda_gae`（半小时场景为 0.9025）；独立的 `--critic-lambda` 默认为 1.0，Critic 使用本批实际多步回报，批末以采样时的旧 Value bootstrap，真实终止尾值为零。两套目标和行为概率在采样后固定，Actor 阶段仅对优势做既有的归一化。Critic 的改善用于后续批次的 GAE 和 bootstrap。
+
+`critic_lambda` 写入学习契约，避免恢复时静默改变目标定义。每批全量固定目标的更新前后 loss、原单位 RMSE、实际参与更新的 Actor loss，以及候选回滚结果，实时写入运行目录下 `batch_losses.jsonl`。逐批绘图与字段定义见[目标分离与逐批日志](BATCH_CRITIC_TARGETS.md)。
 
 当前训练及 `online_critic_pilot.py` 均不执行额外 MC 预拟合。通用 `fit_values()` 和旧实验脚本保留供历史诊断使用，不进入当前训练链；历史结果见 [原预拟合实验](CALIBRATED_PILOT.md)及[连续采样实验](CONTINUOUS_PILOT.md)。完整月 MC 仍可用于冻结验证，验证数据不进入梯度更新。
 

@@ -13,7 +13,7 @@ from ray.rllib.policy.sample_batch import MultiAgentBatch
 
 from raymarl.algorithms.stackelberg.learner import StackelbergTorchLearner, value_fit_statistics
 from raymarl.algorithms.stackelberg.rl_module import StackelbergRLModule
-from raymarl.algorithms.stackelberg.runner import generalized_advantages
+from raymarl.algorithms.stackelberg.runner import generalized_advantages, random_state
 
 from .test_stackelberg_policy import sample_batch
 
@@ -168,6 +168,15 @@ def test_online_phases_preserve_frozen_adam_and_fixed_targets(active_actor):
     batch = MultiAgentBatch({key: sample_batch(learner.module[key]) for key in module_ids}, 16)
     fixed = copy.deepcopy(dict(batch.policy_batches))
     before = copy.deepcopy(learner.get_state())
+    rng_before = random_state()
+    diagnostics = learner.batch_diagnostics(batch, actor_ids=(active_actor,))
+    assert_nested_equal(rng_before, random_state())
+    assert_nested_equal(before, learner.get_state())
+    for key in module_ids:
+        expected_mse = np.mean((batch[key]["vf_preds"] - batch[key]["value_targets"]) ** 2)
+        assert diagnostics[key]["critic_loss"] == pytest.approx(0.5 * expected_mse)
+        assert diagnostics[key]["critic_rmse"] == pytest.approx(np.sqrt(expected_mse))
+        assert (diagnostics[key]["policy_loss"] is None) == (key != active_actor)
     learner.update(batch=batch, update_phase="critic", num_epochs=2, minibatch_size=16)
     fitted = copy.deepcopy(learner.get_state())
     for key in module_ids:
@@ -186,6 +195,9 @@ def test_online_phases_preserve_frozen_adam_and_fixed_targets(active_actor):
         update_phase="actor", num_epochs=1, minibatch_size=16,
     )
     acted = learner.get_state()
+    measured = learner.batch_diagnostics(batch, actor_ids=(active_actor,))
+    for key in module_ids:
+        assert measured[key]["critic_loss"] == pytest.approx(0.5 * measured[key]["critic_rmse"] ** 2)
     for key in module_ids:
         for name, value in fitted["rl_module"][key].items():
             if key != active_actor or name.startswith("value."):

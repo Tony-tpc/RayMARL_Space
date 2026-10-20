@@ -48,6 +48,19 @@ def generalized_advantages(rewards, values, next_values, terminated, gamma, lamb
     return advantages, advantages + values
 
 
+def bootstrapped_returns(rewards, next_values, terminated, gamma, critic_lambda):
+    """Fixed batch lambda-returns, with no recursion across real episode ends."""
+    targets = np.empty(len(rewards), dtype=np.float64)
+    carry = float(next_values[-1])
+    for index in range(len(rewards) - 1, -1, -1):
+        tail = 0.0 if terminated[index] else (
+            (1 - critic_lambda) * next_values[index] + critic_lambda * carry
+        )
+        carry = rewards[index] + gamma * tail
+        targets[index] = carry
+    return targets
+
+
 class StackelbergEnvRunner(EnvRunner, Checkpointable):
     """A local native EnvRunner whose rows each represent a complete physical period.
 
@@ -219,13 +232,19 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             samples[-1]["next_vf_preds"] = next_values[key]
             samples[-1]["truncateds"] = not samples[-1]["terminateds"]
             data = {name: np.asarray([sample[name] for sample in samples]) for name in samples[0]}
-            data["advantages"], data["value_targets"] = generalized_advantages(
+            data["advantages"], _ = generalized_advantages(
                 data["rewards"],
                 data["vf_preds"],
                 data["next_vf_preds"],
                 data["terminateds"],
                 self.config.gamma,
                 self.config.lambda_gae,
+            )
+            # Separate fixed targets: lambda=1 uses realized rewards until the
+            # batch cut (old-value bootstrap) or true termination (zero tail).
+            data["value_targets"] = bootstrapped_returns(
+                data["rewards"], data["next_vf_preds"], data["terminateds"],
+                self.config.gamma, self.config.critic_lambda,
             )
             batches[key] = SampleBatch(data)
         self.last_metrics = totals

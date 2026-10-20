@@ -254,6 +254,7 @@ def test_training_entry_uses_all_months_and_converted_learning_parameters(datase
     assert config.system.num_consumers == 2
     assert budget["gamma"] == pytest.approx(0.9801)
     assert budget["lambda_gae"] == pytest.approx(0.9025)
+    assert budget["critic_lambda"] == 1.0
     assert budget["rollout_steps"] == 64
     factory = train.scenario_factory(args, config, splits)
     assert factory.seed_splits == splits

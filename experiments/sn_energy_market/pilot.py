@@ -178,12 +178,20 @@ class TrainingAudit:
                 )
                 np.testing.assert_allclose(
                     rows["value_targets"],
-                    expected + rows["vf_preds"],
+                    reference_advantages(rows, runner.config.gamma, runner.config.critic_lambda)
+                    + rows["vf_preds"],
                     atol=1e-9,
                     rtol=1e-10,
                 )
                 self.maximum(
                     "gae_residual", np.max(np.abs(rows["advantages"] - expected))
+                )
+                self.maximum(
+                    "value_target_residual",
+                    np.max(np.abs(rows["value_targets"] - rows["vf_preds"]
+                                  - reference_advantages(
+                                      rows, runner.config.gamma, runner.config.critic_lambda
+                                  ))),
                 )
                 with torch.no_grad():
                     tensors = {

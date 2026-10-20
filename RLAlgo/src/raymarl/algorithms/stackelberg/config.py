@@ -31,6 +31,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.validation_seeds = tuple(range(1000, 1016))
         self.test_seeds = tuple(range(2000, 2032))
         self.gamma, self.lambda_gae = 0.99, 0.95
+        self.critic_lambda = 1.0
         self.actor_lr, self.critic_lr = 3e-4, 1e-3
         self.clip_param, self.vf_loss_coeff, self.entropy_coeff = 0.2, 0.5, 0.0
         self.grad_clip = 0.5
@@ -70,6 +71,7 @@ class StackelbergConfig(AlgorithmConfig):
             "critic_lr",
             "critic_epochs",
             "lambda_gae",
+            "critic_lambda",
             "clip_param",
             "vf_loss_coeff",
             "entropy_coeff",
@@ -138,6 +140,7 @@ class StackelbergConfig(AlgorithmConfig):
         fields = (
             "gamma",
             "lambda_gae",
+            "critic_lambda",
             "actor_lr",
             "critic_lr",
             "clip_param",
@@ -220,8 +223,9 @@ class StackelbergConfig(AlgorithmConfig):
         for key in ("actor_lr", "critic_lr", "clip_param", "grad_clip"):
             if not math.isfinite(getattr(self, key)) or getattr(self, key) <= 0:
                 raise ValueError(f"{key} must be finite and positive")
-        if not 0 <= self.gamma <= 1 or not 0 <= self.lambda_gae <= 1:
-            raise ValueError("gamma and lambda_gae must lie in [0, 1]")
+        for key in ("gamma", "lambda_gae", "critic_lambda"):
+            if not 0 <= getattr(self, key) <= 1:
+                raise ValueError(f"{key} must lie in [0, 1]")
         if self.evaluation_steps is not None and (
             not isinstance(self.evaluation_steps, int) or self.evaluation_steps < 1
         ):

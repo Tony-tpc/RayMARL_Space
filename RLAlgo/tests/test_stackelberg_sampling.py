@@ -116,6 +116,7 @@ class ToyConfig(AlgorithmConfig):
         self.train_seeds = (7, 8)
         self.scenario_factory = ToyFactory(terminal_at, data_until)
         self.lambda_gae, self.gamma, self.rollout_length = 0.8, 0.9, 4
+        self.critic_lambda = 1.0
 
     def get_multi_rl_module_spec(self, **kwargs):
         return ToySpec()
@@ -139,6 +140,42 @@ def test_gae_physical_discount_terminal_and_sampling_cut():
     terminal, _ = generalized_advantages([1, 2, 9], [3, 4, 0], [4, 999, 100], [False, True, False], 0.9, 0.8)
     assert terminal[1] == -2
     assert terminal[0] == pytest.approx(1 + 0.9 * 4 - 3 + 0.9 * 0.8 * -2)
+
+
+@pytest.mark.parametrize("terminal_at", [2, 3, 8])
+def test_separate_critic_targets_follow_rewards_until_terminal_or_cut(terminal_at):
+    runner = make_runner(terminal_at=terminal_at)
+    saved = runner.get_state()
+    batch = runner.collect(5)
+    for data in batch.policy_batches.values():
+        expected = []
+        for start in range(5):
+            total, discount = 0.0, 1.0
+            for end in range(start, 5):
+                total += discount * data["rewards"][end]
+                discount *= runner.config.gamma
+                if data["terminateds"][end]:
+                    break
+            else:
+                total += discount * data["next_vf_preds"][-1]
+            expected.append(total)
+        np.testing.assert_allclose(data["value_targets"], expected, atol=1e-12)
+    runner.set_state(saved)
+    runner.config.critic_lambda = runner.config.lambda_gae
+    legacy = runner.collect(5)
+    for key in batch.policy_batches:
+        # Changing only the critic lambda changes neither samples nor Actor GAE.
+        for name in ("actions", "advantages", "vf_preds", "next_vf_preds"):
+            np.testing.assert_array_equal(batch[key][name], legacy[key][name])
+        np.testing.assert_allclose(
+            legacy[key]["value_targets"], legacy[key]["advantages"] + legacy[key]["vf_preds"],
+            atol=1e-12,
+        )
+    fixed = copy.deepcopy(batch)
+    with torch.no_grad():
+        for module in runner.module.values():
+            module.anchor.add_(100)
+    assert_batches_equal(batch, fixed)
 
 
 def test_consumer_bootstrap_uses_next_announced_state_and_preserves_rng():

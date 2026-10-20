@@ -75,6 +75,7 @@ def arguments(argv=None):
     parser.add_argument("--rollout-steps", type=int)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--critic-epochs", type=int)
+    parser.add_argument("--critic-lambda", type=float, default=1.0)
     parser.add_argument("--minibatch-size", type=int)
     parser.add_argument("--hidden-dim", type=int)
     parser.add_argument("--seed", type=int, default=42)
@@ -172,7 +173,9 @@ def experiment_settings(args, dataset=None):
         for key, values in defaults.items()
     }
     cadence = config.system.resolution_minutes / 15
-    budget.update(gamma=0.99**cadence, lambda_gae=0.95**cadence)
+    budget.update(gamma=0.99**cadence, lambda_gae=0.95**cadence, critic_lambda=args.critic_lambda)
+    if not 0 <= args.critic_lambda <= 1:
+        raise ValueError("--critic-lambda must lie in [0, 1]")
     if dataset is not None and args.rollout_steps is None and not args.smoke:
         budget["rollout_steps"] = max(1, round(128 / cadence))
     if not args.evaluate_only and budget["outer_rounds"] < 1:
@@ -380,6 +383,7 @@ def main(argv=None):
             .training(
                 gamma=budget["gamma"],
                 lambda_gae=budget["lambda_gae"],
+                critic_lambda=budget["critic_lambda"],
                 rollout_length=budget["rollout_steps"],
                 inner_updates=budget["inner_updates"],
                 response_updates=budget["response_updates"],

@@ -12,6 +12,7 @@ from experiments.sn_energy_market.training_env import MarketEnvFactory
 def test_smoke_contains_shift_and_event_decisions_and_separate_seed_sets():
     config, budget, splits = experiment_settings(arguments(["--smoke"]))
     assert config.system.num_consumers == 2
+    assert budget["critic_lambda"] == 1.0
     assert config.market.shift_deadline_steps < config.system.horizon_steps
     assert config.system.start_datetime == "2026-01-01T17:00:00+08:00"
     assert (
@@ -56,6 +57,8 @@ def test_explicit_budget_and_dimensions_override_smoke_defaults():
                 "2",
                 "--critic-epochs",
                 "5",
+                "--critic-lambda",
+                "0.8",
             ]
         )
     )
@@ -66,6 +69,7 @@ def test_explicit_budget_and_dimensions_override_smoke_defaults():
     assert budget["rollout_steps"] == 12
     assert budget["response_updates"] == 2
     assert budget["critic_epochs"] == 5
+    assert budget["critic_lambda"] == 0.8
 
 
 @pytest.mark.parametrize("rounds", ["0", "-1"])

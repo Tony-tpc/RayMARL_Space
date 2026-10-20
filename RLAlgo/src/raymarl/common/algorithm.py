@@ -45,6 +45,10 @@ class NativeAlgorithmMixin:
         important = {
             "actor_loss",
             "critic_loss",
+            "policy_loss",
+            "value_loss",
+            "value_rmse",
+            "value_explained_variance",
             "total_loss",
             "actor_grad_norm",
             "critic_grad_norm",

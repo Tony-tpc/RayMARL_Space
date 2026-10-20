@@ -102,6 +102,12 @@ def test_critic_epoch_budget_requires_positive_integer(tmp_path, epochs):
         cfg.validate()
 
 
+@pytest.mark.parametrize("value", [-0.1, 1.1, float("nan"), float("inf")])
+def test_critic_lambda_validation(tmp_path, value):
+    with pytest.raises(ValueError, match="critic_lambda"):
+        configuration(tmp_path).training(critic_lambda=value).validate()
+
+
 def test_reserved_test_requires_explicit_evaluation_seeds():
     calls = []
 
@@ -142,6 +148,9 @@ def test_learning_contract_tracks_targets_and_scenarios_not_output_path(tmp_path
     right.critic_epochs += 1
     assert left.learning_contract() != right.learning_contract()
     right.critic_epochs = left.critic_epochs
+    right.critic_lambda = 0.8
+    assert left.learning_contract() != right.learning_contract()
+    right.critic_lambda = left.critic_lambda
     right.train_seeds = (4, 5)
     assert left.learning_contract() != right.learning_contract()
 
@@ -215,6 +224,9 @@ def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path):
         continued = algo.get_state()
         algo.restore_from_path(checkpoint)
         algo.train()
+        entries = [json.loads(line) for line in (Path(algo.logdir) / "batch_losses.jsonl").read_text().splitlines()]
+        ids = [entry["batch_id"] for entry in entries if entry["event"] == "batch"]
+        assert ids == list(range(1, len(ids) + 1))
         assert_nested_equal(continued["learner_group"], algo.get_state()["learner_group"])
         assert algo.last_round == continued["stackelberg_runtime"]["last_round"]
         exported = algo.export_actors(tmp_path / "actors")
@@ -318,6 +330,18 @@ def test_common_response_state_and_selected_branch_continuation(ray_runtime, tmp
             assert algo.sampled_periods == 24 * (round_index + 1)
             assert algo.env_runner.env.engine.state.period_id == main_steps % 6
             assert algo.env_runner._scenario_seed == (2, 3)[(main_steps // 6) % 2]
+            from experiments.sn_energy_market.plot_batch_losses import load_batches
+
+            logged = load_batches(Path(algo.logdir) / "batch_losses.jsonl")
+            assert [row["batch_id"] for row in logged] == list(range(1, 6 * (round_index + 1) + 1))
+            for row in logged[-6:]:
+                if row["phase"] == "uc_proposal":
+                    assert row["retained_updates"]["uc"]["critic"] == (row["candidate_index"] <= chosen)
+                    assert not row["sampling_retained"]
+                    assert all(not row["retained_updates"][key]["critic"] for key in algo.consumer_ids)
+                elif row["phase"] == "response":
+                    assert row["sampling_retained"] == (row["candidate_index"] == chosen)
+                    assert row["branch_status"] == ("retained" if row["candidate_index"] == chosen else "rolled_back")
     finally:
         algo.stop()
 
@@ -337,5 +361,72 @@ def test_gpu_learner_cpu_runner_update(ray_runtime, tmp_path):
             for result in algo.learner_group.foreach_learner(lambda learner: str(learner._device))
         ]
         assert devices == ["cuda:0"]
+    finally:
+        algo.stop()
+
+
+@pytest.mark.integration
+def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runtime, tmp_path, monkeypatch):
+    from experiments.sn_energy_market.plot_batch_losses import load_batches
+
+    torch.set_num_threads(1)
+    cfg = configuration(tmp_path).training(
+        inner_updates=2, uc_updates_per_candidate=2, response_updates=2,
+        deviation_updates=0, critic_epochs=4, num_epochs=2,
+    )
+    # Tiny synthetic fixtures only; no historical energy training/validation/test data.
+    cfg.test_seeds = ()
+    algo = cfg.build_algo()
+    path = Path(algo.logdir) / "batch_losses.jsonl"
+    original_collect = algo.env_runner.collect
+    original_diagnostics = algo._batch_diagnostics
+    collected, before = [], []
+
+    def collect(*args, **kwargs):
+        if collected:
+            assert len(load_batches(path)) == len(collected)
+        batch = original_collect(*args, **kwargs)
+        collected.append(copy.deepcopy(batch))
+        return batch
+
+    def diagnostics(batch, actor_ids=()):
+        snapshot = algo._snapshot()
+        result = original_diagnostics(batch, actor_ids)
+        after = algo._snapshot()
+        assert_nested_equal(snapshot["learner"], after["learner"])
+        assert_nested_equal(snapshot["rng"], after["rng"])
+        assert snapshot["runner"]["sampling"]["environment"].engine == after["runner"]["sampling"]["environment"].engine
+        if not actor_ids:
+            before.append(result)
+        return result
+
+    monkeypatch.setattr(algo.env_runner, "collect", collect)
+    monkeypatch.setattr(algo, "_batch_diagnostics", diagnostics)
+    try:
+        for _ in range(3):
+            algo.train()
+        records = load_batches(path)
+        assert [item["batch_id"] for item in records] == list(range(1, 25))
+        assert algo.completed_updates == 24 and algo.sampled_periods == 96
+        assert len(collected) == len(before) == 24
+        for item, measured in zip(records, before, strict=True):
+            assert item["critic_epochs"] == 4 and item["actor_epochs"] == 2
+            assert item["branch_status"] != "pending"
+            for key, values in item["modules"].items():
+                assert values["critic_loss_before"] == measured[key]["critic_loss"]
+                for suffix in ("before", "after"):
+                    assert values[f"critic_loss_{suffix}"] == pytest.approx(
+                        0.5 * (values[f"critic_rmse_{suffix}"] / values["value_scale"]) ** 2
+                    )
+                    assert (values[f"policy_loss_{suffix}"] is None) == (key not in item["actor_ids"])
+        for start in (0, 8, 16):
+            assert [item["phase"] for item in records[start:start + 8]] == (
+                ["consumer_adaptation"] * 2 + ["uc_proposal"] * 2 + ["response"] * 4
+            )
+        # Candidate snapshot restore never reuses audit IDs.
+        saved = algo._snapshot()
+        algo._restore(saved)
+        algo._adapt(algo.consumer_ids, 1)
+        assert load_batches(path)[-1]["batch_id"] == 25
     finally:
         algo.stop()

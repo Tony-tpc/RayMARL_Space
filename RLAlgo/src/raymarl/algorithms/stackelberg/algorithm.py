@@ -11,6 +11,7 @@ from ray.rllib.utils.metrics import LEARNER_RESULTS, NUM_ENV_STEPS_SAMPLED_LIFET
 
 from raymarl.common.algorithm import NativeAlgorithmMixin
 
+from .batch_log import BatchLossLog
 from .evaluation import (
     actor_parameter_change,
     paired_gain,
@@ -41,6 +42,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.sampled_periods = self.evaluated_periods = self.completed_updates = self.outer_round = 0
         self.last_round = None
         self.stable_rounds = 0
+        self.batch_loss_log = BatchLossLog(Path(self.logdir) / "batch_losses.jsonl")
 
     @property
     def consumer_ids(self):
@@ -64,12 +66,19 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self._sync()
         restore_random_state(snapshot["rng"])
 
-    def _adapt(self, module_ids, updates, *, seed=None):
+    def _batch_diagnostics(self, batch, actor_ids=()):
+        results = self.learner_group.foreach_learner(
+            lambda learner: learner.batch_diagnostics(batch, actor_ids=actor_ids)
+        )
+        return next(iter(results)).get()  # This algorithm requires one local learner.
+
+    def _adapt(self, module_ids, updates, *, seed=None, phase="adapt", candidate_index=None):
         if seed is not None:
             self.env_runner.restart(seed)
         for _ in range(updates):
             batch = self.env_runner.collect(self.config.rollout_length)
-            # GAE targets and behavior log-probabilities are fixed at collection.
+            before = self._batch_diagnostics(batch)
+            # Actor GAE, critic returns and behavior logp are fixed at collection.
             # All values track this joint policy, even when their actor is frozen.
             critic_result = self.learner_group.update(
                 batch=batch,
@@ -85,6 +94,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                 for data in selected.policy_batches.values():
                     advantage = data["advantages"]
                     data["advantages"] = (advantage - advantage.mean()) / max(advantage.std(), 1e-8)
+            actor_before = self._batch_diagnostics(selected, module_ids)
             result = self.learner_group.update(
                 batch=selected,
                 update_phase="actor",
@@ -93,18 +103,12 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                 shuffle_batch_per_epoch=True,
                 timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
             )
-            measured = {
-                "policy_loss",
-                "value_loss",
-                "value_rmse",
-                "value_explained_variance",
-                "total_loss",
-                "entropy",
-                "clip_fraction",
-                "approx_kl",
-                "grad_norm",
-                "actor_learning_rate",
-                "value_learning_rate",
+            shared_metrics = {"total_loss", "grad_norm"}
+            critic_metrics = shared_metrics | {
+                "value_loss", "value_rmse", "value_explained_variance", "value_learning_rate",
+            }
+            actor_metrics = shared_metrics | {
+                "policy_loss", "entropy", "clip_fraction", "approx_kl", "actor_learning_rate",
             }
             # RLlib also returns empty statistics for frozen modules. Aggregate
             # only measurements made by this update, keeping reports finite.
@@ -113,8 +117,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                     key: {name: value for name, value in update[key].items() if name in measured}
                     for key in keys
                 }
-                for updates_for_phase, keys in (
-                    (critic_result, self.config.agent_order), (result, module_ids)
+                for updates_for_phase, keys, measured in (
+                    (critic_result, self.config.agent_order, critic_metrics), (result, module_ids, actor_metrics)
                 )
                 for update in updates_for_phase
             ]
@@ -122,6 +126,36 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             self.sampled_periods += batch.count
             self.completed_updates += 1
             self._sync()
+            after = self._batch_diagnostics(batch, module_ids)
+            first = batch.policy_batches["uc"]
+            self.batch_loss_log.record({
+                "outer_round": self.outer_round + 1,
+                "completed_updates": self.completed_updates,
+                "phase": phase, "candidate_index": candidate_index,
+                "actor_ids": list(module_ids), "samples": batch.count,
+                "sampled_periods_lifetime": self.sampled_periods,
+                "scenario_seeds": list(dict.fromkeys(first["scenario_seed"].tolist())),
+                "first_period": int(first["period_id"][0]),
+                "last_period": int(first["period_id"][-1]),
+                "true_terminals": int(first["terminateds"].sum()),
+                "gamma": self.config.gamma, "lambda_gae": self.config.lambda_gae,
+                "critic_lambda": self.config.critic_lambda,
+                "critic_epochs": self.config.critic_epochs, "actor_epochs": self.config.num_epochs,
+                "minibatch_size": self.config.minibatch_size,
+                "modules": {
+                    key: {
+                        "critic_loss_before": before[key]["critic_loss"],
+                        "critic_loss_after": after[key]["critic_loss"],
+                        "critic_rmse_before": before[key]["critic_rmse"],
+                        "critic_rmse_after": after[key]["critic_rmse"],
+                        "value_scale": after[key]["value_scale"],
+                        "policy_loss_before": actor_before[key]["policy_loss"] if key in module_ids else None,
+                        "policy_loss_after": after[key]["policy_loss"],
+                        "policy_loss": after[key]["policy_loss"],
+                    }
+                    for key in batch.policy_batches
+                },
+            })
 
     def _evaluate(self, seeds, deterministic=False):
         rows = self.env_runner.evaluate(
@@ -149,7 +183,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         try:
             for key in self.consumer_ids:
                 self._restore(reference)
-                self._adapt((key,), self.config.deviation_updates, seed=seed)
+                self._adapt((key,), self.config.deviation_updates, seed=seed, phase="deviation")
                 rows = self._evaluate(self.config.validation_seeds)
                 result = paired_gain(rows, baseline, agent=key, z=self.config.acceptance_z)
                 results[key] = {**result, "found_gain": max(0.0, result["mean"])}
@@ -165,18 +199,19 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
 
     def training_step(self):
         cfg = self.config
+        self.batch_loss_log.begin_round()
         starting_weights = copy.deepcopy(self.learner_group.get_weights())
         # Only a true episode boundary rotates the main training scenario.
-        self._adapt(self.consumer_ids, cfg.inner_updates)
+        self._adapt(self.consumer_ids, cfg.inner_updates, phase="consumer_adaptation")
         deviations = self.search_deviations()
         reference = self._snapshot()
         candidates = [reference]
-        for _ in range(cfg.uc_candidates):
-            self._adapt(("uc",), cfg.uc_updates_per_candidate)
+        for index in range(1, cfg.uc_candidates + 1):
+            self._adapt(("uc",), cfg.uc_updates_per_candidate, phase="uc_proposal", candidate_index=index)
             candidates.append(self._snapshot())
 
         evaluated, pairs = [], []
-        for candidate in candidates:
+        for index, candidate in enumerate(candidates):
             self._restore(candidate)
             # Proposals now train all critics. Discard their consumer value/Adam
             # progress so every response has identical consumer starting state.
@@ -195,11 +230,12 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             # Discard proposal sampling progress, retaining its UC weights/Adam.
             # Every response starts at the same physical state AND random stream.
             self.env_runner.set_state({"sampling": reference["runner"]["sampling"]})
-            self._adapt(self.consumer_ids, cfg.response_updates)
+            self._adapt(self.consumer_ids, cfg.response_updates, phase="response", candidate_index=index)
             evaluated.append(self._evaluate(cfg.validation_seeds))
             pairs.append(self._snapshot())
         selected, gains = select_candidate(evaluated, z=cfg.acceptance_z, min_gain=cfg.min_uc_gain)
         self._restore(pairs[selected])
+        self.batch_loss_log.resolve(selected)
         final_deviations = self.search_deviations()
         policy_change = actor_parameter_change(starting_weights, self.learner_group.get_weights())
         stopping = stopping_status(final_deviations, gains, policy_change, cfg.stopping_tolerances)

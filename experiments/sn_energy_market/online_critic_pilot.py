@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import secrets
@@ -27,13 +28,24 @@ from experiments.sn_energy_market.train import write_json
 OUTPUT = ROOT / "outputs/ausgrid-online-critic-pilot/20261020"
 
 
-def main():
+def run_pilot(output, reference_path, *, require_same_budget=False):
     import ray
     import torch
 
-    OUTPUT.mkdir(parents=True, exist_ok=False)
+    cfg = configuration(output).training(critic_epochs=4)
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    if require_same_budget:
+        expected = copy.deepcopy(reference["learning_contract"])
+        actual = cfg.learning_contract()
+        expected.pop("critic_lambda", None)
+        actual.pop("critic_lambda")
+        assert actual == expected, "Only critic_lambda may change relative to the previous pilot"
+        assert reference["ppo_sampled_periods"] == 1536
+        assert reference["critic_auxiliary_periods"] == 0
+        assert source_hashes("environments/sn_energy_market/src") == reference["environment_source_sha256"]
+    output.mkdir(parents=True, exist_ok=False)
     torch.set_num_threads(1)
-    temporary = ROOT / ".tmp/ausgrid-online-critic-pilot"
+    temporary = ROOT / ".tmp" / output.parent.name
     temporary.mkdir(parents=True, exist_ok=True)
     os.environ["TMP"] = os.environ["TEMP"] = str(temporary)
     os.environ["RAY_USAGE_STATS_ENABLED"] = "0"
@@ -43,10 +55,11 @@ def main():
         token.write_text(secrets.token_hex(32), encoding="utf-8")
     os.environ["RAY_AUTH_TOKEN_PATH"] = str(token)
     environment_before = source_hashes("environments/sn_energy_market/src")
-    cfg = configuration(OUTPUT).training(critic_epochs=4)
-    write_json(OUTPUT / "experiment.json", {
+    write_json(output / "experiment.json", {
         "learning_contract": cfg.learning_contract(),
-        "initialization": "fresh_seed_42_same_as_continuous_stage_1",
+        "initialization": "fresh_seed_42_same_as_reference",
+        "reference_report": str(reference_path.relative_to(ROOT)),
+        "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
         "outer_rounds": 3,
         "ppo_budget": 1536,
         "critic_auxiliary_periods": 0,
@@ -60,14 +73,10 @@ def main():
     algorithm = audit = None
     try:
         algorithm = cfg.build_algo()
-        audit = TrainingAudit(algorithm, OUTPUT).install()
+        audit = TrainingAudit(algorithm, output).install()
         start = cursor(algorithm.env_runner)
         audit.phase = "validation_initial"
         initial = frozen_evaluation(algorithm)
-        # The historical first run is the equal-PPO-budget reference, not its
-        # second stage, which had another 1,536 PPO and 1,488 MC training periods.
-        reference_path = ROOT / "outputs/ausgrid-continuous-pilot/20261019/stage-1/report.json"
-        reference = json.loads(reference_path.read_text(encoding="utf-8"))
         assert initial == reference["initial"], "Initial policies/evaluation differ from the baseline"
         assert start == reference["start"]
         rounds = []
@@ -83,12 +92,19 @@ def main():
             }
             assert row["end"]["main_periods"] - before["main_periods"] == 256
             rounds.append(row)
-            write_json(OUTPUT / f"round-{index + 1:04d}.json", row)
+            write_json(output / f"round-{index + 1:04d}.json", row)
             print(json.dumps({"round": index + 1, "selected": algorithm.last_round["selected_candidate"],
                               "cursor": row["end"]}), flush=True)
         assert algorithm.sampled_periods == 1536
         assert cursor(algorithm.env_runner)["main_periods"] == 768
         assert len(audit.updates) == 48  # 24 batches, one critic and one actor phase each.
+        from experiments.sn_energy_market.plot_batch_losses import load_batches
+
+        batch_log = Path(algorithm.logdir) / "batch_losses.jsonl"
+        batch_rows = load_batches(batch_log)
+        assert [row["batch_id"] for row in batch_rows] == list(range(1, 25))
+        assert all(row["samples"] == 64 and row["branch_status"] != "pending" for row in batch_rows)
+        (output / "batch_losses.jsonl").write_bytes(batch_log.read_bytes())
         for key in algorithm.config.agent_order:
             steps = [row for row in audit.optimizer_steps if row["agent"] == key and row["role"] == "value"]
             assert len(steps) == 192
@@ -97,7 +113,7 @@ def main():
         final = frozen_evaluation(algorithm)
         audit.phase = "checkpoint_replay"
         saved = copy.deepcopy(algorithm.get_state())
-        checkpoint = algorithm.save_to_path(str(OUTPUT / "checkpoint"))
+        checkpoint = algorithm.save_to_path(str(output / "checkpoint"))
         expected = algorithm.env_runner.collect(8)
         algorithm.restore_from_path(checkpoint)
         actual = algorithm.env_runner.collect(8)
@@ -105,7 +121,7 @@ def main():
             for name, values in rows.items():
                 np.testing.assert_array_equal(values, actual[key][name])
         algorithm.set_state(saved)
-        algorithm.export_actors(OUTPUT / "actors")
+        algorithm.export_actors(output / "actors")
         assert source_hashes("environments/sn_energy_market/src") == environment_before
         report = {
             "status": "completed",
@@ -118,8 +134,12 @@ def main():
             "main_advanced_periods": 768,
             "critic_auxiliary_periods": 0,
             "critic_optimizer_steps_executed_per_module": 192,
-            "initial_matches_historical_stage_1": True,
+            "initial_matches_reference": True,
             "reference_report": str(reference_path.relative_to(ROOT)),
+            "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
+            "batch_loss_log": str((output / "batch_losses.jsonl").relative_to(ROOT)),
+            "batch_loss_sha256": hashlib.sha256(batch_log.read_bytes()).hexdigest(),
+            "logged_batches": 24,
             "checkpoint_exact_replay": True,
             "retained_optimizer_steps": [
                 item.get() for item in algorithm.learner_group.foreach_learner(retained_optimizer_steps)
@@ -135,11 +155,11 @@ def main():
                 **source_hashes("experiments/sn_energy_market"),
             },
         }
-        write_json(OUTPUT / "report.json", report)
-        write_json(OUTPUT / "optimizer_steps.json", audit.optimizer_steps)
-        print(json.dumps({"status": "completed", "report": str(OUTPUT / "report.json")}), flush=True)
+        write_json(output / "report.json", report)
+        write_json(output / "optimizer_steps.json", audit.optimizer_steps)
+        print(json.dumps({"status": "completed", "report": str(output / "report.json")}), flush=True)
     except Exception as exc:
-        write_json(OUTPUT / "failure.json", {"error": repr(exc), "diagnostics": audit.report() if audit else None})
+        write_json(output / "failure.json", {"error": repr(exc), "diagnostics": audit.report() if audit else None})
         raise
     finally:
         if audit is not None:
@@ -150,4 +170,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_pilot(OUTPUT, ROOT / "outputs/ausgrid-continuous-pilot/20261019/stage-1/report.json")

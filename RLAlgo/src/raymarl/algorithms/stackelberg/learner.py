@@ -67,6 +67,33 @@ class StackelbergTorchLearner(TorchLearner):
                     converted.policy_batches[module_id][key] = torch.as_tensor(value, device=self._device)
         return converted
 
+    @torch.no_grad()
+    def batch_diagnostics(self, batch, *, actor_ids=()):
+        """Measure a full fixed batch without optimizer, metric or RNG updates.
+
+        Policy loss is the clipped PPO surrogate (entropy excluded). Frozen
+        actors return None, never a cached metric from a previous update.
+        """
+        converted = self._convert_batch_type(batch)
+        results = {}
+        for key, data in converted.policy_batches.items():
+            module = self.module[key].unwrapped()
+            loss, rmse, _ = value_fit_statistics(
+                module.compute_values(data), data["value_targets"], module.value_scale
+            )
+            policy_loss = None
+            if key in actor_ids:
+                policy_loss, _ = clipped_policy_loss(
+                    module.evaluate_actions(data)[Columns.ACTION_LOGP],
+                    data[Columns.ACTION_LOGP], data["advantages"], self.config.clip_param,
+                )
+                policy_loss = float(policy_loss)
+            results[key] = {
+                "critic_loss": float(loss), "critic_rmse": float(rmse),
+                "policy_loss": policy_loss, "value_scale": module.value_scale,
+            }
+        return results
+
     def compute_loss_for_module(self, *, module_id, config, batch, fwd_out):
         phase = getattr(self, "_update_phase", "joint")
         if phase != "actor":
