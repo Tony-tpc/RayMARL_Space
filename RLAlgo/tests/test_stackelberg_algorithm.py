@@ -19,8 +19,9 @@ sys.path.insert(0, str(ROOT))
 
 
 def configuration(path, *, device="cpu"):
-    from experiments.sn_energy_market.training_env import MarketEnvFactory
     from snmarket import EnvironmentConfig
+
+    from experiments.sn_energy_market.training_env import MarketEnvFactory
 
     cfg = EnvironmentConfig()
     cfg = replace(
@@ -43,6 +44,7 @@ def configuration(path, *, device="cpu"):
             uc_updates_per_candidate=1,
             deviation_updates=1,
             num_epochs=1,
+            critic_epochs=2,
             minibatch_size=4,
             storage_path=str(path),
             checkpoint_interval=0,
@@ -93,6 +95,13 @@ def test_training_and_validation_allow_reserved_test_split(tmp_path):
         cfg.validate()
 
 
+@pytest.mark.parametrize("epochs", [0, -1, 1.5])
+def test_critic_epoch_budget_requires_positive_integer(tmp_path, epochs):
+    cfg = configuration(tmp_path).training(critic_epochs=epochs)
+    with pytest.raises(ValueError, match="positive integers"):
+        cfg.validate()
+
+
 def test_reserved_test_requires_explicit_evaluation_seeds():
     calls = []
 
@@ -130,6 +139,9 @@ def test_learning_contract_tracks_targets_and_scenarios_not_output_path(tmp_path
     right.gamma = 0.5
     assert left.learning_contract() != right.learning_contract()
     right.gamma = left.gamma
+    right.critic_epochs += 1
+    assert left.learning_contract() != right.learning_contract()
+    right.critic_epochs = left.critic_epochs
     right.train_seeds = (4, 5)
     assert left.learning_contract() != right.learning_contract()
 
@@ -162,7 +174,15 @@ def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path):
         uc_before = copy.deepcopy(algo.learner_group.get_weights()["uc"])
         consumers_before = copy.deepcopy(algo.learner_group.get_weights()[algo.consumer_ids[0]])
         algo._adapt(algo.consumer_ids, 1, seed=2)
-        assert_nested_equal(uc_before, algo.learner_group.get_weights()["uc"])
+        uc_after = algo.learner_group.get_weights()["uc"]
+        assert_nested_equal(
+            {key: value for key, value in uc_before.items() if key.startswith("actor.")},
+            {key: value for key, value in uc_after.items() if key.startswith("actor.")},
+        )
+        assert any(
+            not np.array_equal(value, uc_after[key])
+            for key, value in uc_before.items() if key.startswith("value.")
+        )
         assert any(
             not np.array_equal(consumers_before[key], value)
             for key, value in algo.learner_group.get_weights()[algo.consumer_ids[0]].items()
@@ -242,6 +262,17 @@ def test_common_response_state_and_selected_branch_continuation(ray_runtime, tmp
             }
         )
         original_adapt(module_ids, updates, **kwargs)
+        if module_ids == ("uc",):
+            after = [item.get() for item in algo.learner_group.foreach_learner(consumers)]
+            for old, new in zip(before["consumers"], after, strict=True):
+                for key in algo.consumer_ids:
+                    for name, value in old["weights"][key].items():
+                        if name.startswith("actor."):
+                            np.testing.assert_array_equal(value, new["weights"][key][name])
+                    assert any(
+                        not np.array_equal(value, new["weights"][key][name])
+                        for name, value in old["weights"][key].items() if name.startswith("value.")
+                    )
         if module_ids == algo.consumer_ids:
             responses.append((before, algo._snapshot()))
 

@@ -54,6 +54,8 @@ def test_explicit_budget_and_dimensions_override_smoke_defaults():
                 "12",
                 "--response-updates",
                 "2",
+                "--critic-epochs",
+                "5",
             ]
         )
     )
@@ -63,6 +65,7 @@ def test_explicit_budget_and_dimensions_override_smoke_defaults():
     assert budget["outer_rounds"] == 3
     assert budget["rollout_steps"] == 12
     assert budget["response_updates"] == 2
+    assert budget["critic_epochs"] == 5
 
 
 @pytest.mark.parametrize("rounds", ["0", "-1"])

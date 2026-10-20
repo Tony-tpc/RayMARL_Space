@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from ray.rllib.algorithms.algorithm import Algorithm
+from ray.rllib.core import COMPONENT_LEARNER, COMPONENT_OPTIMIZER, COMPONENT_RL_MODULE
 from ray.rllib.policy.sample_batch import MultiAgentBatch
 from ray.rllib.utils.metrics import LEARNER_RESULTS, NUM_ENV_STEPS_SAMPLED_LIFETIME
 
@@ -68,6 +69,17 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             self.env_runner.restart(seed)
         for _ in range(updates):
             batch = self.env_runner.collect(self.config.rollout_length)
+            # GAE targets and behavior log-probabilities are fixed at collection.
+            # All values track this joint policy, even when their actor is frozen.
+            critic_result = self.learner_group.update(
+                batch=batch,
+                update_phase="critic",
+                num_epochs=self.config.critic_epochs,
+                minibatch_size=self.config.minibatch_size,
+                shuffle_batch_per_epoch=True,
+                timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
+            )
+            self._sync()
             selected = MultiAgentBatch({key: batch.policy_batches[key] for key in module_ids}, batch.count)
             if self.config.normalize_advantages:
                 for data in selected.policy_batches.values():
@@ -75,6 +87,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                     data["advantages"] = (advantage - advantage.mean()) / max(advantage.std(), 1e-8)
             result = self.learner_group.update(
                 batch=selected,
+                update_phase="actor",
                 num_epochs=self.config.num_epochs,
                 minibatch_size=self.config.minibatch_size,
                 shuffle_batch_per_epoch=True,
@@ -98,9 +111,12 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             current = [
                 {
                     key: {name: value for name, value in update[key].items() if name in measured}
-                    for key in module_ids
+                    for key in keys
                 }
-                for update in result
+                for updates_for_phase, keys in (
+                    (critic_result, self.config.agent_order), (result, module_ids)
+                )
+                for update in updates_for_phase
             ]
             self.metrics.aggregate(current, key=LEARNER_RESULTS)
             self.sampled_periods += batch.count
@@ -161,9 +177,21 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
 
         evaluated, pairs = [], []
         for candidate in candidates:
-            # Consumer parameters AND Adam moments come from the same reference.
-            # UC proposal updates touched only the UC module and its optimizers.
             self._restore(candidate)
+            # Proposals now train all critics. Discard their consumer value/Adam
+            # progress so every response has identical consumer starting state.
+            common = reference["learner"][COMPONENT_LEARNER]
+            self.learner_group.set_state({COMPONENT_LEARNER: {
+                COMPONENT_RL_MODULE: {
+                    key: common[COMPONENT_RL_MODULE][key] for key in self.consumer_ids
+                },
+                COMPONENT_OPTIMIZER: {
+                    name: state for name, state in common[COMPONENT_OPTIMIZER].items()
+                    if state["module_id"] in self.consumer_ids
+                },
+                "weights_seq_no": candidate["learner"][COMPONENT_LEARNER]["weights_seq_no"],
+            }})
+            self._sync()
             # Discard proposal sampling progress, retaining its UC weights/Adam.
             # Every response starts at the same physical state AND random stream.
             self.env_runner.set_state({"sampling": reference["runner"]["sampling"]})
@@ -202,6 +230,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                 "proposal_updates_per_candidate": cfg.uc_updates_per_candidate,
                 "physical_periods_per_update": cfg.rollout_length,
                 "ppo_epochs": cfg.num_epochs,
+                "critic_epochs": cfg.critic_epochs,
                 "minibatch_size": cfg.minibatch_size,
             },
             "sampled_periods_lifetime": self.sampled_periods,

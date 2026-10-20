@@ -26,6 +26,22 @@ def value_fit_statistics(predictions, targets, scale):
 class StackelbergTorchLearner(TorchLearner):
     """Actor and value have separate optimizers; absent module batches stay frozen."""
 
+    def update(self, *args, update_phase="joint", **kwargs):
+        """Select gradient ownership without changing native minibatching/Adam.
+
+        Unused parameters receive no gradient (not zero gradients), so Adam
+        preserves their parameters, moments and step counters even after prior
+        updates. The scope also resets on failure and is not checkpoint state.
+        """
+        if update_phase not in {"joint", "critic", "actor"}:
+            raise ValueError("update_phase must be joint, critic or actor")
+        previous = getattr(self, "_update_phase", "joint")
+        self._update_phase = update_phase
+        try:
+            return super().update(*args, **kwargs)
+        finally:
+            self._update_phase = previous
+
     def configure_optimizers_for_module(self, module_id, config=None):
         module = self.module[module_id]
         for name, network, learning_rate in (
@@ -52,24 +68,33 @@ class StackelbergTorchLearner(TorchLearner):
         return converted
 
     def compute_loss_for_module(self, *, module_id, config, batch, fwd_out):
+        phase = getattr(self, "_update_phase", "joint")
+        if phase != "actor":
+            value_loss, value_rmse, value_explained = value_fit_statistics(
+                fwd_out[Columns.VF_PREDS],
+                batch["value_targets"].detach(),
+                self.module[module_id].unwrapped().value_scale,
+            )
+            for name, value in {
+                "value_loss": value_loss,
+                "value_rmse": value_rmse,
+                "value_explained_variance": value_explained,
+            }.items():
+                self.metrics.log_value((module_id, name), value.detach(), window=1)
+            if phase == "critic":
+                return config.vf_loss_coeff * value_loss
         advantages = batch["advantages"].detach()
         actor_loss, ratio = clipped_policy_loss(
             fwd_out[Columns.ACTION_LOGP], batch[Columns.ACTION_LOGP].detach(), advantages, config.clip_param
         )
-        value_loss, value_rmse, value_explained = value_fit_statistics(
-            fwd_out[Columns.VF_PREDS],
-            batch["value_targets"].detach(),
-            self.module[module_id].unwrapped().value_scale,
-        )
         entropy = fwd_out["entropy"].mean()
         if config.entropy_coeff:
             entropy = self.module[module_id].unwrapped().policy_entropy(batch).mean()
-        loss = actor_loss + config.vf_loss_coeff * value_loss - config.entropy_coeff * entropy
+        loss = actor_loss - config.entropy_coeff * entropy
+        if phase == "joint":
+            loss = loss + config.vf_loss_coeff * value_loss
         statistics = {
             "policy_loss": actor_loss,
-            "value_loss": value_loss,
-            "value_rmse": value_rmse,
-            "value_explained_variance": value_explained,
             "entropy": entropy,
             "clip_fraction": ((ratio - 1).abs() > config.clip_param).float().mean(),
             "approx_kl": ((ratio - 1) - ratio.log()).mean(),

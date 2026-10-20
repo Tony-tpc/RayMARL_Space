@@ -145,3 +145,65 @@ def test_value_only_fit_improves_targets_and_preserves_actor_optimizer_and_resto
     repeated = learner.fit_values(batches, epochs=30, minibatch_size=16)
     assert repeated == report
     assert_nested_equal(expected, learner.get_state())
+
+
+@pytest.mark.parametrize("active_actor", ["uc", "consumer"])
+def test_online_phases_preserve_frozen_adam_and_fixed_targets(active_actor):
+    torch.set_num_threads(1)
+    torch.manual_seed(71)
+    config = AlgorithmConfig().learners(num_learners=0, num_gpus_per_learner=0)
+    config.actor_lr, config.critic_lr = 0.001, 0.01
+    config.clip_param, config.vf_loss_coeff, config.entropy_coeff, config.grad_clip = 0.2, 0.5, 0.03, 0.5
+    learner = StackelbergTorchLearner(
+        config=config,
+        module_spec=MultiRLModuleSpec(rl_module_specs={
+            "uc": specification("uc"), "consumer": specification("consumer"),
+        }),
+    )
+    learner.build()
+    # Populate moments first: checking fresh Adam would miss zero-gradient drift.
+    module_ids = ("uc", "consumer")
+    batch = MultiAgentBatch({key: sample_batch(learner.module[key]) for key in module_ids}, 16)
+    learner.update(batch=batch, num_epochs=1, minibatch_size=16)
+    batch = MultiAgentBatch({key: sample_batch(learner.module[key]) for key in module_ids}, 16)
+    fixed = copy.deepcopy(dict(batch.policy_batches))
+    before = copy.deepcopy(learner.get_state())
+    learner.update(batch=batch, update_phase="critic", num_epochs=2, minibatch_size=16)
+    fitted = copy.deepcopy(learner.get_state())
+    for key in module_ids:
+        for name, value in before["rl_module"][key].items():
+            if name.startswith("actor."):
+                np.testing.assert_array_equal(value, fitted["rl_module"][key][name])
+        assert any(
+            not np.array_equal(value, fitted["rl_module"][key][name])
+            for name, value in before["rl_module"][key].items() if name.startswith("value.")
+        )
+    for name, state in before["optimizer"].items():
+        if name.endswith("actor"):
+            assert_nested_equal(state, fitted["optimizer"][name])
+    learner.update(
+        batch=MultiAgentBatch({active_actor: batch[active_actor]}, 16),
+        update_phase="actor", num_epochs=1, minibatch_size=16,
+    )
+    acted = learner.get_state()
+    for key in module_ids:
+        for name, value in fitted["rl_module"][key].items():
+            if key != active_actor or name.startswith("value."):
+                np.testing.assert_array_equal(value, acted["rl_module"][key][name])
+    for name, state in fitted["optimizer"].items():
+        if name.endswith("value") or state["module_id"] != active_actor:
+            assert_nested_equal(state, acted["optimizer"][name])
+    assert any(
+        not np.array_equal(value, acted["rl_module"][active_actor][name])
+        for name, value in fitted["rl_module"][active_actor].items() if name.startswith("actor.")
+    )
+    for key, rows in fixed.items():
+        for name in ("advantages", "value_targets", "action_logp"):
+            np.testing.assert_array_equal(rows[name], batch[key][name])
+    assert learner._update_phase == "joint"
+    with pytest.raises(ValueError, match="update_phase"):
+        learner.update(batch=batch, update_phase="unknown")
+    # Failure inside the native update must also clear phase ownership.
+    with pytest.raises(ValueError):
+        learner.update(update_phase="actor")
+    assert learner._update_phase == "joint"

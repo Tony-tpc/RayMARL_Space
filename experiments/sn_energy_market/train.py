@@ -74,6 +74,7 @@ def arguments(argv=None):
     parser.add_argument("--deviation-updates", type=int)
     parser.add_argument("--rollout-steps", type=int)
     parser.add_argument("--epochs", type=int)
+    parser.add_argument("--critic-epochs", type=int)
     parser.add_argument("--minibatch-size", type=int)
     parser.add_argument("--hidden-dim", type=int)
     parser.add_argument("--seed", type=int, default=42)
@@ -160,6 +161,7 @@ def experiment_settings(args, dataset=None):
         "deviation_updates": (1, 2),
         "rollout_steps": (8, 128),
         "epochs": (1, 4),
+        "critic_epochs": (1, 4),
         "minibatch_size": (8, 64),
         "hidden_dim": (16, 64),
     }
@@ -350,6 +352,7 @@ def main(argv=None):
 
     import ray
     import torch
+
     from raymarl.algorithms.stackelberg import StackelbergConfig
 
     torch.set_num_threads(args.torch_threads)
@@ -384,6 +387,7 @@ def main(argv=None):
                 uc_updates_per_candidate=budget["proposal_updates"],
                 deviation_updates=budget["deviation_updates"],
                 num_epochs=budget["epochs"],
+                critic_epochs=budget["critic_epochs"],
                 minibatch_size=budget["minibatch_size"],
                 storage_path=str(output),
                 checkpoint_interval=1,

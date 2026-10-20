@@ -1,6 +1,6 @@
 # 能源市场实验入口
 
-连续采样方案、固定预算训练及验证集结果见 [连续采样小规模报告](CONTINUOUS_PILOT.md)。改造前背景保留在 [项目交接文档](HANDOFF.md)。
+当前固定预算入口为 `online_critic_pilot.py`：冻结 Actor 时仍在线更新全部 Critic，取消额外 MC 预拟合，测试集继续保留。实现和结果见 [在线 Critic 小规模报告](ONLINE_CRITIC_PILOT.md)。前两次连续采样结果见 [历史报告](CONTINUOUS_PILOT.md)，改造前背景保留在 [项目交接文档](HANDOFF.md)。
 
 本目录组织能源市场的场景、训练、评价和环境验证。算法实现位于 `RLAlgo/src/raymarl/algorithms/stackelberg`；市场执行、结算和状态转移位于 `environments/sn_energy_market/src/snmarket`。
 
@@ -8,9 +8,9 @@
 
 真实数据的候选比较见 [数据选型调研](DATASETS.md)。当前已接入 Ausgrid 30 分钟负荷与光伏；下载清洗、固定住户、年度划分、参数与验证命令见 [Ausgrid 实验说明](AUSGRID.md)。`--dataset` 选择数据清单，省略时使用合成场景；`--validate-data` 仅检查数据与配置，不启动训练。
 
-真实数据的小规模训练入口为 `pilot.py`，采样、梯度、奖励、更新隔离及检查点的检查说明见 [小规模训练验证](PILOT.md)。它只加载训练集和验证集。通用入口的 `--skip-test` 同样保留测试集，并将结束评价写入 `validation_evaluation.json`。
+历史小规模入口为 `pilot.py`，其采样、梯度、奖励、更新隔离及检查点的审计也由当前实验复用，见 [小规模训练验证](PILOT.md)。当前入口只加载训练集和验证集。通用入口的 `--skip-test` 同样保留测试集，并将结束评价写入 `validation_evaluation.json`。
 
-修正训练日期覆盖、UC 初始化和 Critic 拟合后的固定小规模入口为 `calibrated_pilot.py`。它先用训练集的完整终止轨迹预热 Value，再执行 3 轮 PPO；结果区分初始化改善与训练增益，见[修正后对照报告](CALIBRATED_PILOT.md)。
+历史 `calibrated_pilot.py` 曾使用完整终止轨迹预热 Value，再执行 3 轮 PPO；结果见[修正后对照报告](CALIBRATED_PILOT.md)。该预热不进入当前 `online_critic_pilot.py` 或 `train.py` 的训练链。历史脚本的原始结果应在对应 Git 版本复现。
 
 `MarketEnvFactory.get_contract()` 自动记录市场配置、种子切分与合成场景函数源码哈希。checkpoint 恢复保持学习目标和数据协议一致，设备与输出目录可以改变。
 

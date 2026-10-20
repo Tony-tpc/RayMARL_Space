@@ -1,6 +1,6 @@
 # RayMARL 项目交接：连续采样与 Critic 拟合
 
-> 后续进展：连续主轨迹、公共候选采样快照、选定响应分支提交及 Critic 辅助采样隔离已实现。当前说明见 [TRAINING.md](TRAINING.md)，实验验收见 [CONTINUOUS_PILOT.md](CONTINUOUS_PILOT.md)。下文保留改造前交接原文与历史结果。
+> 后续进展：连续主轨迹与候选隔离已实现；2026-10-20 进一步将 Actor／Critic 更新范围分开，正常训练冻结 Actor 时仍更新全部 Critic，当前小规模入口取消额外 MC 预拟合。当前说明见 [TRAINING.md](TRAINING.md)，最新实验见 [ONLINE_CRITIC_PILOT.md](ONLINE_CRITIC_PILOT.md)，前两次连续实验见 [CONTINUOUS_PILOT.md](CONTINUOUS_PILOT.md)。下文保留改造前交接原文与历史结果。
 
 更新时间：2026-10-19。工作目录：`D:/Yang/RayMARL`。代码基线：`809ea01`。当前分支：`算法实现/双层训练与接口复用`。
 

@@ -225,11 +225,15 @@ class TrainingAudit:
         def update(*args, **kwargs):
             batch = kwargs["batch"]
             selected = set(batch.policy_batches)
-            for rows in batch.policy_batches.values():
-                advantage = rows["advantages"]
-                assert abs(advantage.mean()) < 1e-8
-                if advantage.std() > 1e-8:
-                    assert abs(advantage.std() - 1.0) < 1e-8
+            update_phase = kwargs.get("update_phase", "joint")
+            if update_phase != "critic":
+                for rows in batch.policy_batches.values():
+                    advantage = rows["advantages"]
+                    assert abs(advantage.mean()) < 1e-8
+                    if advantage.std() > 1e-8:
+                        assert abs(advantage.std() - 1.0) < 1e-8
+            if update_phase == "critic":
+                assert selected == set(runner.agent_ids)
             before = copy.deepcopy(group.get_weights())
             for key in selected:
                 for name, value in before[key].items():
@@ -243,9 +247,14 @@ class TrainingAudit:
                 assert all(math.isfinite(value) for value in roles.values())
                 if key not in selected:
                     assert all(value == 0.0 for value in roles.values()), (key, roles)
+                if update_phase == "critic":
+                    assert roles["actor"] == 0.0, (key, roles)
+                if update_phase == "actor":
+                    assert roles["value"] == 0.0, (key, roles)
             self.updates.append(
                 {
                     "phase": self.phase,
+                    "update_phase": update_phase,
                     "modules": sorted(selected),
                     "changes": changes,
                     "frozen_unchanged": True,
@@ -428,6 +437,7 @@ def main(argv=None):
 
     import ray
     import torch
+
     from raymarl.algorithms.stackelberg import StackelbergConfig
 
     torch.set_num_threads(1)

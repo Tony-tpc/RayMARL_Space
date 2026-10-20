@@ -63,6 +63,8 @@ RayMARL/
 
 该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，验收结果见[训练验证报告](environments/sn_energy_market/docs/v9/training_validation_zh.md)。
 
+当前双层算法每批更新全部 Critic，仅对选中的 Actor 做策略更新。冻结 Actor 时保留其参数和 Adam 状态，候选响应恢复相同消费者 Actor／Critic／Adam。取消额外 MC 预拟合的一次固定预算实验入口为 `experiments/sn_energy_market/online_critic_pilot.py`，结果见[在线 Critic 小规模报告](experiments/sn_energy_market/ONLINE_CRITIC_PILOT.md)，测试集继续保留。
+
 ## 本地版本管理
 
 整个工作区由根目录的 Git 仓库统一管理，保留既有算法历史。环境基线位于 `版本管理/环境建模基线` 分支，使用 `环境建模基线-20261018` 标签定位。代码、配置、测试、建模文档、HTML 和文档内的验证摘要均纳入版本；虚拟环境、数据集、运行输出、机器专用脚本及旧实验归档按 `.gitignore` 排除。本次新建分支、标签和提交说明均使用中文。

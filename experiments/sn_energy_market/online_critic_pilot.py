@@ -1,0 +1,153 @@
+"""One fixed-budget online all-Critic pilot, with no auxiliary training rollout."""
+
+from __future__ import annotations
+
+import copy
+import json
+import os
+import secrets
+import sys
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path[:0] = [str(ROOT), str(ROOT / "RLAlgo/src"), str(ROOT / "environments/sn_energy_market/src")]
+
+from experiments.sn_energy_market.calibrated_pilot import source_hashes
+from experiments.sn_energy_market.continuous_pilot import (
+    configuration,
+    cursor,
+    frozen_evaluation,
+    retained_optimizer_steps,
+)
+from experiments.sn_energy_market.pilot import TrainingAudit
+from experiments.sn_energy_market.train import write_json
+
+OUTPUT = ROOT / "outputs/ausgrid-online-critic-pilot/20261020"
+
+
+def main():
+    import ray
+    import torch
+
+    OUTPUT.mkdir(parents=True, exist_ok=False)
+    torch.set_num_threads(1)
+    temporary = ROOT / ".tmp/ausgrid-online-critic-pilot"
+    temporary.mkdir(parents=True, exist_ok=True)
+    os.environ["TMP"] = os.environ["TEMP"] = str(temporary)
+    os.environ["RAY_USAGE_STATS_ENABLED"] = "0"
+    token = ROOT / ".ray/auth_token"
+    token.parent.mkdir(exist_ok=True)
+    if not token.exists():
+        token.write_text(secrets.token_hex(32), encoding="utf-8")
+    os.environ["RAY_AUTH_TOKEN_PATH"] = str(token)
+    environment_before = source_hashes("environments/sn_energy_market/src")
+    cfg = configuration(OUTPUT).training(critic_epochs=4)
+    write_json(OUTPUT / "experiment.json", {
+        "learning_contract": cfg.learning_contract(),
+        "initialization": "fresh_seed_42_same_as_continuous_stage_1",
+        "outer_rounds": 3,
+        "ppo_budget": 1536,
+        "critic_auxiliary_periods": 0,
+        "actor_epochs": 2,
+        "critic_epochs": 4,
+        "minibatch_size": 32,
+        "test_loaded": False,
+    })
+    ray.init(num_cpus=2, include_dashboard=False, _node_ip_address="127.0.0.1",
+             _temp_dir=str(temporary / "ray"))
+    algorithm = audit = None
+    try:
+        algorithm = cfg.build_algo()
+        audit = TrainingAudit(algorithm, OUTPUT).install()
+        start = cursor(algorithm.env_runner)
+        audit.phase = "validation_initial"
+        initial = frozen_evaluation(algorithm)
+        # The historical first run is the equal-PPO-budget reference, not its
+        # second stage, which had another 1,536 PPO and 1,488 MC training periods.
+        reference_path = ROOT / "outputs/ausgrid-continuous-pilot/20261019/stage-1/report.json"
+        reference = json.loads(reference_path.read_text(encoding="utf-8"))
+        assert initial == reference["initial"], "Initial policies/evaluation differ from the baseline"
+        assert start == reference["start"]
+        rounds = []
+        for index in range(3):
+            audit.phase = f"round_{index + 1}"
+            before = cursor(algorithm.env_runner)
+            result = algorithm.train()
+            row = {
+                "round": algorithm.last_round,
+                "learners": result.get("learners", {}),
+                "start": before,
+                "end": cursor(algorithm.env_runner),
+            }
+            assert row["end"]["main_periods"] - before["main_periods"] == 256
+            rounds.append(row)
+            write_json(OUTPUT / f"round-{index + 1:04d}.json", row)
+            print(json.dumps({"round": index + 1, "selected": algorithm.last_round["selected_candidate"],
+                              "cursor": row["end"]}), flush=True)
+        assert algorithm.sampled_periods == 1536
+        assert cursor(algorithm.env_runner)["main_periods"] == 768
+        assert len(audit.updates) == 48  # 24 batches, one critic and one actor phase each.
+        for key in algorithm.config.agent_order:
+            steps = [row for row in audit.optimizer_steps if row["agent"] == key and row["role"] == "value"]
+            assert len(steps) == 192
+        assert not any("critic_collect" in key for key in audit.coverage)
+        audit.phase = "validation_final"
+        final = frozen_evaluation(algorithm)
+        audit.phase = "checkpoint_replay"
+        saved = copy.deepcopy(algorithm.get_state())
+        checkpoint = algorithm.save_to_path(str(OUTPUT / "checkpoint"))
+        expected = algorithm.env_runner.collect(8)
+        algorithm.restore_from_path(checkpoint)
+        actual = algorithm.env_runner.collect(8)
+        for key, rows in expected.policy_batches.items():
+            for name, values in rows.items():
+                np.testing.assert_array_equal(values, actual[key][name])
+        algorithm.set_state(saved)
+        algorithm.export_actors(OUTPUT / "actors")
+        assert source_hashes("environments/sn_energy_market/src") == environment_before
+        report = {
+            "status": "completed",
+            "initial": initial,
+            "final": final,
+            "start": start,
+            "end": cursor(algorithm.env_runner),
+            "rounds": rounds,
+            "ppo_sampled_periods": 1536,
+            "main_advanced_periods": 768,
+            "critic_auxiliary_periods": 0,
+            "critic_optimizer_steps_executed_per_module": 192,
+            "initial_matches_historical_stage_1": True,
+            "reference_report": str(reference_path.relative_to(ROOT)),
+            "checkpoint_exact_replay": True,
+            "retained_optimizer_steps": [
+                item.get() for item in algorithm.learner_group.foreach_learner(retained_optimizer_steps)
+            ],
+            "test_loaded": False,
+            "test_evaluated": False,
+            "environment_source_unchanged": True,
+            "environment_source_sha256": environment_before,
+            "learning_contract": cfg.learning_contract(),
+            "diagnostics": audit.report(),
+            "source_sha256": {
+                **source_hashes("RLAlgo/src/raymarl/algorithms/stackelberg"),
+                **source_hashes("experiments/sn_energy_market"),
+            },
+        }
+        write_json(OUTPUT / "report.json", report)
+        write_json(OUTPUT / "optimizer_steps.json", audit.optimizer_steps)
+        print(json.dumps({"status": "completed", "report": str(OUTPUT / "report.json")}), flush=True)
+    except Exception as exc:
+        write_json(OUTPUT / "failure.json", {"error": repr(exc), "diagnostics": audit.report() if audit else None})
+        raise
+    finally:
+        if audit is not None:
+            audit.close()
+        if algorithm is not None:
+            algorithm.stop()
+        ray.shutdown()
+
+
+if __name__ == "__main__":
+    main()

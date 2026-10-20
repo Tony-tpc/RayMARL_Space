@@ -35,6 +35,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.clip_param, self.vf_loss_coeff, self.entropy_coeff = 0.2, 0.5, 0.0
         self.grad_clip = 0.5
         self.rollout_length, self.num_epochs, self.minibatch_size = 128, 4, 64
+        self.critic_epochs = 4
         self.inner_updates, self.response_updates = 5, 5
         self.uc_candidates, self.uc_updates_per_candidate, self.deviation_updates = 2, 1, 2
         self.acceptance_z, self.min_uc_gain = 1.96, 0.0
@@ -67,6 +68,7 @@ class StackelbergConfig(AlgorithmConfig):
         fields = (
             "actor_lr",
             "critic_lr",
+            "critic_epochs",
             "lambda_gae",
             "clip_param",
             "vf_loss_coeff",
@@ -145,6 +147,7 @@ class StackelbergConfig(AlgorithmConfig):
             "normalize_advantages",
             "rollout_length",
             "num_epochs",
+            "critic_epochs",
             "minibatch_size",
             "inner_updates",
             "response_updates",
@@ -170,6 +173,7 @@ class StackelbergConfig(AlgorithmConfig):
             consumer_probability="conditional_beta_physical_density",
             evaluation_return="sampled_discounted_window",
             sampling_protocol="continuous_main_common_response_snapshot_selected_branch_v1",
+            update_protocol="all_critics_then_selected_actors_common_consumer_state_v1",
         )
         return json.loads(json.dumps(contract, sort_keys=True))
 
@@ -191,6 +195,7 @@ class StackelbergConfig(AlgorithmConfig):
         positive = (
             "rollout_length",
             "num_epochs",
+            "critic_epochs",
             "minibatch_size",
             "inner_updates",
             "response_updates",
