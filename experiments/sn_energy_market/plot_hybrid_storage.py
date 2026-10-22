@@ -138,7 +138,7 @@ def save(fig, directory, name, title, figures):
 
 
 def main(output):
-    output = Path(output)
+    output = Path(output).resolve()
     target = output / "comparison"
     target.mkdir(exist_ok=True)
     figures = []
@@ -147,7 +147,8 @@ def main(output):
     assert report["ppo_sampled_periods"] == protocol["ppo_periods"]
     assert report["main_advanced_periods"] == protocol["main_periods"]
     assert report["logged_batches"] == protocol["batches"] and report["checkpoint_exact_replay"]
-    assert report["critic_optimizer_steps_executed_per_module"] == protocol["critic_steps_per_module"]
+    assert report.get("critic_optimizer_steps_effective_per_module",
+                      report["critic_optimizer_steps_executed_per_module"]) == protocol["critic_steps_per_module"]
     contract = report["learning_contract"]
     system = protocol["physical_config"]["system"]
     inventory = protocol["physical_config"]["rewards"]["terminal_energy_value_per_kwh"]
@@ -223,11 +224,12 @@ def main(output):
     for axis, key, label in zip(axes, ("critic_loss", "critic_rmse", "policy_loss"), ("Critic loss", "Critic RMSE / AUD", "UC Actor PPO loss")):
         for stage, style in (("before", "--"), ("after", "-")):
             y = [r["modules"]["uc"][f"{key}_{stage}"] for r in batches]
-            axis.plot(range(1, len(batches) + 1), [np.nan if x is None else x for x in y], style, label=stage)
+            axis.plot(range(1, len(batches) + 1), [np.nan if x is None else x for x in y],
+                      style, marker=".", markersize=4, label=stage)
         axis.set_ylabel(label)
         axis.legend()
-    axes[-1].set_xlabel("实际采样批编号，保留全部候选分支；冻结 Actor 留空")
-    save(fig, target, "03-ppo-loss", f"{len(batches)} 批实际更新：批间策略与目标变化，loss 不代表整体收敛", figures)
+    axes[-1].set_xlabel("有效路径采样批编号，保留全部候选分支；冻结 Actor 留空")
+    save(fig, target, "03-ppo-loss", f"{len(batches)} 批有效路径更新：批间策略与目标变化，loss 不代表整体收敛", figures)
 
     for seed in SEEDS:
         month = data["old72"][seed][0]["timestamp"][:7]
@@ -337,7 +339,7 @@ def main(output):
     charged_months = sum(r["charge_kwh"] > 1e-3 for r in monthly if r["policy"] == "new10")
     verdict = ("新版在四个验证月的月初、中旬和月末均发生充电，持续不充电的现象已被打破。"
                if continued and charged_months == 4 else "新版仍存在充电不足：需要结合各月与月内分段曲线定位。")
-    summary = {"status": "completed", "protocol": protocol, "summary": summaries,
+    summary = {"status": "completed", "protocol": protocol, "recovery": report.get("recovery"), "summary": summaries,
                "deterministic_new10": mean_summary, "continued_charging_all_segments": continued,
                "matched_case_days": case_days, "verdict": verdict,
                "checks": {"budget": True, "checkpoint_replay": True, "matched_calendar": True,
@@ -364,6 +366,10 @@ def main(output):
         lost = sum(r["metrics"]["native_lost_kwh"] for r in episodes)
         cash = sum(r["metrics"]["uc_cash"] for r in episodes) / 123
         historical.append(f"<tr><td>{n}</td><td>{cash:.5f}</td><td>{lost:.5f}</td></tr>")
+    recovery_note = ("<p><b>故障开销单列：</b>第 7 轮 checkpoint 恢复后补齐第 8–10 轮。曲线仅包含有效 10 轮路径；"
+                     "实际训练采样 15,968 时段，完成学习 15,744 时段，每个 Critic 实际优化 1,968 次。"
+                     "故障丢弃的 384 步学习批及 224 步未完成采样保存在 recovery/from-round-0007。</p>"
+                     if report.get("recovery") else "")
     report_html = f"""<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>储能三模式：10 轮实测对比</title>
 <style>body{{max-width:1320px;margin:36px auto;padding:0 24px;font:17px/1.8 'Microsoft YaHei',sans-serif;color:#16324a}}h1,h2{{line-height:1.35}}table{{border-collapse:collapse;width:100%;font-size:15px}}td,th{{padding:8px 12px;border:1px solid #dce4ec;text-align:right}}td:first-child,th:first-child{{text-align:left}}th{{background:#eaf4f6}}figure{{margin:40px 0}}img{{width:100%;height:auto}}a{{color:#087f8c}}.lead{{padding:20px;background:#edf7f7;border-left:5px solid #087f8c}}</style>
 <h1>储能三模式：10 轮实测与旧年度实验对比</h1>
@@ -375,7 +381,8 @@ def main(output):
 <p><b>来源控制：</b>DER 和电网功率分别记录，充电模式中各自由对应控制量决定，仍共同受电池充电上限约束。充电曲线与弃电指标可检查 DER 是否进入储能，以及电网充电是否增加采购成本。</p>
 <p><b>空电放电：</b>第 10 轮完整验证中，禁用放电时仍选择放电为 {new['empty_discharge_modes']} 次，禁用充电时仍选择充电为 {new['blocked_charge_modes']} 次。这里按决策时可用动作掩码检查；接近空电定义为储能量低于可用容量的 1%，两个统计各有用途。</p>
 <p><b>初始电量偏差：</b>每个验证月从 {system['ess_initial_energy_kwh']:.4f} kWh 开始，完整跑至月末。新版库存总变化 {new['inventory_change_kwh']:.4f} kWh，对回报的终端调整为 {new['terminal_inventory_adjustment']:.4f} AUD。按早、中、晚段计算充电，检验是否持续补能。</p>
-<h2>3. 比较范围与预算</h2><p>本次 seed 42，10 轮、{protocol['batches']} 批、{protocol['ppo_periods']:,} 个 PPO 分支时段，主轨迹 {protocol['main_periods']:,} 时段，每个 Critic 实际执行 {protocol['critic_steps_per_module']:,} 次优化。沿用原 16 户、训练年、资源标定与四个验证月。每批 {protocol.get('phase_batch_periods', contract['rollout_length'])} 步，Actor GAE λ={contract['lambda_gae']}；与旧年度实验的每轮预算是否相同：{protocol['same_data_and_per_round_budget']}。主轨迹从训练年开头推进约 {len(retained) / 48:.1f} 天，测试集未加载。</p>
+<h2>3. 比较范围与预算</h2><p>本次有效路径为 seed 42，10 轮、{protocol['batches']} 批、{protocol['ppo_periods']:,} 个 PPO 分支时段，主轨迹 {protocol['main_periods']:,} 时段，每个 Critic 对应 {protocol['critic_steps_per_module']:,} 次优化。沿用原 16 户、训练年、资源标定与四个验证月。每批 {protocol.get('phase_batch_periods', contract['rollout_length'])} 步，Actor GAE λ={contract['lambda_gae']}；与旧年度实验的每轮预算是否相同：{protocol['same_data_and_per_round_budget']}。主轨迹从训练年开头推进约 {len(retained) / 48:.1f} 天，测试集未加载。</p>
+{recovery_note}
 <p>当前三模式动作、完整月候选评价、gamma={contract['gamma']}、终端库存估值和 Critic LayerNorm，与旧年度实验存在协议差异。旧第 72 轮作为历史终态参照。旧实验保存的完整月验证节点列于下表；第 10 轮没有旧版完整月结果，因此不作相同轮数的效果归因。验证月参与候选选择，这些是验证集成绩。</p>
 <table><tr><th>旧版轮次</th><th>现金 / AUD·日⁻¹</th><th>原生失供 / kWh</th></tr>{''.join(historical)}</table>
 <p>现金为账本 cash_profit，经营收益为 book_profit，训练回报还含服务考核等项。统一库存调整回报将旧策略原始逐期奖励不折扣求和，再加 {inventory:.4f}×(期末库存−期初库存)；新版使用原始完整月回报。收益图将这三种口径分别展示。供电率的分母为各自策略的原生请求量。</p>

@@ -95,7 +95,8 @@ def round_budget(cfg):
     }
 
 
-def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoint_each_round=False):
+def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoint_each_round=False,
+              recovery=None):
     import ray
     import torch
 
@@ -108,7 +109,10 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
     assert full_reference["critic"]["modules"] == reference["final"]["critic"]["modules"]
     # Historical reports retain their original action/reward/evaluation contracts.
     # They supply descriptive reference results, not an identical-objective control.
-    output.mkdir(parents=True, exist_ok=False)
+    if recovery is None:
+        output.mkdir(parents=True, exist_ok=False)
+    else:
+        recovery.verify(cfg, outer_rounds)
     torch.set_num_threads(1)
     temporary = ROOT / ".tmp" / output.parent.name
     temporary.mkdir(parents=True, exist_ok=True)
@@ -124,7 +128,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
         **source_hashes("RLAlgo/src/raymarl/algorithms/stackelberg"),
         **source_hashes("experiments/sn_energy_market"),
     }
-    write_json(output / "experiment.json", {
+    write_json((output if recovery is None else recovery.folder) / "experiment.json", {
         "source_sha256": execution_sources,
         "learning_contract": cfg.learning_contract(),
         "initialization": "fresh_seed_42_hybrid_storage_full_episode_inventory_objective",
@@ -145,21 +149,26 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
     algorithm = audit = None
     try:
         algorithm = cfg.build_algo()
+        if recovery is not None:
+            recovery.restore(algorithm)
         audit = TrainingAudit(algorithm, output).install()
         if observer is not None:
             observer.on_ready(algorithm, audit)
-        start = cursor(algorithm.env_runner)
-        audit.phase = "validation_initial"
-        if observer is not None:
-            observer.before_evaluation(0)
-        initial = frozen_evaluation(algorithm)
-        write_json(output / "validation-0000.json", initial)
-        if observer is not None:
-            observer.after_evaluation(0, initial)
-        evaluations = {"0": initial}
-        rounds = []
+        if recovery is None:
+            start = cursor(algorithm.env_runner)
+            audit.phase = "validation_initial"
+            if observer is not None:
+                observer.before_evaluation(0)
+            initial = frozen_evaluation(algorithm)
+            write_json(output / "validation-0000.json", initial)
+            if observer is not None:
+                observer.after_evaluation(0, initial)
+            evaluations, rounds, first_round = {"0": initial}, [], 0
+        else:
+            evaluations, rounds = recovery.history()
+            initial, start, first_round = evaluations["0"], rounds[0]["start"], recovery.round
         started = time.monotonic()
-        for index in range(outer_rounds):
+        for index in range(first_round, outer_rounds):
             audit.phase = f"round_{index + 1}"
             before = cursor(algorithm.env_runner)
             result = algorithm.train()
@@ -197,7 +206,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
         assert algorithm.sampled_periods == budget["ppo_periods"] * outer_rounds
         main_periods = budget["main_periods"] * outer_rounds
         assert cursor(algorithm.env_runner)["main_periods"] == main_periods
-        assert len(audit.updates) == 2 * budget["batches"] * outer_rounds
+        assert len(audit.updates) == 2 * budget["batches"] * (outer_rounds - first_round)
         from experiments.sn_energy_market.plot_batch_losses import load_batches
 
         batch_log = Path(algorithm.logdir) / "batch_losses.jsonl"
@@ -210,7 +219,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
         (output / "batch_losses.jsonl").write_bytes(batch_log.read_bytes())
         for key in algorithm.config.agent_order:
             steps = [row for row in audit.optimizer_steps if row["agent"] == key and row["role"] == "value"]
-            assert len(steps) == budget["critic_steps_per_module"] * outer_rounds
+            assert len(steps) == budget["critic_steps_per_module"] * (outer_rounds - first_round)
         final = evaluations[str(outer_rounds)]
         audit.phase = "checkpoint_replay"
         saved = copy.deepcopy(algorithm.get_state())
@@ -259,6 +268,8 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
             "diagnostics": audit.report(),
             "source_sha256": execution_sources,
         }
+        if recovery is not None:
+            recovery.finish(report, audit)
         write_json(output / "report.json", report)
         write_json(output / "optimizer_steps.json", audit.optimizer_steps)
         if observer is not None:

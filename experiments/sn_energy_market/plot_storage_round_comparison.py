@@ -146,7 +146,8 @@ def training_loss_comparison(target, output, previous, reports, figures):
                 axis.set_ylabel(title)
                 axis.grid(alpha=.2)
         axes[0].legend(fontsize=8, ncol=2)
-        axes[-1].set_xlabel("累计实际 PPO 分支采样时段；叉号为回滚更新，冻结 Actor 留空")
+        axis_scope = "有效 10 轮路径的累计 PPO 分支采样时段" if reports["current"].get("recovery") else "累计实际 PPO 分支采样时段"
+        axes[-1].set_xlabel(axis_scope + "；叉号为回滚更新，冻结 Actor 留空")
         title = "UC" if role == "uc" else "16 位 Consumer 的逐批指标均值（逐户数值见 CSV）"
         save(fig, target, filename, title + "：相同采样预算轴上的训练 loss", figures)
     return paths
@@ -154,31 +155,34 @@ def training_loss_comparison(target, output, previous, reports, figures):
 
 def main(output, previous):
     output, previous = Path(output).resolve(), Path(previous).resolve()
-    target = output / "comparison10"
-    target.mkdir(exist_ok=True)
     report, old_report = read_json(output / "report.json"), read_json(previous / "report.json")
+    rounds, old_rounds = report["outer_rounds"], old_report["outer_rounds"]
+    target = output / f"comparison{rounds}"
+    target.mkdir(exist_ok=True)
     protocol = read_json(output / "protocol.json")
     assert report["status"] == old_report["status"] == "completed"
-    assert report["outer_rounds"] == old_report["outer_rounds"] == 10
-    assert report["ppo_sampled_periods"] == 15360
-    assert report["main_advanced_periods"] == 7680 and report["logged_batches"] == protocol["batches"]
-    assert report["critic_optimizer_steps_executed_per_module"] == 1920 and report["checkpoint_exact_replay"]
+    assert rounds in (10, 72) and old_rounds == 10
+    assert report["ppo_sampled_periods"] == 1536 * rounds
+    assert report["main_advanced_periods"] == 768 * rounds and report["logged_batches"] == protocol["batches"]
+    effective_critic_steps = report.get("critic_optimizer_steps_effective_per_module",
+                                       report["critic_optimizer_steps_executed_per_module"])
+    assert effective_critic_steps == 192 * rounds and report["checkpoint_exact_replay"]
     assert not report["test_loaded"] and not report["test_evaluated"]
     system = protocol["physical_config"]["system"]
     equal_budget = report["ppo_sampled_periods"] == old_report["ppo_sampled_periods"]
     same_gamma = report["learning_contract"]["gamma"] == old_report["learning_contract"]["gamma"]
     if equal_budget:
         assert report["main_advanced_periods"] == old_report["main_advanced_periods"]
-        assert report["critic_optimizer_steps_executed_per_module"] == old_report["critic_optimizer_steps_executed_per_module"]
+        assert effective_critic_steps == old_report.get("critic_optimizer_steps_effective_per_module", old_report["critic_optimizer_steps_executed_per_module"])
         assert {k for k, v in report["learning_contract"].items()
-                if v != old_report["learning_contract"][k]} == {"update_protocol"}
-    LABELS["previous"] = f'上一版 10 轮：{old_report["ppo_sampled_periods"] // old_report["logged_batches"]} 步/批'
-    LABELS["current"] = f'新 10 轮：{report["ppo_sampled_periods"] // report["logged_batches"]} 步/批'
+                if v != old_report["learning_contract"][k]} <= {"update_protocol"}
+    LABELS["previous"] = f'上一版 {old_rounds} 轮：{old_report["ppo_sampled_periods"] // old_report["logged_batches"]} 步/批'
+    LABELS["current"] = f'新 {rounds} 轮：{report["ppo_sampled_periods"] // report["logged_batches"]} 步/批'
     inventory = protocol["physical_config"]["rewards"]["terminal_energy_value_per_kwh"]
     inputs = [output / "report.json", previous / "report.json", output / "protocol.json"]
     data, combined, summaries, daily_data, critic, consumer_critic = {}, {}, {}, {}, {}, {}
-    specs = {"initial": (output, 0, report), "previous": (previous, 10, old_report),
-             "round3": (output, 3, report), "current": (output, 10, report)}
+    specs = {"initial": (output, 0, report), "previous": (previous, old_rounds, old_report),
+             "round3": (output, 3, report), "current": (output, rounds, report)}
     for label, (directory, number, result) in specs.items():
         data[label] = {}
         for seed in SEEDS:
@@ -212,7 +216,7 @@ def main(output, previous):
             initial_error = max(initial_error, *(abs(left[k] - right[k]) for k in left if k != "timestamp"))
     assert initial_error < 1e-6, initial_error
 
-    old_fixed_path = previous / "data/fixed-state-probe-0010.npz"
+    old_fixed_path = previous / f"data/fixed-state-probe-{old_rounds:04d}.npz"
     if old_fixed_path.exists():
         inputs.append(old_fixed_path)
         with np.load(old_fixed_path) as fixed:
@@ -225,7 +229,7 @@ def main(output, previous):
         inputs.append(old_fixed_path)
         probabilities = {"previous": np.array([[r[f"final_{k}_prob"] for k in MODE_KEYS] for r in old_fixed])}
         previous_mask = None
-    for label, number in (("initial", 0), ("round3", 3), ("current", 10)):
+    for label, number in (("initial", 0), ("round3", 3), ("current", rounds)):
         path = output / f"data/fixed-state-probe-{number:04d}.npz"
         inputs.append(path)
         with np.load(path) as fixed:
@@ -247,7 +251,8 @@ def main(output, previous):
     for label, directory in (("previous", previous), ("current", output)):
         rows = []
         for seed in SEEDS:
-            path = directory / f"data/validation-0010-mean-{seed}.csv"
+            number = old_rounds if label == "previous" else rounds
+            path = directory / f"data/validation-{number:04d}-mean-{seed}.csv"
             inputs.append(path)
             part = read_csv(path)
             verify_month(part, system, new=True)
@@ -280,7 +285,7 @@ def main(output, previous):
         ax.set_ylabel(title)
     axes[0].legend(ncol=3, fontsize=9)
     axes[-1].set_xlabel("123 个验证日：7 月、10 月、1 月、4 月")
-    save(fig, target, "02-daily-storage", "初始与两次 10 轮：两路充电、放电和 SOC", figures)
+    save(fig, target, "02-daily-storage", f"初始与 {old_rounds}/{rounds} 轮：两路充电、放电和 SOC", figures)
 
     fig, axes = plt.subplots(5, 2, figsize=(14, 15), sharex=True, layout="constrained")
     for label in ("initial", "previous", "current"):
@@ -302,7 +307,7 @@ def main(output, previous):
                               ("原单位 RMSE（同 γ）" if same_gamma else "原单位 RMSE（折扣目标不同）",
                                "RMSE / 目标标准差", "解释方差 EV（越高越好）", "MC 目标标准差")):
         ax.bar(range(4), [critic[k][key] for k in specs], color=[COLORS[k] for k in specs])
-        ax.set(xticks=range(4), xticklabels=["初始", "上一版 10 轮", "新 3 轮", "新 10 轮"], title=title)
+        ax.set(xticks=range(4), xticklabels=["初始", f"上一版 {old_rounds} 轮", "新 3 轮", f"新 {rounds} 轮"], title=title)
     save(fig, target, "04-critic-errors", "Critic：同时检查误差、解释方差和目标尺度，不能只看 loss 下降", figures)
 
     fig, axes = plt.subplots(4, 2, figsize=(15, 13), layout="constrained")
@@ -330,7 +335,7 @@ def main(output, previous):
         axes[0].legend(fontsize=9)
         axes[-1].set_xlabel("月内日期；保留每个半小时时段")
         month = data["current"][seed][0]["timestamp"][:7]
-        save(fig, target, "month-" + month, f"{month} 完整月：旧与新 10 轮逐时段对比", figures)
+        save(fig, target, "month-" + month, f"{month} 完整月：{old_rounds}/{rounds} 轮逐时段对比", figures)
 
     date = "2011-07-15"
     fig, axes = plt.subplots(3, 2, figsize=(14, 10), layout="constrained")
@@ -385,29 +390,37 @@ def main(output, previous):
                "deterministic": deterministic, "differences": differences, "monthly": monthly,
                "soc_stratified_errors": soc_rows, "initial_physical_replay_max_error": initial_error,
                "figures": figures, "previous": str(previous), "current": str(output),
-               "same_rounds_different_sample_budget": not equal_budget,
-               "same_sample_and_optimizer_budget": equal_budget, "same_gamma": same_gamma,
+                "same_rounds_different_sample_budget": rounds == old_rounds and not equal_budget,
+                "outer_rounds": {"current": rounds, "previous": old_rounds},
+               "same_effective_sample_and_optimizer_budget": equal_budget,
+               "same_sample_and_optimizer_budget": equal_budget and not report.get("recovery"),
+               "recovery": report.get("recovery"), "same_gamma": same_gamma,
                "input_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
     (target / "summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     write_csv(target / "daily.csv", [{"policy": k, **row} for k, days in daily_data.items() for row in days])
     metric_names = ("DER 充电 / kWh", "电网充电 / kWh", "实际放电 / kWh", "平均储能量 / kWh", "近空电比例",
                     "现金 / AUD/日", "经营收益 / AUD/日", "原生失供 / kWh", "Consumer 合计奖励 / 元等值/日")
-    body = '<h1>新旧两次 10 轮：储能模式与经济调度对比</h1>'
+    body = f'<h1>储能模式与经济调度：{rounds} 轮对比此前 {old_rounds} 轮</h1>'
     if equal_budget:
         body += ('<p>同一 seed 42、16 户、训练年和四个验证月。上一版为 80×192 步，本次为 40×384 步，'
                  '并在 Critic 拟合后重算 GAE；γ=0.99、λ=0.97、网络、奖励及物理配置一致。'
-                 '两版均为 10 轮、15,360 个 PPO 分支时段、7,680 个主轨迹时段，每个 Critic 1,920 次实际更新。'
+                 '两版有效 10 轮轨迹均为 15,360 个 PPO 分支时段、7,680 个主轨迹时段，每个 Critic 对应 1,920 次更新。'
                  '本对照同时包含合批与优势重算两项修改，不单独归因于其中一项。测试集未加载。</p>')
     else:
-        body += ('<p>同一 seed 42、16 户、训练年和四个验证月。比较版本的折扣、批长和样本预算不同，'
+        body += ('<p>同一 seed 42、16 户、训练年和四个验证月。各版本轮次和训练预算以实际记录为准，'
                  f'PPO 时段分别为 {old_report["ppo_sampled_periods"]:,} 和 {report["ppo_sampled_periods"]:,}，'
                  '不是等预算消融。详细学习契约保存在各自 report.json。</p>')
+    if report.get("recovery"):
+        body += ('<p><b>故障恢复开销：</b>从第 7 轮完整 checkpoint 恢复，原第 8 轮的 384 步学习批和 224 步未完成采样单独归档。'
+                 '本报告曲线使用去除故障重复段的完整 10 轮路径；实际共采样 15,968 个训练时段，完成学习的时段为 15,744，'
+                 '每个 Critic 实际执行 1,968 次更新。有效路径预算相同，总计算开销多于上一版。'
+                 '恢复时网络、Adam 和随机状态逐项核对，checkpoint 采样精确重放通过。详细账本：../recovery/from-round-0007/ledger.json。</p>')
     body += (f'<p><b>最终检查：</b>随机执行充电覆盖 {summaries["current"]["charging_days"]} / 123 天；'
              f'确定性执行闲置占比 {deterministic["current"]["mode_fraction"]["0"]*100:.4f}%，'
              f'实际充电 {deterministic["current"]["charge_kwh"]:.6f} kWh、放电 {deterministic["current"]["ess_discharge_kwh"]:.6f} kWh。'
              f'UC Critic RMSE 为 {critic["current"]["rmse"]:.4f}，解释方差为 {critic["current"]["explained_variance"]:.6f}。'
              '两种执行方式必须分别评价；持续随机充电并不能证明策略已学会按状态调度。</p>')
-    body += table(["指标", "共同初始", "旧 10 轮", "新 3 轮", "新 10 轮", "相对旧版变化"],
+    body += table(["指标", "共同初始", f"旧 {old_rounds} 轮", "新 3 轮", f"新 {rounds} 轮", "相对旧版变化"],
                   [[name, *(f'{summaries[label][key]:.6f}' for label in ("initial", "previous", "round3", "current")),
                     f'{differences["previous"][key]["difference"]:+.6f}'] for name, key in zip(metric_names, metrics)])
     body += '<p>近空电定义为可用容量最低 1%；所有电量与账本收益按完整月份未折扣累计。各策略原生请求可能变化，失供同时结合原生请求量和供电率判断。共同 γ=0.99 的策略回报另存 summary.json，只用于统一目标比较，不替换任一版本的训练折扣。</p>'
@@ -444,9 +457,11 @@ def main(output, previous):
     for name, title in figures:
         body += f'<figure><h3>{html.escape(title)}</h3><img src="{name}.png"><figcaption><a href="{name}.svg">SVG</a></figcaption></figure>'
     body += '<p>固定日图的 SOC 在实际半小时时点绘制（含 00:00 初值和 24:00 终值）；功率为对应半小时区间值。完整月图的储能量记录为各时段结束值。</p>'
-    body += '<p><a href="../comparison/report.html">补充：旧 72 轮历史参照、逐批 loss 和训练主轨迹</a> · <a href="summary.json">全部指标与源文件哈希</a> · <a href="daily.csv">逐日数据</a> · <a href="training-losses.csv">逐户训练 loss</a></p>'
+    if (output / "comparison/report.html").exists():
+        body += '<p><a href="../comparison/report.html">旧 72 轮历史补充</a></p>'
+    body += '<p><a href="summary.json">全部指标与源文件哈希</a> · <a href="daily.csv">逐日数据</a> · <a href="training-losses.csv">逐户训练 loss</a></p>'
     css = 'body{max-width:1380px;margin:32px auto;padding:0 24px;color:#183348;font:17px/1.8 "Microsoft YaHei",sans-serif}table{border-collapse:collapse;width:100%;font-size:14px}td,th{border:1px solid #d2dce5;padding:9px;text-align:right}td:first-child,th:first-child{text-align:left}th{background:#edf4f6}img{width:100%}figure{margin:36px 0}a{color:#087f8c}'
-    (target / "report.html").write_text(f'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>新旧 10 轮储能对比</title><style>{css}</style>{body}</html>', encoding="utf-8")
+    (target / "report.html").write_text(f'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>{rounds} 轮储能对比</title><style>{css}</style>{body}</html>', encoding="utf-8")
     print(json.dumps({"report": str(target / "report.html"), "figures": len(figures)}), flush=True)
 
 

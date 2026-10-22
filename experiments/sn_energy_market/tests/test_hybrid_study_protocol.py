@@ -7,6 +7,42 @@ import pytest
 from experiments.sn_energy_market.batch_critic_pilot import round_budget
 
 
+@pytest.mark.parametrize("locked_attempts", [2, 3])
+def test_status_reader_lock_does_not_abort_and_next_update_recovers(tmp_path, monkeypatch, locked_attempts):
+    import json
+    from pathlib import Path
+
+    from experiments.sn_energy_market.hybrid_storage_study import StudyObserver
+
+    observer = StudyObserver(tmp_path, {})
+    observer.update_status(phase="round_7")
+    replace = Path.replace
+    attempts = 0
+
+    def locked_replace(source, target):
+        nonlocal attempts
+        attempts += 1
+        if attempts <= locked_attempts:
+            raise PermissionError("status.json is open without delete sharing")
+        return replace(source, target)
+
+    monkeypatch.setattr(Path, "replace", locked_replace)
+    observer.update_status(phase="round_8", collected_batches=30)
+    assert attempts == 3
+    published = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
+    assert published["phase"] == ("round_7" if locked_attempts == 3 else "round_8")
+    if locked_attempts == 3:
+        pending = json.loads((tmp_path / "status.next.json").read_text(encoding="utf-8"))
+        assert pending["collected_batches"] == 30
+        assert observer.last_status_time > 0
+    observer.update_status(completed_rounds=8)
+    published = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
+    assert published["phase"] == "round_8"
+    assert published["collected_batches"] == 30
+    assert published["completed_rounds"] == 8
+    assert not (tmp_path / "status.next.json").exists()
+
+
 def test_longer_batches_scale_sample_and_optimizer_budget():
     cfg = SimpleNamespace(
         inner_updates=2, uc_candidates=1, uc_updates_per_candidate=2,
@@ -21,9 +57,26 @@ def test_longer_batches_scale_sample_and_optimizer_budget():
     assert {key: value * 10 for key, value in new.items()} == {
         "batches": 40, "ppo_periods": 15360, "main_periods": 7680, "critic_steps_per_module": 1920,
     }
+    assert {key: value * 72 for key, value in new.items()} == {
+        "batches": 288, "ppo_periods": 110592, "main_periods": 55296, "critic_steps_per_module": 13824,
+    }
     cfg.deviation_updates = 1
     with pytest.raises(ValueError, match="deviation_updates=0"):
         round_budget(cfg)
+
+
+def test_long_study_keeps_learning_contract_and_scales_only_round_budget(tmp_path):
+    from experiments.sn_energy_market.hybrid_storage_study import ROOT, check_protocol
+
+    previous = ROOT / "outputs/ausgrid-hybrid-storage/20261022-phase-batch-10rounds"
+    protocol = check_protocol(tmp_path, outer_rounds=72, previous=previous)
+    assert protocol["changes_from_previous_ten_rounds"] == []
+    assert protocol["outer_rounds"] == 72
+    assert protocol["validation_rounds"] == [0, 3, 12, 24, 48, 72]
+    assert protocol["ppo_periods"] == 110592
+    assert protocol["main_periods"] == 55296
+    assert protocol["critic_steps_per_module"] == 13824
+    assert not protocol["comparison_equal_sample_and_optimizer_budget"]
 
 
 @pytest.mark.parametrize("units", [1, 2])

@@ -38,7 +38,7 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def check_protocol(output):
+def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
     """Check the equal-budget comparison with the completed 192-step study."""
     old = json.loads((OLD / "report.json").read_text(encoding="utf-8"))["learning_contract"]
     cfg = configuration(output)
@@ -61,23 +61,24 @@ def check_protocol(output):
     assert new["gamma"] == 0.99 and new["evaluation_steps"] is None
     assert new["lambda_gae"] == 0.97 and new["rollout_length"] == 192
     assert new_config["rewards"]["terminal_energy_value_per_kwh"] > 0
-    previous = json.loads((PREVIOUS / "report.json").read_text(encoding="utf-8"))["learning_contract"]
-    changed = {key for key in new if new[key] != previous[key]}
-    assert changed == {"update_protocol"}, changed
-    prior_report = json.loads((PREVIOUS / "report.json").read_text(encoding="utf-8"))
+    prior_report = json.loads((previous / "report.json").read_text(encoding="utf-8"))
+    prior_contract = prior_report["learning_contract"]
+    changed = {key for key in new if new[key] != prior_contract[key]}
+    assert changed <= {"update_protocol"}, changed
     current_budget = round_budget(cfg)
     for name, key in (("ppo_periods", "ppo_sampled_periods"), ("main_periods", "main_advanced_periods"),
                       ("critic_steps_per_module", "critic_optimizer_steps_executed_per_module")):
-        assert current_budget[name] * ROUNDS == prior_report[key]
+        prior_total = prior_report.get("critic_optimizer_steps_effective_per_module", prior_report[key]) if name == "critic_steps_per_module" else prior_report[key]
+        assert current_budget[name] * prior_report["outer_rounds"] == prior_total
     return {
-        "outer_rounds": ROUNDS,
-        **{key: value * ROUNDS for key, value in round_budget(cfg).items()},
-        "seed": 42, "validation_rounds": [0, 3, ROUNDS], "test_loaded": False,
+        "outer_rounds": outer_rounds,
+        **{key: value * outer_rounds for key, value in round_budget(cfg).items()},
+        "seed": 42, "validation_rounds": sorted({0, *(n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds)}), "test_loaded": False,
         "same_data_and_per_round_budget": False,
         "same_data_and_calibration": True,
-        "previous_ten_rounds": str(PREVIOUS),
-        "comparison_equal_sample_and_optimizer_budget": True,
-        "same_sample_and_optimizer_budget_as": str(PREVIOUS),
+        "previous_ten_rounds": str(previous),
+        "comparison_equal_sample_and_optimizer_budget": outer_rounds == prior_report["outer_rounds"],
+        "same_sample_and_optimizer_budget_as": str(previous) if outer_rounds == prior_report["outer_rounds"] else None,
         "fixed_state_probe_source": str(FIXED_STATES),
         "fixed_state_probe_sha256": hashlib.sha256(FIXED_STATES.read_bytes()).hexdigest(),
         "phase_batch_periods": cfg.rollout_length * cfg.inner_updates,
@@ -168,15 +169,16 @@ def physical_row(env, before, samples, result):
 class StudyObserver:
     """Append-only evidence; never samples an action or changes learner/RNG state."""
 
-    def __init__(self, output, protocol):
+    def __init__(self, output, protocol, *, recovery=None):
         self.output, self.protocol = output, protocol
+        self.recovery = recovery
         self.stack, self.files = ExitStack(), {}
         self.algorithm = self.audit = None
         self.validation_round = None
         self.batch_id, self.active_batch = 0, None
         self.last_status_time = 0
         self.status = {"status": "starting", "phase": "setup", "pid": os.getpid(),
-                       "started_at": utc_now(), "completed_rounds": 0, "target_rounds": ROUNDS,
+                       "started_at": utc_now(), "completed_rounds": 0, "target_rounds": protocol.get("outer_rounds", ROUNDS),
                        "output": str(output)}
 
     def update_status(self, **fields):
@@ -184,15 +186,32 @@ class StudyObserver:
         self.status["updated_at"] = utc_now()
         temporary = self.output / "status.next.json"
         temporary.write_text(json.dumps(self.status, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(self.output / "status.json")
+        # Windows readers can briefly deny replacement without FILE_SHARE_DELETE.
+        # Progress reporting must not interrupt an in-flight learning batch.
+        for attempt in range(3):
+            try:
+                temporary.replace(self.output / "status.json")
+                break
+            except PermissionError:
+                if attempt < 2:
+                    time.sleep(0.05)
+                else:
+                    print(json.dumps({"status_write_deferred": str(self.output / "status.json"),
+                                      "phase": self.status["phase"]}), flush=True)
+                    # Keep status.next.json; the next progress update retries.
         self.last_status_time = time.monotonic()
 
     def append(self, name, row):
         if name not in self.files:
             path = self.output / "data" / name
-            stream = path.open("x", encoding="utf-8-sig", newline="")
+            continuing = self.recovery is not None and name == "training-all-branches.csv"
+            if continuing:
+                with path.open(encoding="utf-8-sig", newline="") as old:
+                    assert next(csv.reader(old)) == list(row), "Recovery CSV schema differs"
+            stream = path.open("a" if continuing else "x", encoding="utf-8-sig", newline="")
             writer = csv.DictWriter(stream, fieldnames=list(row))
-            writer.writeheader()
+            if not continuing:
+                writer.writeheader()
             self.files[name] = (stream, writer)
         stream, writer = self.files[name]
         writer.writerow(row)
@@ -201,19 +220,27 @@ class StudyObserver:
 
     def on_ready(self, algorithm, audit):
         self.algorithm, self.audit = algorithm, audit
-        (self.output / "data").mkdir()
-        write_json(self.output / "protocol.json", self.protocol)
+        (self.output / "data").mkdir(exist_ok=self.recovery is not None)
+        source_root = self.output if self.recovery is None else self.recovery.folder
+        write_json(source_root / "protocol.json", self.protocol)
         # Preserve the actual dirty-worktree source used by this run.
-        sources = json.loads((self.output / "experiment.json").read_text(encoding="utf-8"))["source_sha256"]
+        sources = json.loads((source_root / "experiment.json").read_text(encoding="utf-8"))["source_sha256"]
         from experiments.sn_energy_market.evaluation import source_hashes
         sources.update(source_hashes("environments/sn_energy_market/src"))
         for relative, digest in sources.items():
             raw = (ROOT / relative).read_bytes()
             assert hashlib.sha256(raw).hexdigest() == digest
-            target = self.output / "sources" / relative
+            target = source_root / "sources" / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(raw)
-        write_json(self.output / "source_manifest.json", sources)
+        write_json(source_root / "source_manifest.json", sources)
+        if self.recovery is not None:
+            self.batch_id = self.recovery.batches
+            self.status.update(completed_rounds=self.recovery.round, last_validated_round=3,
+                               main_periods=algorithm.env_runner.trajectory_periods,
+                               ppo_sampled_periods=algorithm.sampled_periods,
+                               collected_batches=self.batch_id, resumed_from_round=self.recovery.round,
+                               recovery_ledger=str(self.recovery.folder / "ledger.json"))
         runner = algorithm.env_runner
         original_period, original_collect = runner._period, runner.collect
 
@@ -300,15 +327,17 @@ class StudyObserver:
     def on_completed(self, report):
         self.close()
         self.update_status(status="postprocessing", phase="plots", checkpoint_exact_replay=report["checkpoint_exact_replay"])
-        subprocess.run([str(ROOT / ".venv-plots/Scripts/python.exe"),
-                        str(ROOT / "experiments/sn_energy_market/plot_hybrid_storage.py"),
-                        str(self.output)], cwd=ROOT, check=True)
+        if report["outer_rounds"] == 10:
+            subprocess.run([str(ROOT / ".venv-plots/Scripts/python.exe"),
+                            str(ROOT / "experiments/sn_energy_market/plot_hybrid_storage.py"),
+                            str(self.output)], cwd=ROOT, check=True)
         subprocess.run([str(ROOT / ".venv-plots/Scripts/python.exe"),
                         str(ROOT / "experiments/sn_energy_market/plot_storage_round_comparison.py"),
-                        str(self.output), str(PREVIOUS)], cwd=ROOT, check=True)
+                        str(self.output), self.protocol["previous_ten_rounds"]], cwd=ROOT, check=True)
+        comparison = self.output / f"comparison{report['outer_rounds']}"
         self.update_status(status="completed", phase="completed", completed_at=utc_now(),
-                           report=str(self.output / "comparison10/report.html"),
-                           summary=str(self.output / "comparison10/summary.json"))
+                           report=str(comparison / "report.html"),
+                           summary=str(comparison / "summary.json"))
 
     def on_failure(self, exc):
         self.update_status(status="failed", error=repr(exc), failed_at=utc_now())
@@ -325,9 +354,25 @@ class StudyObserver:
 
 
 def main():
-    protocol = check_protocol(OUTPUT)
-    observer = StudyObserver(OUTPUT, protocol)
-    run_pilot(OUTPUT, REFERENCE, outer_rounds=ROUNDS, observer=observer, checkpoint_each_round=True)
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--resume-checkpoint", type=Path)
+    parser.add_argument("--outer-rounds", type=int, choices=(10, 72), default=ROUNDS)
+    parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--previous", type=Path, default=PREVIOUS)
+    args = parser.parse_args()
+    output, previous = args.output.resolve(), args.previous.resolve()
+    protocol = check_protocol(output, outer_rounds=args.outer_rounds, previous=previous)
+    recovery = None
+    if args.resume_checkpoint:
+        from experiments.sn_energy_market.study_recovery import StudyRecovery
+
+        assert args.outer_rounds == 10, "Existing recovery is only for the authorized round-7 to round-10 run"
+        recovery = StudyRecovery(output, args.resume_checkpoint)
+    observer = StudyObserver(output, protocol, recovery=recovery)
+    run_pilot(output, REFERENCE, outer_rounds=args.outer_rounds, observer=observer, checkpoint_each_round=True,
+              recovery=recovery)
 
 
 if __name__ == "__main__":
