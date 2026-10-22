@@ -176,7 +176,7 @@ class StackelbergConfig(AlgorithmConfig):
             consumer_probability="conditional_beta_physical_density",
             evaluation_return="complete_finite_episode_with_terminal_inventory",
             sampling_protocol="continuous_main_common_response_snapshot_selected_branch_v1",
-            update_protocol="all_critics_then_selected_actors_common_consumer_state_v1",
+            update_protocol="phase_batch_fixed_targets_refreshed_gae_common_consumer_state_v2",
             value_architecture="layernorm_tanh",
         )
         return json.loads(json.dumps(contract, sort_keys=True))

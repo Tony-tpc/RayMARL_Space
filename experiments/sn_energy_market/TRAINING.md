@@ -71,7 +71,7 @@ Value 使用固定输出单位：UC 为 20、Consumer 为 10。网络输出乘�
 
 Critic 的两层隐藏网络使用 `Linear → LayerNorm → Tanh`，UC Actor 改为三模式条件头。LayerNorm 按单个状态的隐藏维归一化，无跨批运行统计；已完全移除 UC 时间特征支路。逐批诊断保留预测／目标／实际多步奖励／bootstrap 分布、Tanh 饱和比例、裁剪前梯度范数及环境指标。
 
-正常训练每批先更新全部 Value，再更新当前阶段选中的 Actor。`--critic-epochs` 独立控制 Value 轮数，普通训练默认为 4，`--smoke` 默认为 1；`--epochs` 控制 Actor 轮数。Actor 使用 `lambda_gae=0.97`，训练与全部评价共用 `gamma=0.99`；独立的 `--critic-lambda` 默认为 1.0，Critic 使用本批实际多步回报，批末以采样时的旧 Value bootstrap，真实终止尾值为零。两套目标和行为概率在采样后固定，Actor 阶段仅对优势做既有的归一化。Critic 的改善用于后续批次的 GAE 和 bootstrap。
+正常训练每批先更新全部 Value，再更新当前阶段选中的 Actor。`--critic-epochs` 独立控制 Value 轮数，普通训练默认为 4，`--smoke` 默认为 1；`--epochs` 控制 Actor 轮数。Actor 使用 `lambda_gae=0.97`，训练与全部评价共用 `gamma=0.99`；独立的 `--critic-lambda` 默认为 1.0，Critic 使用本批实际多步回报，批末以采样时的旧 Value bootstrap，真实终止尾值为零。Critic 目标及行为概率在采样后固定；Critic 拟合后，在保存的当前与下一决策输入上重算 GAE，对整个学习批归一化一次，随后在 Actor epoch 间固定。消费者下一价值输入保留原 UC 公告，重算不重新抽取公告，也不改变 RNG、采样位置或价值回归目标。
 
 `critic_lambda` 写入学习契约，避免恢复时静默改变目标定义。每批全量固定目标的更新前后 loss、原单位 RMSE、实际参与更新的 Actor loss，以及候选回滚结果，实时写入运行目录下 `batch_losses.jsonl`。逐批绘图与字段定义见[目标分离与逐批日志](BATCH_CRITIC_TARGETS.md)。
 
@@ -107,7 +107,7 @@ UC 到消费者之间没有物理折扣；连续两个同类决策之间使用�
 
 验证与偏离搜索均在退出时恢复主轨迹；冻结评价还核对全部 Learner 和 Adam 状态。算法保留当前学习契约核对，源码或数据协议变化后不自动迁移旧 checkpoint。
 
-当前固定小规模入口为 `batch_critic_pilot.py`，从 seed 42 的混合策略初值配置 3 轮：4,608 个全部分支 PPO 时段、2,304 个主轨迹时段、零额外 MC 训练采样。每批 192 步（Ausgrid 96 小时），Actor 2 epoch、全部 Critic 4 epoch、minibatch 32；每个 Critic 每批执行 24 次、3 轮共 576 次优化，参与阶段的 Actor 每批执行 12 次，分支回滚后保留的步数另计。候选评分和冻结表现均运行四个完整验证月，测试集继续保留；新结果目录为 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-pilot/`。旧 LayerNorm 和三轮基线报告分别见[历史报告](LAYERNORM_PILOT.md)与[原报告](BATCH_CRITIC_PILOT.md)，其动作、折扣和窗口协议不同。新入口不再要求与旧 Actor 初值、旧评分完全相同。
+当前固定小规模入口为 `batch_critic_pilot.py`，从 seed 42 的混合策略初值配置 3 轮：4,608 个全部分支 PPO 时段、2,304 个主轨迹时段、零额外 MC 训练采样。同阶段两个 192 步单位连续采样后合成 384 步学习批，三轮共 12 批；Actor 2 epoch、全部 Critic 4 epoch、minibatch 32。每个 Critic 每批执行 48 次、3 轮共 576 次优化，参与阶段的 Actor 每批执行 24 次，分支回滚后保留的步数另计。候选评分和冻结表现均运行四个完整验证月，测试集继续保留；新结果目录为 `outputs/ausgrid-hybrid-storage/20261022-phase-batch-pilot/`。旧 LayerNorm 和三轮基线报告分别见[历史报告](LAYERNORM_PILOT.md)与[原报告](BATCH_CRITIC_PILOT.md)，其动作、折扣和窗口协议不同。新入口不再要求与旧 Actor 初值、旧评分完全相同。
 
 已完成的中长期验证使用不加 LayerNorm 的旧结构及相同候选选择规则，显式传入 `run_pilot(..., outer_rounds=72)`：576 批、36,864 个全部分支 PPO 时段、18,432 个主轨迹时段；每批更新设置保持不变。第 0、3、12、24、48、72 轮冻结评价，第 3 轮与已保存的小规模结果精确核对。完整月 Critic 轨迹同时累计供电和现金指标，整月现金按真实天数折算为 AUD/日，月初 48 小时窗口仍单列。验证不参与额外梯度更新，测试集不加载。每个验证节点保存 checkpoint，自动保留最近两个，最终另行保存完整状态和执行 Actor。详见[中长期实验](YEAR_STUDY.md)。
 
@@ -124,12 +124,12 @@ UC 到消费者之间没有物理折扣；连续两个同类决策之间使用�
 | 参数 | 含义 |
 |---|---|
 | `--outer-rounds` | 上层候选选择轮数 |
-| `--inner-updates` | 每轮初始消费者适应更新数 |
-| `--response-updates` | 每个候选的消费者重新适应更新数 |
+| `--inner-updates` | 每轮初始消费者适应的采样单位数，合并为一批学习 |
+| `--response-updates` | 每个候选响应的采样单位数，合并为一批学习 |
 | `--candidates` | 新 UC 候选数量，现有策略另行参与比较 |
-| `--proposal-updates` | 每个新候选的 UC 更新预算 |
-| `--deviation-updates` | 每个消费者单边偏离搜索预算 |
-| `--rollout-steps` | 每批物理时段数 |
+| `--proposal-updates` | 每个新候选的 UC 采样单位数，合并为一批学习 |
+| `--deviation-updates` | 每个消费者偏离搜索的采样单位数，合并为一批学习 |
+| `--rollout-steps` | 采样单位长度；实际学习批长 = 它 × 该阶段采样单位数 |
 | `--epochs`、`--critic-epochs`、`--minibatch-size` | Actor / Critic 轮数与批内切分 |
 | `--critic-lambda` | 独立 Critic 目标参数，默认 1.0 |
 
@@ -189,10 +189,29 @@ transition = env.step(actions)
 本次按用户要求完整撤销供电／现金可行性回调、轮初评价缓存和全拒绝恢复路径。新 UC 候选不满足原有配对回报规则时直接选择候选 0，前置消费者适应及选中响应分支接续。供电和现金仍报告，但不参与新增硬筛选；未实施此前讨论的首批 Critic 保留方案。
 
 
-## 9. 延长学习范围（2026-10-22，配置已改，未启动训练）
+## 9. 延长学习范围（2026-10-22，已完成的前一版实验）
 
 现有 γ 改为 0.99、Actor λ 改为 0.97、数据批长改为 192；不增加超参数、网络参数或奖励项。候选、偏离评价和完整月 MC 使用 Runner 的同一 γ，现金和物理量继续未折扣汇总。24 小时后 TD 残差对优势的权重约 0.1431，旧 10 轮为 0.00727；192 步批首的 Critic 尾值系数约 0.1452。完整月折扣评分偏重前几天，月末库存项的月初权重很小，因此全月现金、失供和初末 SOC 仍须并列审查。
 
-`hybrid_storage_study.py` 的下一次执行目录为 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-10rounds/`，仍固定 10 轮，但变为 80 批、15,360 个 PPO 分支时段、7,680 个主轨迹时段、每个 Critic 1,920 次实际更新。每轮样本和优化步数为旧版三倍，不再标为相同预算；程序从配置推导这些数量并在结束时核验。旧 `20261021-10rounds` 目录、冻结源码和结果原样保留，旧 checkpoint 不直接恢复到新折扣契约。此次仅修改实现、文档与回归检查，没有发起新训练。
+前一版 10 轮已完成，目录为 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-10rounds/`：80 批、15,360 个 PPO 分支时段、7,680 个主轨迹时段、每个 Critic 1,920 次实际更新。样本和优化步数为 `20261021-10rounds` 的三倍。两版结果及冻结源码保留原样。当前新的阶段合批协议见下节。
 
 无额外奖励的 SOC 方法及文献依据见 v9 第 26.5 节：本次落实长轨迹和 GAE 信用分配，SOC 容量归一化、单调动作头作为后续候选，未接入生产网络。
+
+
+## 10. 同阶段合批与更新后 GAE（2026-10-22，未启动实验训练）
+
+保留 γ=0.99、Actor λ=0.97、三模式、六维物理动作、网络和奖励。同阶段固定联合行为策略，`collect(192 * 2)` 连续采集 384 步，使用 RLlib shuffle/minibatch 完成 Critic 拟合，再重算并归一化 GAE，最后更新选定 Actor。第 192 步没有额外截断或更新；真实月末分段，384 步批末使用合法下一状态 bootstrap。
+
+Critic 拟合目标保留采样时的旧尾值，拟合期间固定。Actor GAE 使用拟合后的 Critic，但始终使用原动作、行为 logp、条件边界及保存的下一 UC／消费者价值输入。重算使用 `no_grad`，不采样动作、不推进环境。整批优势仅归一化一次，Actor 的两个 epoch 共用同一份优势。该改动减少每次仅追逐一个短批均值的问题，并让当前 Actor 用到本批拟合结果；实际策略效果由后续授权实验检验。
+
+| 每 10 轮预算 | 前一版 | 本次实现 |
+|---|---:|---:|
+| 学习批数 × 每批时段 | 80 × 192 | 40 × 384 |
+| PPO 全部分支时段 | 15,360 | 15,360 |
+| 主轨迹时段 | 7,680 | 7,680 |
+| 每个 Critic 实际 Adam 步数 | 1,920 | 1,920 |
+| UC Actor 提案实际 Adam 步数 | 240 | 240 |
+
+每轮四批分别为消费者适应、UC 提案、旧 UC 响应、新 UC 响应。每批 12 个 minibatch，Critic 4 epoch、Actor 2 epoch，回滚后保留步数另列。合并前后在 minibatch 32 可整除当前批长的条件下优化步数一致；其他自定义预算按实际整批切分计算。
+
+候选恢复规则不变：相同公共消费者网络及两套 Adam、环境和 RNG，配上各候选 UC 状态；只提交选中响应分支。学习契约的 `update_protocol` 升级，旧逐段学习 checkpoint 不直接续训。新的固定输出目录为 `20261022-phase-batch-10rounds`，程序在目录已存在时拒绝覆盖。本次仅运行单元与微型合成集成检查，没有启动 Ausgrid 训练。

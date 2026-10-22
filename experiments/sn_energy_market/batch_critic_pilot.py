@@ -35,7 +35,7 @@ from experiments.sn_energy_market.train import (
 )
 from experiments.sn_energy_market.training_audit import TrainingAudit
 
-OUTPUT = ROOT / "outputs/ausgrid-hybrid-storage/20261022-long-horizon-pilot"
+OUTPUT = ROOT / "outputs/ausgrid-hybrid-storage/20261022-phase-batch-pilot"
 REFERENCE = ROOT / "outputs/ausgrid-batch-critic-pilot/20261020/report.json"
 FULL_MONTH_REFERENCE = ROOT / "outputs/ausgrid-year-study/20261020/validation-0003.json"
 
@@ -83,14 +83,15 @@ def round_budget(cfg):
     """Actual branch work and retained main trajectory for this fixed pilot."""
     if cfg.deviation_updates:
         raise ValueError("Fixed pilot budget requires deviation_updates=0")
-    batches = (cfg.inner_updates + cfg.uc_candidates * cfg.uc_updates_per_candidate
-               + (cfg.uc_candidates + 1) * cfg.response_updates)
-    minibatches = (cfg.rollout_length + cfg.minibatch_size - 1) // cfg.minibatch_size
+    phase_units = ([cfg.inner_updates] + [cfg.uc_updates_per_candidate] * cfg.uc_candidates
+                   + [cfg.response_updates] * (cfg.uc_candidates + 1))
+    sizes = [units * cfg.rollout_length for units in phase_units]
+    minibatches = sum((size + cfg.minibatch_size - 1) // cfg.minibatch_size for size in sizes)
     return {
-        "batches": batches,
-        "ppo_periods": batches * cfg.rollout_length,
+        "batches": len(sizes),
+        "ppo_periods": sum(sizes),
         "main_periods": (cfg.inner_updates + cfg.response_updates) * cfg.rollout_length,
-        "critic_steps_per_module": batches * cfg.critic_epochs * minibatches,
+        "critic_steps_per_module": cfg.critic_epochs * minibatches,
     }
 
 
@@ -202,7 +203,10 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
         batch_log = Path(algorithm.logdir) / "batch_losses.jsonl"
         batch_rows = load_batches(batch_log)
         assert [row["batch_id"] for row in batch_rows] == list(range(1, budget["batches"] * outer_rounds + 1))
-        assert all(row["samples"] == cfg.rollout_length and row["branch_status"] != "pending" for row in batch_rows)
+        phase_units = {"consumer_adaptation": cfg.inner_updates, "uc_proposal": cfg.uc_updates_per_candidate,
+                       "response": cfg.response_updates}
+        assert all(row["samples"] == cfg.rollout_length * phase_units[row["phase"]]
+                   and row["branch_status"] != "pending" for row in batch_rows)
         (output / "batch_losses.jsonl").write_bytes(batch_log.read_bytes())
         for key in algorithm.config.agent_order:
             steps = [row for row in audit.optimizer_steps if row["agent"] == key and row["role"] == "value"]

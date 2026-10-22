@@ -1,8 +1,8 @@
 # 当前状态与交接
 
-2026-10-22 已将现有 γ 统一设为 0.99、Actor GAE λ 设为 0.97、Ausgrid 每批延长为 192 步。网络参数量与奖励不变，未重新训练。下一次 10 轮入口使用新目录 `20261022-long-horizon-10rounds`，对应 15,360 个 PPO 分支时段、7,680 个主轨迹时段；详见 [训练协议第 9 节](TRAINING.md)。
+2026-10-22 当前实现将同阶段两个 192 步单位合成 384 步学习批，Critic 拟合后重算 Actor GAE。保留 γ=0.99、λ=0.97、三模式、六维物理动作、网络和奖励。10 轮对应 40 批、15,360 个 PPO 分支时段、7,680 个主轨迹时段、每个 Critic 1,920 次实际更新。下一次入口使用 `20261022-phase-batch-10rounds`，本次未启动实验训练；此前长窗口 10 轮结果保留在 `20261022-long-horizon-10rounds`。见[训练协议第 10 节](TRAINING.md)。
 
-当前实现已改为三模式储能：闲置／充电／放电，复用 RLlib 分类、高斯和组合分布；环境接收的 v9 物理动作仍为六维。两路充电分别控制，空电屏蔽放电。能源实验采用完整有限回合、`gamma=0.99` 和正终端库存估值，短窗口仅作诊断。模型、概率链及命令见[训练协议](TRAINING.md)和[v9 建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。新固定预算输出使用 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-pilot/`；旧 checkpoint 由旧源码复现。
+当前实现已改为三模式储能：闲置／充电／放电，复用 RLlib 分类、高斯和组合分布；环境接收的 v9 物理动作仍为六维。两路充电分别控制，空电屏蔽放电。能源实验采用完整有限回合、`gamma=0.99` 和正终端库存估值，短窗口仅作诊断。模型、概率链及命令见[训练协议](TRAINING.md)和[v9 建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。新固定预算输出使用 `outputs/ausgrid-hybrid-storage/20261022-phase-batch-pilot/`；旧 checkpoint 由旧源码复现。
 
 下列已完成的训练报告均属于本次储能修改前的历史实验；保留其原始结果和结论。
 
@@ -10,11 +10,11 @@
 
 ## 当前实现
 
-全部 Critic 使用 `Linear → LayerNorm → Tanh` 隐藏层和诊断日志。UC 时间支路、供电／现金可行性回调、轮初评价缓存、整轮全拒绝恢复路径已删除；UC Actor 已改为三模式条件头，环境六维 UC／四维消费者动作保持。2026-10-22 仅延长学习范围，未继续改动网络、物理或奖励。
+全部 Critic 使用 `Linear → LayerNorm → Tanh` 隐藏层和诊断日志。UC 时间支路、供电／现金可行性回调、轮初评价缓存、整轮全拒绝恢复路径已删除；UC Actor 已改为三模式条件头，环境六维 UC／四维消费者动作保持。2026-10-22 增加同阶段合批及拟合后优势重算，网络、物理和奖励保持。
 
-每批先更新全部 Critic，再更新选定 Actor；Actor λ=0.97，Critic λ=1.0，批内实际多步回报在普通批末保留旧 Value 尾值、真实终止尾值为零。目标采样后固定；没有额外 MC 预拟合。
+每批先更新全部 Critic，再更新选定 Actor；Actor λ=0.97，Critic λ=1.0，批内实际多步回报在普通批末保留旧 Value 尾值、真实终止尾值为零。Critic 目标采样后固定，Actor GAE 在 Critic 拟合后重算并固定；没有额外 MC 预拟合。
 
-本次配置每轮 8 批：消费者适应 2 批 → UC 提案 2 批 → 旧 UC 的消费者响应 2 批 → 新 UC 的消费者响应 2 批。响应分支恢复相同消费者网络、Adam、环境和 RNG，保留对应 UC 网络及 Adam。新候选须通过相对候选 0 的配对 UC 折扣收益规则，否则选择候选 0；不存在整轮全部拒绝。候选 0 的消费者已更新，提交后主轨迹继续推进，Critic 也保留前置适应与所选分支的学习。
+本次配置每轮 4 个 384 步学习批：消费者适应 → UC 提案 → 旧 UC 的消费者响应 → 新 UC 的消费者响应。响应分支恢复相同消费者网络、Adam、环境和 RNG，保留对应 UC 网络及 Adam。新候选须通过相对候选 0 的配对 UC 折扣收益规则，否则选择候选 0；不存在整轮全部拒绝。候选 0 的消费者已更新，提交后主轨迹继续推进，Critic 也保留前置适应与所选分支的学习。
 
 采样从训练月月初开始，批间保留 SOC、任务、月累计用电、日历和历史反馈，真实月末才结算并切换月份。验证、bootstrap 前瞻和未选分支不污染主轨迹。日志保留预测、目标、实际多步奖励、bootstrap、Tanh 饱和比例、裁剪前梯度范数和能源指标；批号不随分支恢复重置。
 
@@ -31,7 +31,7 @@
 - [当前报告](LAYERNORM_PILOT.md)：回退范围、三轮结果、真实 1–24 批曲线及 GRU 文献分析。
 - [当前建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)及 [HTML 阅读版](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.html)：第 14 节对应实现，公式离线渲染为 SVG。
 - [训练协议](TRAINING.md)、[逐批目标与日志](BATCH_CRITIC_TARGETS.md)。
-- `batch_critic_pilot.py`：默认三轮，不会覆盖已有输出；每批 192 步、Critic 4 epoch、Actor 2 epoch、minibatch 32。
+- `batch_critic_pilot.py`：默认三轮，不会覆盖已有输出；同阶段学习批 384 步、Critic 4 epoch、Actor 2 epoch、minibatch 32。
 - `evaluation.py` / `training_audit.py`：冻结评价和被动审计。
 - [原三轮基线](BATCH_CRITIC_PILOT.md)及 `outputs/ausgrid-batch-critic-pilot/20261020/`。
 - [旧 72 轮实验](YEAR_STUDY.md)及 `outputs/ausgrid-year-study/20261020/`，源码定位 `8509e88`。

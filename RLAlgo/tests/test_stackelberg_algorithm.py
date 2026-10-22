@@ -230,6 +230,10 @@ def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path):
         changed["learning_contract"]["gamma"] = 0.5
         with pytest.raises(ValueError, match="learning contract"):
             algo.set_state(changed)
+        changed = copy.deepcopy(snapshot)
+        changed["learning_contract"]["update_protocol"] = "all_critics_then_selected_actors_common_consumer_state_v1"
+        with pytest.raises(ValueError, match="learning contract"):
+            algo.set_state(changed)
         assert algo.outer_round == snapshot["stackelberg_runtime"]["outer_round"]
         second_round = algo.train()
         json.dumps(second_round["learners"], allow_nan=False)
@@ -264,6 +268,7 @@ def test_common_response_state_and_selected_branch_continuation(ray_runtime, tmp
     cfg = configuration(tmp_path)
     cfg.deviation_updates = 0
     cfg.uc_candidates = 2
+    cfg.inner_updates = cfg.response_updates = cfg.uc_updates_per_candidate = 2
     algo = cfg.build_algo()
     original_adapt = algo._adapt
     original_select = implementation.select_candidate
@@ -339,9 +344,9 @@ def test_common_response_state_and_selected_branch_continuation(ray_runtime, tmp
                 algo.env_runner.env.engine.state
                 == committed["runner"]["sampling"]["environment"].engine.state
             )
-            main_steps = 8 * (round_index + 1)
+            main_steps = 16 * (round_index + 1)
             assert algo.last_round["main_periods_lifetime"] == main_steps
-            assert algo.sampled_periods == 24 * (round_index + 1)
+            assert algo.sampled_periods == 48 * (round_index + 1)
             assert algo.env_runner.env.engine.state.period_id == main_steps % 6
             assert algo.env_runner._scenario_seed == (2, 3)[(main_steps // 6) % 2]
             from experiments.sn_energy_market.plot_batch_losses import load_batches
@@ -380,7 +385,7 @@ def test_gpu_learner_cpu_runner_update(ray_runtime, tmp_path):
 
 
 @pytest.mark.integration
-def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runtime, tmp_path, monkeypatch):
+def test_phase_batch_records_targets_and_budget_do_not_roll_back(ray_runtime, tmp_path, monkeypatch):
     from experiments.sn_energy_market.plot_batch_losses import load_batches
     from experiments.sn_energy_market.training_audit import TrainingAudit
 
@@ -422,12 +427,19 @@ def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runti
         for index in range(3):
             audit.phase = f"round_{index + 1}"
             algo.train()
-        assert len(audit.updates) == 48
+        assert len(audit.updates) == 24
         assert audit.coverage["frozen_optimizer_checks"] > 0
         records = load_batches(path)
-        assert [item["batch_id"] for item in records] == list(range(1, 25))
-        assert algo.completed_updates == 24 and algo.sampled_periods == 96
-        assert len(collected) == len(before) == 24
+        assert [item["batch_id"] for item in records] == list(range(1, 13))
+        assert algo.completed_updates == 12 and algo.sampled_periods == 96
+        assert len(collected) == len(before) == 12
+        assert all(batch.count == 8 for batch in collected)
+        for key in algo.config.agent_order:
+            critic_steps = [step for step in audit.optimizer_steps if step["agent"] == key and step["role"] == "value"]
+            assert len(critic_steps) == 3 * 4 * 4 * (8 // 4)
+        uc_steps = [step for step in audit.optimizer_steps if step["agent"] == "uc" and step["role"] == "actor"]
+        assert len(uc_steps) == 3 * 2 * (8 // 4)
+        assert audit.coverage["refreshed_gae_checks"] > 0
         for item, measured in zip(records, before, strict=True):
             assert item["critic_epochs"] == 4 and item["actor_epochs"] == 2
             assert item["branch_status"] != "pending"
@@ -438,15 +450,15 @@ def test_twenty_four_batch_records_are_full_batch_and_do_not_roll_back(ray_runti
                         0.5 * (values[f"critic_rmse_{suffix}"] / values["value_scale"]) ** 2
                     )
                     assert (values[f"policy_loss_{suffix}"] is None) == (key not in item["actor_ids"])
-        for start in (0, 8, 16):
-            assert [item["phase"] for item in records[start:start + 8]] == (
-                ["consumer_adaptation"] * 2 + ["uc_proposal"] * 2 + ["response"] * 4
+        for start in (0, 4, 8):
+            assert [item["phase"] for item in records[start:start + 4]] == (
+                ["consumer_adaptation", "uc_proposal", "response", "response"]
             )
         # Candidate snapshot restore never reuses audit IDs.
         saved = algo._snapshot()
         algo._restore(saved)
         algo._adapt(algo.consumer_ids, 1)
-        assert load_batches(path)[-1]["batch_id"] == 25
+        assert load_batches(path)[-1]["batch_id"] == 13
     finally:
         audit.close()
         algo.stop()

@@ -218,16 +218,16 @@ def main(output):
     save(fig, target, "02-round-trends", "新版每轮被选候选：完整月份评分（含验证集选择效应）", figures)
 
     batches = load_batches(output / "batch_losses.jsonl")
-    assert len(batches) == 80 and all(r["branch_status"] != "pending" for r in batches)
+    assert len(batches) == protocol["batches"] and all(r["branch_status"] != "pending" for r in batches)
     fig, axes = plt.subplots(3, 1, figsize=(13, 9), sharex=True, layout="constrained")
     for axis, key, label in zip(axes, ("critic_loss", "critic_rmse", "policy_loss"), ("Critic loss", "Critic RMSE / AUD", "UC Actor PPO loss")):
         for stage, style in (("before", "--"), ("after", "-")):
             y = [r["modules"]["uc"][f"{key}_{stage}"] for r in batches]
-            axis.plot(range(1, 81), [np.nan if x is None else x for x in y], style, label=stage)
+            axis.plot(range(1, len(batches) + 1), [np.nan if x is None else x for x in y], style, label=stage)
         axis.set_ylabel(label)
         axis.legend()
     axes[-1].set_xlabel("实际采样批编号，保留全部候选分支；冻结 Actor 留空")
-    save(fig, target, "03-ppo-loss", "80 批实际更新：批间策略与目标变化，loss 不代表整体收敛", figures)
+    save(fig, target, "03-ppo-loss", f"{len(batches)} 批实际更新：批间策略与目标变化，loss 不代表整体收敛", figures)
 
     for seed in SEEDS:
         month = data["old72"][seed][0]["timestamp"][:7]
@@ -375,7 +375,7 @@ def main(output):
 <p><b>来源控制：</b>DER 和电网功率分别记录，充电模式中各自由对应控制量决定，仍共同受电池充电上限约束。充电曲线与弃电指标可检查 DER 是否进入储能，以及电网充电是否增加采购成本。</p>
 <p><b>空电放电：</b>第 10 轮完整验证中，禁用放电时仍选择放电为 {new['empty_discharge_modes']} 次，禁用充电时仍选择充电为 {new['blocked_charge_modes']} 次。这里按决策时可用动作掩码检查；接近空电定义为储能量低于可用容量的 1%，两个统计各有用途。</p>
 <p><b>初始电量偏差：</b>每个验证月从 {system['ess_initial_energy_kwh']:.4f} kWh 开始，完整跑至月末。新版库存总变化 {new['inventory_change_kwh']:.4f} kWh，对回报的终端调整为 {new['terminal_inventory_adjustment']:.4f} AUD。按早、中、晚段计算充电，检验是否持续补能。</p>
-<h2>3. 比较范围与预算</h2><p>本次 seed 42，10 轮、{protocol['batches']} 批、{protocol['ppo_periods']:,} 个 PPO 分支时段，主轨迹 {protocol['main_periods']:,} 时段，每个 Critic 实际执行 {protocol['critic_steps_per_module']:,} 次优化。沿用原 16 户、训练年、资源标定与四个验证月。每批 {contract['rollout_length']} 步，Actor GAE λ={contract['lambda_gae']}；与旧年度实验的每轮预算是否相同：{protocol['same_data_and_per_round_budget']}。主轨迹从训练年开头推进约 {len(retained) / 48:.1f} 天，测试集未加载。</p>
+<h2>3. 比较范围与预算</h2><p>本次 seed 42，10 轮、{protocol['batches']} 批、{protocol['ppo_periods']:,} 个 PPO 分支时段，主轨迹 {protocol['main_periods']:,} 时段，每个 Critic 实际执行 {protocol['critic_steps_per_module']:,} 次优化。沿用原 16 户、训练年、资源标定与四个验证月。每批 {protocol.get('phase_batch_periods', contract['rollout_length'])} 步，Actor GAE λ={contract['lambda_gae']}；与旧年度实验的每轮预算是否相同：{protocol['same_data_and_per_round_budget']}。主轨迹从训练年开头推进约 {len(retained) / 48:.1f} 天，测试集未加载。</p>
 <p>当前三模式动作、完整月候选评价、gamma={contract['gamma']}、终端库存估值和 Critic LayerNorm，与旧年度实验存在协议差异。旧第 72 轮作为历史终态参照。旧实验保存的完整月验证节点列于下表；第 10 轮没有旧版完整月结果，因此不作相同轮数的效果归因。验证月参与候选选择，这些是验证集成绩。</p>
 <table><tr><th>旧版轮次</th><th>现金 / AUD·日⁻¹</th><th>原生失供 / kWh</th></tr>{''.join(historical)}</table>
 <p>现金为账本 cash_profit，经营收益为 book_profit，训练回报还含服务考核等项。统一库存调整回报将旧策略原始逐期奖励不折扣求和，再加 {inventory:.4f}×(期末库存−期初库存)；新版使用原始完整月回报。收益图将这三种口径分别展示。供电率的分母为各自策略的原生请求量。</p>

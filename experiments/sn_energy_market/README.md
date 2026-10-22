@@ -1,8 +1,8 @@
 # 能源市场实验
 
-2026-10-22 已将现有 γ 统一设为 0.99、Actor GAE λ 设为 0.97、Ausgrid 每批延长为 192 步。网络参数量与奖励不变，未重新训练。下一次 10 轮入口使用新目录 `20261022-long-horizon-10rounds`，对应 15,360 个 PPO 分支时段、7,680 个主轨迹时段；详见 [训练协议第 9 节](TRAINING.md)。
+2026-10-22 当前实现将同阶段两个 192 步单位合成 384 步学习批，Critic 拟合后重算 Actor GAE。保留 γ=0.99、λ=0.97、三模式、六维物理动作、网络和奖励。10 轮对应 40 批、15,360 个 PPO 分支时段、7,680 个主轨迹时段、每个 Critic 1,920 次实际更新。下一次入口使用 `20261022-phase-batch-10rounds`，本次未启动实验训练；此前长窗口 10 轮结果保留在 `20261022-long-horizon-10rounds`。见[训练协议第 10 节](TRAINING.md)。
 
-当前实现已改为三模式储能：闲置／充电／放电，复用 RLlib 分类、高斯和组合分布；环境接收的 v9 物理动作仍为六维。两路充电分别控制，空电屏蔽放电。能源实验采用完整有限回合、`gamma=0.99` 和正终端库存估值，短窗口仅作诊断。模型、概率链及命令见[训练协议](TRAINING.md)和[v9 建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。新固定预算输出使用 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-pilot/`；旧 checkpoint 由旧源码复现。
+当前实现已改为三模式储能：闲置／充电／放电，复用 RLlib 分类、高斯和组合分布；环境接收的 v9 物理动作仍为六维。两路充电分别控制，空电屏蔽放电。能源实验采用完整有限回合、`gamma=0.99` 和正终端库存估值，短窗口仅作诊断。模型、概率链及命令见[训练协议](TRAINING.md)和[v9 建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。新固定预算输出使用 `outputs/ausgrid-hybrid-storage/20261022-phase-batch-pilot/`；旧 checkpoint 由旧源码复现。
 
 2026-10-21 已完成旧配置 **10 轮**，当时入口源码冻结在输出目录，结果位于 `outputs/ausgrid-hybrid-storage/20261021-10rounds/`。沿用原年度实验的数据、seed 42 和每轮预算：80 批、5,120 个 PPO 分支时段、2,560 个主轨迹时段；第 0、3、10 轮保存四个完整验证月的逐时段数据，每轮保存 checkpoint。完整报告见输出目录的 `comparison/report.html`，含 PNG/SVG 及逐月／逐日 CSV。原年度实验的第 72 轮为历史参照，旧第 10 轮没有完整月验证数据。此入口固定停在第 10 轮。
 

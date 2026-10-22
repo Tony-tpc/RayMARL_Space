@@ -15,7 +15,7 @@ from raymarl.algorithms.stackelberg.learner import StackelbergTorchLearner, valu
 from raymarl.algorithms.stackelberg.rl_module import StackelbergRLModule
 from raymarl.algorithms.stackelberg.runner import generalized_advantages, random_state
 
-from .test_stackelberg_policy import sample_batch
+from .test_stackelberg_policy import make_learner, sample_batch
 
 
 def specification(role, **settings):
@@ -94,6 +94,53 @@ def test_value_units_preserve_gae_and_normalized_loss_gradients():
     np.testing.assert_allclose(large_advantage, 50 * advantage, rtol=1e-6, atol=1e-5)
     np.testing.assert_allclose(large_returns, 50 * returns, rtol=1e-6, atol=1e-5)
     assert torch.isfinite(value_fit_statistics(prediction.detach(), torch.ones(16), 1)[2])
+
+
+@pytest.mark.parametrize("terminal_at", [191, 383, None])
+def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at):
+    from experiments.sn_energy_market.training_audit import reference_refreshed_advantages
+
+    torch.set_num_threads(1)
+    torch.manual_seed(72)
+    learner = make_learner()
+    learner.config.gamma, learner.config.lambda_gae = 0.99, 0.97
+    batch = MultiAgentBatch({key: sample_batch(learner.module[key], 384) for key in ("uc", "consumer")}, 384)
+    for key, data in batch.policy_batches.items():
+        data["next_value_obs"] = np.roll(data["obs" if key == "uc" else "critic_obs"], -1, axis=0).copy()
+        data["rewards"] = np.linspace(-0.2, 0.3, 384, dtype=np.float64)
+        data["terminateds"] = np.zeros(384, dtype=bool)
+        if terminal_at is not None:
+            data["terminateds"][terminal_at] = True
+    original = copy.deepcopy(dict(batch.policy_batches))
+    old = learner.recompute_advantages(batch)
+    learner.update(batch=batch, update_phase="critic", num_epochs=4, minibatch_size=32)
+    fitted, rng = copy.deepcopy(learner.get_state()), random_state()
+    fresh = learner.recompute_advantages(batch)
+    expected = reference_refreshed_advantages(learner, batch)
+    assert_nested_equal(fitted, learner.get_state())
+    assert_nested_equal(rng, random_state())
+    assert_nested_equal(original, dict(batch.policy_batches))
+    for key in fresh:
+        np.testing.assert_allclose(fresh[key], expected[key], atol=1e-12, rtol=1e-12)
+        assert not np.allclose(old[key], fresh[key])
+    # Row 191 is no longer an artificial cut: later rewards affect it unless
+    # this is an actual terminal. No new action or announcement is sampled.
+    for data in batch.policy_batches.values():
+        data["rewards"][192] += 7
+    changed = learner.recompute_advantages(batch)
+    for key in fresh:
+        difference = 0 if terminal_at == 191 else 7 * 0.99 * 0.97
+        assert changed[key][191] - fresh[key][191] == pytest.approx(difference)
+    # The exact next input saved at collection, rather than current RNG, sets the tail.
+    torch.randn(100)
+    np.random.random(10)
+    again = learner.recompute_advantages(batch)
+    assert_nested_equal(changed, again)
+    for data in batch.policy_batches.values():
+        data["next_value_obs"][-1] += 3
+    tail_changed = learner.recompute_advantages(batch)
+    for key in fresh:
+        assert (tail_changed[key][-1] == again[key][-1]) == (terminal_at == 383)
 
 
 @pytest.mark.parametrize("active_actor", ["uc", "consumer"])

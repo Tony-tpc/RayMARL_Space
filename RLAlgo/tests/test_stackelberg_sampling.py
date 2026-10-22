@@ -192,6 +192,8 @@ def test_consumer_bootstrap_uses_next_announced_state_and_preserves_rng():
     assert batch["uc"]["next_vf_preds"][-1] == 20
     next_batch = runner.collect(1)
     assert consumer["next_vf_preds"][-1] == next_batch["consumer_0"]["vf_preds"][0]
+    np.testing.assert_array_equal(consumer["next_value_obs"][-1], next_batch["consumer_0"]["critic_obs"][0])
+    np.testing.assert_array_equal(consumer["next_value_obs"][0], consumer["critic_obs"][1])
     # The private critic state never enters either UC input.
     np.testing.assert_array_equal(batch["uc"]["obs"], batch["uc"]["critic_obs"])
     assert np.all(batch["uc"]["obs"][:, 1] == 0)
@@ -204,7 +206,7 @@ def test_cut_does_not_consume_random_actions_or_reset_the_environment():
     runner.set_state(saved)
     whole = runner.collect(4)
     for key in whole.policy_batches:
-        for name in ("actions", "raw_latents", "action_logp", "vf_preds", "next_vf_preds", "rewards"):
+        for name in ("actions", "raw_latents", "action_logp", "vf_preds", "next_vf_preds", "next_value_obs", "rewards"):
             np.testing.assert_array_equal(
                 np.concatenate([first[key][name], second[key][name]]), whole[key][name]
             )
@@ -216,6 +218,7 @@ def test_true_terminal_zero_bootstrap_and_reset_never_join_episode_advantages():
     for key in batch.policy_batches:
         np.testing.assert_array_equal(batch[key]["terminateds"], [False, True, False, True])
         np.testing.assert_array_equal(batch[key]["next_vf_preds"][[1, 3]], [0, 0])
+        np.testing.assert_array_equal(batch[key]["next_value_obs"][[1, 3]], np.zeros((2, 2)))
         for index in (1, 3):
             assert batch[key]["advantages"][index] == pytest.approx(
                 batch[key]["rewards"][index] - batch[key]["vf_preds"][index]

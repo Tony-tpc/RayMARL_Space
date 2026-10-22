@@ -7,6 +7,8 @@ import torch
 from ray.rllib.core.columns import Columns
 from ray.rllib.core.learner.torch.torch_learner import TorchLearner
 
+from .runner import generalized_advantages
+
 
 def clipped_policy_loss(new_logp, old_logp, advantages, clip_param):
     ratio = (new_logp - old_logp).exp()
@@ -68,6 +70,27 @@ class StackelbergTorchLearner(TorchLearner):
                 if getattr(value, "dtype", None) in (np.dtype("float64"), torch.float64):
                     converted.policy_batches[module_id][key] = torch.as_tensor(value, device=self._device)
         return converted
+
+    @torch.no_grad()
+    def recompute_advantages(self, batch):
+        """Refresh GAE once after value fitting, using the original next inputs.
+
+        This only evaluates values: no action sampling, RNG use, optimizer steps,
+        or changes to the fixed Critic targets and PPO behavior probabilities.
+        """
+        converted = self._convert_batch_type(batch)
+        advantages = {}
+        for key, data in converted.policy_batches.items():
+            module = self.module[key].unwrapped()
+            values = module.compute_values(data).cpu().numpy()
+            inputs = data["next_value_obs"]
+            next_values = module.compute_values({"obs": inputs, "critic_obs": inputs}).cpu().numpy()
+            original = batch.policy_batches[key]
+            advantages[key], _ = generalized_advantages(
+                original["rewards"], values, next_values, original["terminateds"],
+                self.config.gamma, self.config.lambda_gae,
+            )
+        return advantages
 
     @torch.no_grad()
     def batch_diagnostics(self, batch, *, actor_ids=()):

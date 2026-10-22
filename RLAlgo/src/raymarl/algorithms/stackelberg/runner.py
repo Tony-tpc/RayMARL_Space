@@ -160,25 +160,31 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         )
         return sample, decision
 
-    def bootstrap_values(self, *, deterministic=False):
-        """Estimate both next decision values without consuming an action or RNG draw."""
+    def bootstrap_inputs(self, *, deterministic=False):
+        """Save next value inputs, including the original temporary UC announcement."""
         if self._terminated:
-            return {key: 0.0 for key in self.agent_ids}
+            return {}
         if self._data_exhausted:
             raise RuntimeError("Continuous data exhausted: append profiles before value bootstrapping")
         snapshot, rng = self.env.get_state(), random_state()
         try:
-            sample, decision = self._announce(deterministic)
+            _, decision = self._announce(deterministic)
             return {
-                "uc": sample["vf_preds"],
+                "uc": decision.uc_observation.copy(),
                 **{
-                    key: self._value(key, decision.consumer_observations[key], decision.consumer_value_state)
+                    key: decision.consumer_value_state.copy()
                     for key in self.env.consumer_ids
                 },
             }
         finally:
             self.env.set_state(snapshot)
             restore_random_state(rng)
+
+    def bootstrap_values(self, *, deterministic=False):
+        """Estimate both next decision values without consuming an action or RNG draw."""
+        inputs = self.bootstrap_inputs(deterministic=deterministic)
+        return {key: self._value(key, inputs[key], inputs[key]) if key in inputs else 0.0
+                for key in self.agent_ids}
 
     def _period(self, *, deterministic=False):
         if self._data_exhausted:
@@ -223,14 +229,20 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             for key, sample in samples.items():
                 if rows[key] and not rows[key][-1]["terminateds"]:
                     rows[key][-1]["next_vf_preds"] = sample["vf_preds"]
+                    rows[key][-1]["next_value_obs"] = sample["critic_obs"].copy()
                 sample["next_vf_preds"] = 0.0
+                # UC uses its local observation; consumers use the centralized
+                # value input after the sampled UC announcement. Terminals stay zero.
+                sample["next_value_obs"] = np.zeros_like(sample["critic_obs"])
                 rows[key].append(sample)
             for name, value in result.metrics.items():
                 totals[name] = totals.get(name, 0.0) + value
-        next_values = self.bootstrap_values(deterministic=deterministic)
+        next_inputs = self.bootstrap_inputs(deterministic=deterministic)
         batches = {}
         for key, samples in rows.items():
-            samples[-1]["next_vf_preds"] = next_values[key]
+            if key in next_inputs:
+                samples[-1]["next_value_obs"] = next_inputs[key]
+                samples[-1]["next_vf_preds"] = self._value(key, next_inputs[key], next_inputs[key])
             samples[-1]["truncateds"] = not samples[-1]["terminateds"]
             data = {name: np.asarray([sample[name] for sample in samples]) for name in samples[0]}
             data["advantages"], _ = generalized_advantages(

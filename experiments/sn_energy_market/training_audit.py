@@ -51,6 +51,24 @@ def reference_advantages(rows, gamma, lambda_gae):
     return result
 
 
+def reference_refreshed_advantages(learner, batch):
+    """Independently sum TD residuals with the fitted values and saved next states."""
+    import torch
+
+    expected = {}
+    with torch.no_grad():
+        for key, data in learner._convert_batch_type(batch).policy_batches.items():
+            module = learner.module[key].unwrapped()
+            inputs = data["next_value_obs"]
+            rows = dict(batch[key])
+            rows["vf_preds"] = module.compute_values(data).cpu().numpy().astype(np.float64)
+            rows["next_vf_preds"] = module.compute_values(
+                {"obs": inputs, "critic_obs": inputs}
+            ).cpu().numpy().astype(np.float64)
+            expected[key] = reference_advantages(rows, learner.config.gamma, learner.config.lambda_gae)
+    return expected
+
+
 def assert_same_state(left, right):
     if isinstance(left, dict):
         assert left.keys() == right.keys()
@@ -221,6 +239,16 @@ class TrainingAudit:
                         assert abs(advantage.std() - 1.0) < 1e-8
             if update_phase == "critic":
                 assert selected == set(runner.agent_ids)
+            fixed = {key: {name: rows[name].copy() for name in (
+                "value_targets", "vf_preds", "next_vf_preds", "next_value_obs", "action_logp", "actions",
+            )} for key, rows in batch.policy_batches.items()}
+            if update_phase == "actor":
+                checked = group.foreach_learner(lambda learner: reference_refreshed_advantages(learner, batch))
+                for key, expected in next(iter(checked)).get().items():
+                    if self.algorithm.config.normalize_advantages:
+                        expected = (expected - expected.mean()) / max(expected.std(), 1e-8)
+                    np.testing.assert_allclose(batch[key]["advantages"], expected, atol=1e-9, rtol=1e-10)
+                    self.coverage["refreshed_gae_checks"] += 1
             before = copy.deepcopy(group.get_weights())
             for key in selected:
                 for name, value in before[key].items():
@@ -229,6 +257,9 @@ class TrainingAudit:
                         runner.module[key].state_dict()[name].detach().cpu().numpy(),
                     )
             result = original_update(*args, **kwargs)
+            for key, columns in fixed.items():
+                for name, expected in columns.items():
+                    np.testing.assert_array_equal(batch[key][name], expected)
             changes = parameter_changes(before, group.get_weights())
             for key, roles in changes.items():
                 assert all(math.isfinite(value) for value in roles.values())

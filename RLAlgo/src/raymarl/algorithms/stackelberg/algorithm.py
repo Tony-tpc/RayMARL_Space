@@ -8,7 +8,7 @@ RLlib 的训练生命周期
     ↓
 Stackelberg.training_step()        本算法真正的一整轮训练
     ↓
-多次 _adapt(...)                   每次完成若干批采样和学习
+多次 _adapt(...)                   每次完成一批同阶段采样和学习
     ↓
 learner_group.update(...)          进入 Learner 的 minibatch 更新
 
@@ -90,92 +90,99 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
     def _adapt(self, module_ids, updates, *, seed=None, phase="adapt", candidate_index=None):
         if seed is not None:
             self.env_runner.restart(seed)
-        for _ in range(updates):
-            # 采一批新数据
-            batch = self.env_runner.collect(self.config.rollout_length)
-            before = self._batch_diagnostics(batch)
-            # Actor GAE, critic returns and behavior logp are fixed at collection.
-            # All values track this joint policy, even when their actor is frozen.
-            critic_result = self.learner_group.update(
-                batch=batch,
-                update_phase="critic",
-                num_epochs=self.config.critic_epochs,
-                minibatch_size=self.config.minibatch_size,
-                shuffle_batch_per_epoch=True,
-                timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
-            )
-            self._sync()
-            selected = MultiAgentBatch({key: batch.policy_batches[key] for key in module_ids}, batch.count)
-            if self.config.normalize_advantages:
-                for data in selected.policy_batches.values():
-                    advantage = data["advantages"]
-                    data["advantages"] = (advantage - advantage.mean()) / max(advantage.std(), 1e-8)
-            actor_before = self._batch_diagnostics(selected, module_ids)
-            result = self.learner_group.update(
-                batch=selected,
-                update_phase="actor",
-                num_epochs=self.config.num_epochs,
-                minibatch_size=self.config.minibatch_size,
-                shuffle_batch_per_epoch=True,
-                timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
-            )
-            shared_metrics = {"total_loss", "grad_norm"}
-            critic_metrics = shared_metrics | {
-                "value_loss", "value_rmse", "value_explained_variance", "value_learning_rate",
+        if updates == 0:
+            return
+        # Keep the joint policy fixed across all sampling units in this phase.
+        batch = self.env_runner.collect(self.config.rollout_length * updates)
+        before = self._batch_diagnostics(batch)
+        # Critic targets and behavior logp stay fixed at collection.
+        # All values track this joint policy, even when their actor is frozen.
+        critic_result = self.learner_group.update(
+            batch=batch,
+            update_phase="critic",
+            num_epochs=self.config.critic_epochs,
+            minibatch_size=self.config.minibatch_size,
+            shuffle_batch_per_epoch=True,
+            timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
+        )
+        self._sync()
+        selected = MultiAgentBatch({key: batch.policy_batches[key] for key in module_ids}, batch.count)
+        refreshed = self.learner_group.foreach_learner(
+            lambda learner: learner.recompute_advantages(selected)
+        )
+        for key, advantage in next(iter(refreshed)).get().items():
+            selected[key]["advantages"] = advantage
+        # Normalize once over the phase batch, then freeze across Actor epochs.
+        if self.config.normalize_advantages:
+            for data in selected.policy_batches.values():
+                advantage = data["advantages"]
+                data["advantages"] = (advantage - advantage.mean()) / max(advantage.std(), 1e-8)
+        actor_before = self._batch_diagnostics(selected, module_ids)
+        result = self.learner_group.update(
+            batch=selected,
+            update_phase="actor",
+            num_epochs=self.config.num_epochs,
+            minibatch_size=self.config.minibatch_size,
+            shuffle_batch_per_epoch=True,
+            timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
+        )
+        shared_metrics = {"total_loss", "grad_norm"}
+        critic_metrics = shared_metrics | {
+            "value_loss", "value_rmse", "value_explained_variance", "value_learning_rate",
+        }
+        actor_metrics = shared_metrics | {
+            "policy_loss", "entropy", "clip_fraction", "approx_kl", "actor_learning_rate",
+        }
+        # RLlib also returns empty statistics for frozen modules. Aggregate
+        # only measurements made by this update, keeping reports finite.
+        current = [
+            {
+                key: {name: value for name, value in update[key].items() if name in measured}
+                for key in keys
             }
-            actor_metrics = shared_metrics | {
-                "policy_loss", "entropy", "clip_fraction", "approx_kl", "actor_learning_rate",
-            }
-            # RLlib also returns empty statistics for frozen modules. Aggregate
-            # only measurements made by this update, keeping reports finite.
-            current = [
-                {
-                    key: {name: value for name, value in update[key].items() if name in measured}
-                    for key in keys
+            for updates_for_phase, keys, measured in (
+                (critic_result, self.config.agent_order, critic_metrics), (result, module_ids, actor_metrics)
+            )
+            for update in updates_for_phase
+        ]
+        self.metrics.aggregate(current, key=LEARNER_RESULTS)
+        self.sampled_periods += batch.count
+        self.completed_updates += 1
+        self._sync()
+        after = self._batch_diagnostics(batch, module_ids)
+        first = batch.policy_batches["uc"]
+        self.batch_loss_log.record({
+            "outer_round": self.outer_round + 1,
+            "completed_updates": self.completed_updates,
+            "phase": phase, "candidate_index": candidate_index,
+            "actor_ids": list(module_ids), "samples": batch.count,
+            "sampled_periods_lifetime": self.sampled_periods,
+            "scenario_seeds": list(dict.fromkeys(first["scenario_seed"].tolist())),
+            "first_period": int(first["period_id"][0]),
+            "last_period": int(first["period_id"][-1]),
+            "true_terminals": int(first["terminateds"].sum()),
+            "metrics": copy.deepcopy(self.env_runner.last_metrics),
+            "gamma": self.config.gamma, "lambda_gae": self.config.lambda_gae,
+            "critic_lambda": self.config.critic_lambda,
+            "critic_epochs": self.config.critic_epochs, "actor_epochs": self.config.num_epochs,
+            "minibatch_size": self.config.minibatch_size,
+            "modules": {
+                key: {
+                    "critic_loss_before": before[key]["critic_loss"],
+                    "critic_loss_after": after[key]["critic_loss"],
+                    "critic_rmse_before": before[key]["critic_rmse"],
+                    "critic_rmse_after": after[key]["critic_rmse"],
+                    "value_scale": after[key]["value_scale"],
+                    "policy_loss_before": actor_before[key]["policy_loss"] if key in module_ids else None,
+                    "policy_loss_after": after[key]["policy_loss"],
+                    "policy_loss": after[key]["policy_loss"],
+                    "diagnostics_before": before[key]["value_diagnostics"],
+                    "diagnostics_after": after[key]["value_diagnostics"],
+                    "critic_gradient_norms": after[key]["critic_gradient_norms"],
                 }
-                for updates_for_phase, keys, measured in (
-                    (critic_result, self.config.agent_order, critic_metrics), (result, module_ids, actor_metrics)
-                )
-                for update in updates_for_phase
-            ]
-            self.metrics.aggregate(current, key=LEARNER_RESULTS)
-            self.sampled_periods += batch.count
-            self.completed_updates += 1
-            self._sync()
-            after = self._batch_diagnostics(batch, module_ids)
-            first = batch.policy_batches["uc"]
-            self.batch_loss_log.record({
-                "outer_round": self.outer_round + 1,
-                "completed_updates": self.completed_updates,
-                "phase": phase, "candidate_index": candidate_index,
-                "actor_ids": list(module_ids), "samples": batch.count,
-                "sampled_periods_lifetime": self.sampled_periods,
-                "scenario_seeds": list(dict.fromkeys(first["scenario_seed"].tolist())),
-                "first_period": int(first["period_id"][0]),
-                "last_period": int(first["period_id"][-1]),
-                "true_terminals": int(first["terminateds"].sum()),
-                "metrics": copy.deepcopy(self.env_runner.last_metrics),
-                "gamma": self.config.gamma, "lambda_gae": self.config.lambda_gae,
-                "critic_lambda": self.config.critic_lambda,
-                "critic_epochs": self.config.critic_epochs, "actor_epochs": self.config.num_epochs,
-                "minibatch_size": self.config.minibatch_size,
-                "modules": {
-                    key: {
-                        "critic_loss_before": before[key]["critic_loss"],
-                        "critic_loss_after": after[key]["critic_loss"],
-                        "critic_rmse_before": before[key]["critic_rmse"],
-                        "critic_rmse_after": after[key]["critic_rmse"],
-                        "value_scale": after[key]["value_scale"],
-                        "policy_loss_before": actor_before[key]["policy_loss"] if key in module_ids else None,
-                        "policy_loss_after": after[key]["policy_loss"],
-                        "policy_loss": after[key]["policy_loss"],
-                        "diagnostics_before": before[key]["value_diagnostics"],
-                        "diagnostics_after": after[key]["value_diagnostics"],
-                        "critic_gradient_norms": after[key]["critic_gradient_norms"],
-                    }
-                    for key in batch.policy_batches
-                },
-            })
+                for key in batch.policy_batches
+            },
+        })
 
     def _evaluate(self, seeds, deterministic=False):
         rows = self.env_runner.evaluate(
