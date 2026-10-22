@@ -33,11 +33,25 @@ def model_settings(hidden_dim):
     """Experiment priors and value units; physical actions remain freely sampled."""
     return {
         "hidden_dim": hidden_dim,
-        "uc_initial_mean": [0.95, 0.02, 0.5, 0.5, 0.0, 0.5],
-        "uc_initial_std": [0.08, 0.05, 0.2, 0.2, 0.1, 0.2],
+        "uc_initial_mean": [0.95, 0.02, 0.2, 0.2, 0.5, 0.5],
+        "uc_initial_std": [0.08, 0.05, 0.2, 0.2, 0.2, 0.2],
         "uc_head_scale": 0.01,
         "value_scale": {"uc": 20.0, "consumer": 10.0},
     }
+
+
+def inventory_valued_config(config):
+    """Fixed reference inventory value in stored-kWh units, shared by all policies.
+
+    Uses the experiment's 0.35 off-peak reference and accounts for discharge
+    efficiency and output throughput cost. Explicit positive values are kept.
+    """
+    if config.rewards.terminal_energy_value_per_kwh > 0:
+        return config
+    value = config.system.ess_discharge_efficiency * max(
+        0.0, 0.35 - config.rewards.ess_throughput_rate_per_kwh
+    )
+    return replace(config, rewards=replace(config.rewards, terminal_energy_value_per_kwh=value)).validate()
 
 
 def arguments(argv=None):
@@ -143,6 +157,7 @@ def experiment_settings(args, dataset=None):
                 config,
                 market=replace(config.market, shift_deadline_steps=args.deadline),
             ).validate()
+    config = inventory_valued_config(config)
     if config.system.episode_mode != "finite":
         raise ValueError(
             "This episode experiment requires finite profiles; use the adapter for continuous sampling"
@@ -170,12 +185,11 @@ def experiment_settings(args, dataset=None):
         else values[not args.smoke]
         for key, values in defaults.items()
     }
-    cadence = config.system.resolution_minutes / 15
-    budget.update(gamma=0.99**cadence, lambda_gae=0.95**cadence, critic_lambda=args.critic_lambda)
+    budget.update(gamma=0.99, lambda_gae=0.97, critic_lambda=args.critic_lambda)
     if not 0 <= args.critic_lambda <= 1:
         raise ValueError("--critic-lambda must lie in [0, 1]")
     if dataset is not None and args.rollout_steps is None and not args.smoke:
-        budget["rollout_steps"] = max(1, round(128 / cadence))
+        budget["rollout_steps"] = 192
     if not args.evaluate_only and budget["outer_rounds"] < 1:
         raise ValueError("--outer-rounds must be positive for training")
     train_count, evaluation_count = (2, 2) if args.smoke else (8, 8)

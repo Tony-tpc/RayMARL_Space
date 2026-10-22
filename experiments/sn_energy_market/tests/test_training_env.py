@@ -42,10 +42,50 @@ def consumer_actions(env, values=(0.2, 0.4, 0.5, 0.6)):
     }
 
 
+def test_full_episode_inventory_value_removes_free_initial_energy_gain():
+    from snmarket import Profiles
+
+    from experiments.sn_energy_market.train import inventory_valued_config
+
+    base = EnvironmentConfig()
+    cfg = inventory_valued_config(replace(
+        base,
+        system=replace(base.system, num_consumers=1, horizon_steps=2,
+                       grid_import_max_kw=4, ess_energy_capacity_kwh=10,
+                       ess_initial_energy_kwh=5, ess_discharge_max_kw=5),
+        market=replace(base.market, dr_event_intervals=()),
+    ))
+    assert cfg.rewards.terminal_energy_value_per_kwh == pytest.approx(0.3135)
+    explicit = replace(cfg, rewards=replace(cfg.rewards, terminal_energy_value_per_kwh=0.7))
+    assert inventory_valued_config(explicit).rewards.terminal_energy_value_per_kwh == 0.7
+    profiles = Profiles(np.full((2, 1), 4.), np.zeros(2), np.full(2, .35), np.zeros((2, 1)),
+                        start_datetime=cfg.system.start_datetime,
+                        resolution_minutes=cfg.system.resolution_minutes)
+    outcomes = []
+    for spend_initial in (False, True):
+        env = MarketTrainingEnv(cfg, profiles)
+        env.reset(42)
+        records = []
+        for period in range(2):
+            mode = 2 if spend_initial and period == 0 else 0
+            discharge = 4 / env.uc_bounds()[4] if mode == 2 else 0
+            env.publish([mode, 1, 0, 0, 0, discharge, 0])
+            records.append(env.step(consumer_actions(env, (0, 0, 0, 0))))
+        assert not records[0].terminated and records[1].terminated
+        assert records[0].metrics["terminal_energy_value"] == 0
+        assert records[1].metrics["initial_energy_kwh"] == 5
+        outcomes.append(records)
+    idle, spend = outcomes
+    # A one-period window reports a 0.33 reward advantage from initial inventory.
+    assert spend[0].rewards["uc"] - idle[0].rewards["uc"] == pytest.approx(.33)
+    assert spend[1].metrics["terminal_energy_value"] == pytest.approx(-.33)
+    assert sum(r.rewards["uc"] for r in spend) == pytest.approx(sum(r.rewards["uc"] for r in idle))
+
+
 def test_publish_has_two_phase_inputs_and_never_advances_time():
     env = MarketEnvFactory(config())(12)
     initial = env.reset(12)
-    decision = env.publish([0.7, 0.1, 0.5, 0.5, 0.3, 0.4])
+    decision = env.publish([0, 0.7, 0.1, 0.5, 0.5, 0.3, 0.4])
     assert env.phase == Phase.CONSUMER_TURN
     assert env.engine.state.period_id == decision.period_id == 0
     np.testing.assert_array_equal(decision.uc_observation, initial)
@@ -80,12 +120,12 @@ def test_publish_has_two_phase_inputs_and_never_advances_time():
 def test_consumer_value_state_changes_with_next_announcement():
     env = MarketEnvFactory(config())(12)
     env.reset(12)
-    env.publish([0.2, 0, 0, 0, 0, 0.2])
+    env.publish([0, 0.2, 0, 0, 0, 0, 0.2])
     env.step(consumer_actions(env))
     snapshot = env.get_state()
-    first = env.publish([0.2, 0, 0, 0, 0, 0.2])
+    first = env.publish([0, 0.2, 0, 0, 0, 0, 0.2])
     env.set_state(snapshot)
-    second = env.publish([0.8, 0, 0, 0, 0, 0.8])
+    second = env.publish([0, 0.8, 0, 0, 0, 0, 0.8])
     np.testing.assert_array_equal(first.uc_observation, second.uc_observation)
     assert not np.array_equal(first.consumer_value_state, second.consumer_value_state)
 
@@ -93,7 +133,7 @@ def test_consumer_value_state_changes_with_next_announcement():
 def test_pending_snapshot_restores_exact_market_transition():
     env = MarketEnvFactory(config())(12)
     env.reset(12)
-    env.publish([0.7, 0, 0.3, 0.4, 0.5, 0.6])
+    env.publish([0, 0.7, 0, 0.3, 0.4, 0.5, 0.6])
     snapshot = pickle.loads(pickle.dumps(env.get_state()))
     actions = consumer_actions(env)
     expected = env.step(actions)
@@ -110,7 +150,7 @@ def test_only_true_terminal_has_no_bootstrap_and_terminal_value_once():
     env = MarketEnvFactory(config(steps=2))(12)
     env.reset(12)
     for index in range(2):
-        env.publish([0.7, 0, 0, 0, 0, 0.4])
+        env.publish([0, 0.7, 0, 0, 0, 0, 0.4])
         result = env.step(consumer_actions(env))
         assert result.terminated == (index == 1)
     assert result.next_uc_observation is None
@@ -124,13 +164,13 @@ def test_continuous_exhaustion_is_not_terminal_and_can_append():
     env = MarketEnvFactory(cfg)(12)
     env.reset(12)
     for _ in range(2):
-        env.publish([0.7, 0, 0, 0, 0, 0.4])
+        env.publish([0, 0.7, 0, 0, 0, 0, 0.4])
         result = env.step(consumer_actions(env))
     assert not result.terminated
     assert result.data_exhausted
     assert result.next_uc_observation is None
     with pytest.raises(ProfileExhaustedError):
-        env.publish([0.7, 0, 0, 0, 0, 0.4])
+        env.publish([0, 0.7, 0, 0, 0, 0, 0.4])
     continuation = replace(
         cfg,
         system=replace(
@@ -140,7 +180,7 @@ def test_continuous_exhaustion_is_not_terminal_and_can_append():
     observation = env.append_profiles(scenario_profiles(continuation, 13, "train"))
     assert observation[0] == 2
     assert observation[1] == -1
-    env.publish([0.7, 0, 0, 0, 0, 0.4])
+    env.publish([0, 0.7, 0, 0, 0, 0, 0.4])
     assert env.step(consumer_actions(env)).next_uc_observation[0] == 3
 
 
@@ -161,7 +201,7 @@ def test_due_queue_and_monthly_amount_remain_private_to_consumer_value():
         ConsumerState("consumer_1", 7),
     )
     env.reset(12, options={"consumer_states": consumers})
-    decision = env.publish([0.7, 0, 0, 0, 0, 0.4])
+    decision = env.publish([0, 0.7, 0, 0, 0, 0, 0.4])
     assert decision.consumer_observations["consumer_0"][5] == 73
     assert decision.consumer_observations["consumer_1"][5] == 7
     assert "monthly_uc_energy_kwh" not in env.uc_observation_fields
@@ -171,19 +211,19 @@ def test_due_queue_and_monthly_amount_remain_private_to_consumer_value():
 def test_raw_unclipped_controls_are_saved_separately_from_physical_actions():
     env = MarketEnvFactory(config())(12)
     env.reset(12)
-    latent = np.array([3, -2, 4, 0.5, -4, 3.0])
+    latent = np.array([2, 3, -2, 4, 0.5, 0.4, 3.0])
     decision = env.publish(latent)
     np.testing.assert_array_equal(decision.raw_controls, latent)
     assert decision.uc_action[0] == env.config.system.grid_import_max_kw
     assert decision.uc_action[1] == decision.uc_action[2] == decision.uc_action[3] == 0
-    latent[0] = 999
-    assert decision.raw_controls[0] == 3
+    latent[1] = 999
+    assert decision.raw_controls[1] == 3
 
 
 def test_metrics_use_single_physical_period_units():
     env = MarketEnvFactory(config())(12)
     env.reset(12)
-    env.publish([0.7, 0, 0, 0, 0, 0.4])
+    env.publish([0, 0.7, 0, 0, 0, 0, 0.4])
     result = env.step(consumer_actions(env))
     record = env.engine.latest_record
     assert result.metrics["uc_cash"] == record.ledger.cash_profit

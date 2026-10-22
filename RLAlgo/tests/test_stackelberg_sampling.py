@@ -21,6 +21,7 @@ class ToyModule(torch.nn.Module):
         width = 6 if self.leader else 4
         raw = torch.zeros((1, width)) if deterministic else torch.randn((1, width))
         return {
+            "storage_mode": torch.zeros(1, dtype=torch.int64),
             "actions": raw.clone(),
             "raw_latents": raw,
             "action_logp": -(raw.square().sum(-1)),
@@ -62,7 +63,11 @@ class ToyEnv:
         self.announcement = 0.0
         return np.array([0, 0], dtype=np.float32)
 
+    def uc_bounds(self):
+        return np.ones(6)
+
     def publish(self, raw):
+        raw = raw[1:]
         assert self.phase == "UC"
         self.phase, self.announcement = "C", float(raw[0])
         obs = np.array([self.t, self.announcement], dtype=np.float32)
@@ -256,13 +261,15 @@ def test_native_runner_checkpoint_restores_environment_and_action_stream(tmp_pat
     assert_batches_equal(expected, runner.collect(3))
 
 
-def test_evaluation_is_matched_seed_and_does_not_mutate_training_state():
+@pytest.mark.parametrize("gamma", [0.9, 0.99])
+def test_evaluation_is_matched_seed_and_does_not_mutate_training_state(gamma):
     runner = make_runner()
+    runner.config.gamma = gamma
     runner.collect(2)
     before = runner.get_state()
     rows = runner.evaluate((100, 101))
     assert all(row["physical_periods"] == 5 and row["terminated"] for row in rows)
-    assert rows[0]["returns"]["uc"] == pytest.approx(sum(0.9**t for t in range(5)))
+    assert rows[0]["returns"]["uc"] == pytest.approx(sum(gamma**t for t in range(5)))
     assert rows[0]["cash_profit"] == 5
     assert runner.num_env_steps_sampled_lifetime == 2 and runner.env.t == 2
     assert rows == runner.evaluate((100, 101))
@@ -293,8 +300,11 @@ def test_window_evaluation_score_ignores_critic_only_changes(terminal_at):
             after["bootstrap_estimated_returns"]["consumer_0"]
             - before["bootstrap_estimated_returns"]["consumer_0"]
         ) == pytest.approx(-162)
-    assert select_candidate([baseline, changed])[0] == 0
-    assert paired_gain(changed, baseline, agent="consumer_0")["mean"] == 0
+    assert all(not row["score_complete"] for row in baseline + changed)
+    with pytest.raises(ValueError, match="complete terminal returns"):
+        select_candidate([baseline, changed])
+    with pytest.raises(ValueError, match="complete terminal returns"):
+        paired_gain(changed, baseline, agent="consumer_0")
 
 
 def test_continuous_exhaustion_requires_append_and_has_no_terminal_value():

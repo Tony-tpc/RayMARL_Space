@@ -53,8 +53,11 @@ class ActorBundle:
             sample = self.modules[agent_id].draw(obs, legal, deterministic=deterministic)
         return {key: value[0].cpu().numpy().copy() for key, value in sample.items()}
 
-    def uc_controls(self, observation, *, deterministic=True):
-        return self.sample("uc", observation, deterministic=deterministic)["raw_latents"]
+    def uc_controls(self, observation, bounds, *, deterministic=True):
+        import numpy as np
+
+        sample = self.sample("uc", observation, bounds, deterministic=deterministic)
+        return np.r_[sample["storage_mode"], sample["raw_latents"]]
 
     def consumer_action(self, agent_id, observation, bounds, *, deterministic=True):
         return self.sample(agent_id, observation, bounds, deterministic=deterministic)["actions"]

@@ -45,16 +45,15 @@ def test_configured_uc_distribution_keeps_raw_action_probability():
     stds = [0.12, 0.08, 0.15, 0.15, 0.1, 0.15]
     module = specification("uc", uc_initial_mean=means, uc_initial_std=stds, uc_head_scale=0.0).build()
     obs = torch.randn(8, 7)
-    distribution = module._normal(module._features(obs))
-    torch.testing.assert_close(distribution.mean, torch.tensor(means).expand(8, 6))
-    torch.testing.assert_close(distribution.stddev, torch.tensor(stds).expand(8, 6))
-    draw = module.draw(obs)
-    torch.testing.assert_close(draw["action_logp"], distribution.log_prob(draw["raw_latents"]).sum(-1))
-    torch.testing.assert_close(module.draw(obs, deterministic=True)["actions"], distribution.mean)
-    # The configured prior is initialization, not a bound or a pinned action.
+    bounds = torch.tensor([[10., 8., 5., 5., 4., 3.]] * 8)
+    distribution = module._uc_base(module._features(obs), bounds)
+    torch.testing.assert_close(distribution.loc, torch.tensor(means, dtype=torch.float64)[[0, 1, 5]].expand(8, 3))
+    torch.testing.assert_close(distribution._dist.scale, torch.tensor(stds, dtype=torch.float64)[[0, 1, 5]].expand(8, 3))
+    draw = module.draw(obs, bounds)
+    torch.testing.assert_close(draw["action_logp"], module.evaluate_actions({"obs": obs, **draw})["action_logp"])
     with torch.no_grad():
         module.actor["head"].bias[0] = -0.25
-    assert module.draw(obs, deterministic=True)["actions"][0, 0] == -0.25
+    assert module.draw(obs, bounds, deterministic=True)["raw_latents"][0, 0] == -0.25
 
 
 @pytest.mark.parametrize("std", [0.0, -0.1, [0.1] * 5, float("nan")])

@@ -225,7 +225,7 @@ def test_monthly_episode_preserves_state_at_midnight_and_snapshot(dataset_path):
     env = factory(42)
     env.reset(42)
     for _ in range(49):
-        env.publish([1, 0, 0, 0, 0, 0])
+        env.publish([0, 1, 0, 0, 0, 0, 0])
         actions = {
             key: map_consumer_controls([0, 1, 0.5, 0], bound)
             for key, bound in env.engine.local_bounds().items()
@@ -238,29 +238,30 @@ def test_monthly_episode_preserves_state_at_midnight_and_snapshot(dataset_path):
         consumer.monthly_uc_energy_kwh > 0 for consumer in env.engine.state.consumers
     )
     snapshot = env.get_state()
-    env.publish([0.8, 0, 0, 0, 0, 0])
+    env.publish([0, 0.8, 0, 0, 0, 0, 0])
     actions = {
         key: map_consumer_controls([0.1, 0.5, 0.5, 0.5], bound)
         for key, bound in env.engine.local_bounds().items()
     }
     expected = env.step(actions)
     env.set_state(snapshot)
-    env.publish([0.8, 0, 0, 0, 0, 0])
+    env.publish([0, 0.8, 0, 0, 0, 0, 0])
     actual = env.step(actions)
     assert actual.rewards == expected.rewards
     assert actual.metrics == expected.metrics
 
 
-def test_training_entry_uses_all_months_and_converted_learning_parameters(dataset_path):
+def test_training_entry_uses_all_months_and_longer_learning_horizon(dataset_path):
     args = train.arguments(["--dataset", str(dataset_path)])
     config, budget, splits = train.experiment_settings(args)
     assert len(splits["train"]) == 12
     assert len(splits["validation"]) == len(splits["test"]) == 12
     assert config.system.num_consumers == 2
-    assert budget["gamma"] == pytest.approx(0.9801)
-    assert budget["lambda_gae"] == pytest.approx(0.9025)
+    assert budget["gamma"] == pytest.approx(0.99)
+    assert config.rewards.terminal_energy_value_per_kwh == pytest.approx(0.3135)
+    assert budget["lambda_gae"] == pytest.approx(0.97)
     assert budget["critic_lambda"] == 1.0
-    assert budget["rollout_steps"] == 64
+    assert budget["rollout_steps"] == 192
     factory = train.scenario_factory(args, config, splits)
     assert factory.seed_splits == splits
     with pytest.raises(ValueError, match="complete calendar months"):

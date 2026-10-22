@@ -147,14 +147,15 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return float(value.item())
 
     def _announce(self, deterministic):
-        sample = self._draw("uc", self._observation, deterministic=deterministic)
-        decision = self.env.publish(sample["raw_latents"])
+        bounds = self.env.uc_bounds()
+        sample = self._draw("uc", self._observation, bounds, deterministic=deterministic)
+        decision = self.env.publish(np.r_[sample["storage_mode"], sample["raw_latents"]])
         sample["actions"] = decision.uc_action
         sample["mapping_context"] = np.asarray(list(decision.mapping_context.values()), dtype=np.float64)
         sample.update(
             obs=decision.uc_observation,
             critic_obs=decision.uc_observation,
-            bounds=np.zeros(13),
+            bounds=bounds,
             vf_preds=self._value("uc", decision.uc_observation, decision.uc_observation),
         )
         return sample, decision
@@ -258,12 +259,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return self.collect(num_timesteps or self.config.rollout_length)
 
     def evaluate(self, seeds, *, steps=None, deterministic=False):
-        """Compare sampled returns; report value-bootstrap estimates separately.
-
-        Candidate and deviation comparisons use only realized window rewards.
-        The diagnostic estimate must not let a candidate's own critic change its
-        evaluation score. Training GAE retains its decision-time bootstrap.
-        """
+        """Realized finite-episode scores; optional windows are diagnostics only."""
         state = self.get_state()
         rows = []
         try:
@@ -290,6 +286,10 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                         "bootstrap_estimated_returns": estimated_returns,
                         "bootstrap_values": bootstrap,
                         "terminated": self._terminated,
+                        "score_complete": self._terminated,
+                        "terminal_energy_value": totals.get("terminal_energy_value", 0.0),
+                        "initial_energy_kwh": totals.get("initial_energy_kwh", 0.0),
+                        "final_energy_kwh": totals.get("final_energy_kwh", 0.0),
                         "cash_profit": totals.get("uc_cash", 0.0),
                         "native_lost_kwh": totals.get("native_lost_kwh", 0.0),
                         "served_kwh": totals.get("served_kwh", 0.0),

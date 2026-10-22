@@ -4,7 +4,7 @@
 
 ## 1. 固定两套目标
 
-Actor 继续使用原有 `lambda_gae=0.9025`（半小时场景）计算 GAE。Critic 新增独立 `critic_lambda`，默认 1.0；通用命令行参数为 `--critic-lambda`，合法范围为 [0, 1]，并写入 checkpoint 学习契约。
+Actor 使用 `lambda_gae=0.97`，并与评价共用 `gamma=0.99`计算 GAE。Critic 新增独立 `critic_lambda`，默认 1.0；通用命令行参数为 `--critic-lambda`，合法范围为 [0, 1]，并写入 checkpoint 学习契约。
 
 当 `critic_lambda=1` 时，每条记录的目标为：
 
@@ -15,7 +15,7 @@ y_t^V=\sum_{k=0}^{n-1}\gamma^k r_{t+k}
 
 `n` 截至本批末尾或真实终止。真实终止的尾值为零；一批跨真实终止时，两侧回报分开递推。批末 bootstrap 仍沿用下一次合法公告状态；临时公告恢复环境和 RNG。目标在 NumPy 采样结果中固定，优化不重新计算目标，也不回传到旧 Value。设 `critic_lambda=lambda_gae` 可得到原目标数值，但不会自动放行缺少新契约字段的历史 checkpoint。
 
-保持现有 MSE、Value 单位、Actor 优势归一化和两阶段优化顺序。原小规模配置仍为每批 64 步、Critic 4 epoch、Actor 2 epoch、minibatch 32；没有 MC 预拟合或额外采样。六维 UC 动作、消费者行动、网络输入和环境模型保持原状。
+保持现有 MSE、Value 单位、Actor 优势归一化和两阶段优化顺序。当前小规模配置为每批 192 步（Ausgrid 96 小时）、Critic 4 epoch、Actor 2 epoch、minibatch 32；没有 MC 预拟合或额外采样。六维 UC 动作、消费者行动、网络输入和环境模型保持原状。
 
 该目标减少对批内中间旧 Value 的依赖，增加回报目标方差。批末仍依赖旧 Value；它不能补足月末数据覆盖，也不能据此断言验证 RMSE 或供电率改善。
 

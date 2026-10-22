@@ -52,7 +52,7 @@ def configuration(path, *, device="cpu"):
 
 
 def rows(values):
-    return [{"seed": index, "returns": {"uc": value}} for index, value in enumerate(values)]
+    return [{"seed": index, "returns": {"uc": value}, "score_complete": True} for index, value in enumerate(values)]
 
 
 def test_candidate_acceptance_includes_incumbent_and_paired_uncertainty():
@@ -71,6 +71,19 @@ def test_disjoint_scenario_splits_and_continuous_contract(tmp_path):
     cfg = configuration(tmp_path)
     cfg.validation_seeds = (2,)
     with pytest.raises(ValueError, match="disjoint"):
+        cfg.validate()
+
+
+def test_candidate_configuration_requires_finite_complete_evaluation(tmp_path):
+    cfg = configuration(tmp_path)
+    cfg.evaluation_steps = 2
+    with pytest.raises(ValueError, match="complete episodes"):
+        cfg.validate()
+    cfg.evaluation_steps = None
+    env_cfg = cfg.scenario_factory.config
+    cfg.scenario_factory = replace(cfg.scenario_factory, config=replace(
+        env_cfg, system=replace(env_cfg.system, episode_mode="continuous")))
+    with pytest.raises(ValueError, match="finite scenarios"):
         cfg.validate()
 
 
@@ -234,8 +247,10 @@ def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path):
         bundle = ActorBundle(exported)
         assert all(not hasattr(module, "value") for module in bundle.modules.values())
         obs = algo.env_runner.env.reset(21)
-        expected = algo.env_runner._draw("uc", obs, deterministic=True)["raw_latents"]
-        np.testing.assert_allclose(bundle.uc_controls(obs), expected, rtol=0, atol=0)
+        bounds = algo.env_runner.env.uc_bounds()
+        sample = algo.env_runner._draw("uc", obs, bounds, deterministic=True)
+        expected = np.r_[sample["storage_mode"], sample["raw_latents"]]
+        np.testing.assert_allclose(bundle.uc_controls(obs, bounds), expected, rtol=0, atol=0)
     finally:
         algo.stop()
 

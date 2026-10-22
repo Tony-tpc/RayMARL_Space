@@ -110,15 +110,15 @@ def test_due_local_capacity_and_terminal_no_deferral(make_engine):
 def test_output_map_covers_target_actions_and_zero_domains(make_engine):
     engine = make_engine([0], der=8, grid=10, flex=0)
     engine.reset()
-    for z, expected in [([0.4, 0.25, 1 / 3, 0.5, 1, 0.1], U(grid_import_offer_kw=4, der_planned_curtailment_kw=2, der_to_ess_kw=2, grid_to_ess_kw=2, ess_discharge_offer_kw=0, dr_procurement_cap_kw=4)),
-                        ([0.4, 0.25, 0, 0, -0.25, 0.1], U(grid_import_offer_kw=4, der_planned_curtailment_kw=2, der_to_ess_kw=0, grid_to_ess_kw=0, ess_discharge_offer_kw=4.75, dr_procurement_cap_kw=4)),
-                        ([0, 1, 0, 0, 0, 0], U(grid_import_offer_kw=0, der_planned_curtailment_kw=8, der_to_ess_kw=0, grid_to_ess_kw=0, ess_discharge_offer_kw=0, dr_procurement_cap_kw=0))]:
+    for z, expected in [([1, 0.4, 0.25, 1 / 3, 0.5, 0, 0.1], U(grid_import_offer_kw=4, der_planned_curtailment_kw=2, der_to_ess_kw=2, grid_to_ess_kw=2, ess_discharge_offer_kw=0, dr_procurement_cap_kw=4)),
+                        ([2, 0.4, 0.25, 0, 0, 0.25, 0.1], U(grid_import_offer_kw=4, der_planned_curtailment_kw=2, der_to_ess_kw=0, grid_to_ess_kw=0, ess_discharge_offer_kw=4.75, dr_procurement_cap_kw=4)),
+                        ([0, 0, 1, 0, 0, 0, 0], U(grid_import_offer_kw=0, der_planned_curtailment_kw=8, der_to_ess_kw=0, grid_to_ess_kw=0, ess_discharge_offer_kw=0, dr_procurement_cap_kw=0))]:
         action = map_uc_controls(z, engine.state, 8, engine.config)
         assert astuple(action) == pytest.approx(astuple(expected))
         validate_uc_action(action, engine.state, 8, engine.config)
     zero = make_engine([0], der=0, grid=0, flex=0, ess=0, active=False)
     zero.reset()
-    assert astuple(map_uc_controls([10] * 6, zero.state, 0, zero.config)) == (0,) * 6
+    assert astuple(map_uc_controls([0] + [10] * 6, zero.state, 0, zero.config)) == (0,) * 6
 
 
 def test_random_policy_output_is_feasible_but_never_applied_implicitly(make_engine):
@@ -128,7 +128,12 @@ def test_random_policy_output_is_feasible_but_never_applied_implicitly(make_engi
                                 engine.config, timestamp=engine.state.timestamp)
     rng = np.random.default_rng(713)
     for _ in range(1000):
-        action = map_uc_controls(rng.normal(size=6), engine.state, 8, engine.config)
+        raw = rng.normal(size=6)
+        # This engine has charge space and stored energy. Charge is unavailable
+        # only when the sampled base action removes both incoming sources.
+        has_source = np.clip(raw[0], 0, 1) > 0 or np.clip(raw[1], 0, 1) < 1
+        mode = rng.choice([0, 1, 2] if has_source else [0, 2])
+        action = map_uc_controls(np.r_[mode, raw], engine.state, 8, engine.config)
         validate_uc_action(action, engine.state, 8, engine.config)
         consumer = map_consumer_controls(rng.uniform(size=4), bounds)
         low, high = bounds.shift_interval(consumer.curtail_kw)

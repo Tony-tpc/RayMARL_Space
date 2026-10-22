@@ -69,7 +69,8 @@ def bounds_tensor(bounds, count):
 
 def sample_batch(module, count=16):
     obs, critic = torch.randn(count, 7), torch.randn(count, 13)
-    bounds = bounds_tensor(legal_bounds(), count)
+    bounds = (torch.tensor([[10., 8., 5., 5., 4., 3.]] * count, dtype=torch.float64)
+              if module.role == "uc" else bounds_tensor(legal_bounds(), count))
     with torch.no_grad():
         data = {"obs": obs, "critic_obs": critic, "bounds": bounds, **module.draw(obs, bounds)}
         data["vf_preds"] = module.compute_values(data)
@@ -97,17 +98,17 @@ def make_learner():
 
 def test_uc_uses_raw_unclipped_joint_probability():
     module = module_spec("uc").build()
-    obs = torch.randn(3, 7)
-    raw = torch.tensor([[-2.0, 1.2, 3.0, 0.0, -2.5, 0.4]] * 3)
-    distribution = module._normal(module._features(obs))
-    actual = module.evaluate_actions({"obs": obs, "raw_latents": raw})["action_logp"]
-    torch.testing.assert_close(actual, distribution.log_prob(raw).sum(-1))
-    assert not torch.allclose(actual, distribution.log_prob(raw.clamp(0, 1)).sum(-1))
-    draw = module.draw(obs)
-    assert not draw["zero_width_mask"].any()
-    torch.testing.assert_close(
-        draw["action_logp"], module.evaluate_actions({"obs": obs, **draw})["action_logp"], rtol=0, atol=0
-    )
+    obs = torch.randn(32, 7)
+    bounds = torch.tensor([[10., 8., 5., 5., 4., 3.]] * 32)
+    draw = module.draw(obs, bounds)
+    actual = module.evaluate_actions({"obs": obs, **draw})["action_logp"]
+    torch.testing.assert_close(actual, draw["action_logp"], rtol=0, atol=0)
+    changed = draw["raw_latents"].clone()
+    changed[:, 0] = 3.0
+    unclipped = module.evaluate_actions({"obs": obs, **draw, "raw_latents": changed})["action_logp"]
+    changed[:, 0] = 1.0
+    clipped = module.evaluate_actions({"obs": obs, **draw, "raw_latents": changed})["action_logp"]
+    assert not torch.allclose(unclipped, clipped)
 
 
 @pytest.mark.parametrize("zero,due", [(False, False), (False, True), (True, False)])

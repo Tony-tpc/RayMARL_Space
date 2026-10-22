@@ -18,7 +18,7 @@ def valid_actions(env):
     engine = env.engine
     if engine.phase.value == "UC_TURN":
         t = engine.state.period_id
-        action = map_uc_controls([0.8, 0, 0.2, 0.2, 0, 0.3], engine.state,
+        action = map_uc_controls([0, 0.8, 0, 0.2, 0.2, 0, 0.3], engine.state,
                                   engine.profiles.der_kw[t], engine.config)
         return {"uc": np.array(astuple(action), dtype=np.float64)}
     return {i: np.array(astuple(map_consumer_controls([0.2, 0.5, 0.5, 0.5], bounds)))

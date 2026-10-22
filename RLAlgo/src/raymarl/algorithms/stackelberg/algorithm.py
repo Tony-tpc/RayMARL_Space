@@ -1,4 +1,19 @@
-"""Native RLlib lifecycle with matched-response leader candidate selection."""
+"""Native RLlib lifecycle with matched-response leader candidate selection.
+
+algorithm.train()
+    ↓
+NativeAlgorithmMixin.train()       公共入口，附加日志和 checkpoint
+    ↓
+RLlib 的训练生命周期
+    ↓
+Stackelberg.training_step()        本算法真正的一整轮训练
+    ↓
+多次 _adapt(...)                   每次完成若干批采样和学习
+    ↓
+learner_group.update(...)          进入 Learner 的 minibatch 更新
+
+
+"""
 
 import copy
 import json
@@ -76,6 +91,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         if seed is not None:
             self.env_runner.restart(seed)
         for _ in range(updates):
+            # 采一批新数据
             batch = self.env_runner.collect(self.config.rollout_length)
             before = self._batch_diagnostics(batch)
             # Actor GAE, critic returns and behavior logp are fixed at collection.
@@ -202,11 +218,24 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         }
 
     def training_step(self):
+        """
+        训练一轮 Stackelberg 迭代。每轮迭代包括：
+        1. 适应消费者策略（inner loop）。
+        2. 搜索偏差（可选）。
+        3. 评估候选策略。
+        4. 选择候选策略。
+        5. 更新日志和指标。
+        """
+
+        # 给配置起一个简短的名字 cfg。开始新一轮日志，清空上一轮尚待标记的候选日志列表。保存轮初网络权重，供最后计算“这一轮 Actor 改变了多少”。这里还没有训练。
         cfg = self.config
         self.batch_loss_log.begin_round()
         starting_weights = copy.deepcopy(self.learner_group.get_weights())
         # Only a true episode boundary rotates the main training scenario.
-        self._adapt(self.consumer_ids, cfg.inner_updates, phase="consumer_adaptation")
+        self._adapt(self.consumer_ids, # 本阶段允许更新 Actor 的智能体是全部消费者
+                    cfg.inner_updates, # 做多少批“重新采样＋学习”
+                    phase="consumer_adaptation" # 给日志标记这个阶段的名字
+                    )
         deviations = self.search_deviations()
         reference = self._snapshot()
         candidates = [reference]

@@ -8,8 +8,8 @@
 |---|---|
 | [建模文档](environments/sn_energy_market/docs/v9/modeling_complete_zh.md) | 唯一维护的完整模型规格，含当前训练算法 |
 | [训练说明](experiments/sn_energy_market/TRAINING.md) | 通用参数、连续采样、候选恢复、日志及评价 |
-| [固定预算入口](experiments/sn_energy_market/batch_critic_pilot.py) | 当前 LayerNorm 与诊断日志，原候选选择，默认 3 轮、24 批 |
-| [LayerNorm 单项短测](experiments/sn_energy_market/LAYERNORM_PILOT.md) | 当前回退范围、真实逐批结果及 GRU 文献分析 |
+| [固定预算入口](experiments/sn_energy_market/batch_critic_pilot.py) | 三模式储能、完整月份评价与终端库存估值，默认 3 轮、24 批 |
+| [LayerNorm 单项短测](experiments/sn_energy_market/LAYERNORM_PILOT.md) | 储能修改前的历史逐批结果及 GRU 文献分析 |
 | [Critic 稳定性实验](experiments/sn_energy_market/CRITIC_STABILITY_PILOT.md) | LayerNorm、UC 时间支路及供电／现金检查的固定预算对照 |
 | [小规模结果](experiments/sn_energy_market/BATCH_CRITIC_PILOT.md) | 分日期 RMSE、供电率、UC 收益与真实逐批曲线 |
 | [中长期验证](experiments/sn_energy_market/YEAR_STUDY.md) | 72 轮固定预算，沿用同一算法、训练年与保留测试集 |
@@ -17,6 +17,8 @@
 | [交接说明](experiments/sn_energy_market/HANDOFF.md) | 当前实现、证据位置与未解决问题 |
 
 当前训练入口直接依赖 `evaluation.py` 和 `training_audit.py`，不再从历史实验脚本导入函数。数据场景每个 seed 对应一个完整月，月初启动、批间保留状态、真实月末重置。
+
+2026-10-21 的储能修改复用 RLlib 分类、高斯与组合分布，内部选择闲置／充电／放电，外部保持 v9 六维物理动作。空电屏蔽放电，两路充电各自控制；能源实验采用 `gamma=0.99`、正终端库存估值及完整有限回合评分。新输出位于 `outputs/ausgrid-hybrid-storage/`；以下已完成的三轮和 72 轮结果保留其历史协议，旧 checkpoint 由原源码复现。
 
 ## 删除和保留规则
 

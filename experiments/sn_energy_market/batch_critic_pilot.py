@@ -28,10 +28,14 @@ from experiments.sn_energy_market.profile_dataset import (
     DatasetEnvFactory,
     ProfileDataset,
 )
-from experiments.sn_energy_market.train import model_settings, write_json
+from experiments.sn_energy_market.train import (
+    inventory_valued_config,
+    model_settings,
+    write_json,
+)
 from experiments.sn_energy_market.training_audit import TrainingAudit
 
-OUTPUT = ROOT / "outputs/ausgrid-layernorm-pilot/20261020"
+OUTPUT = ROOT / "outputs/ausgrid-hybrid-storage/20261022-long-horizon-pilot"
 REFERENCE = ROOT / "outputs/ausgrid-batch-critic-pilot/20261020/report.json"
 FULL_MONTH_REFERENCE = ROOT / "outputs/ausgrid-year-study/20261020/validation-0003.json"
 
@@ -43,7 +47,7 @@ def configuration(output):
         ROOT / "datasets/ausgrid/processed/manifest.json",
         splits=("train", "validation"),
     )
-    factory = DatasetEnvFactory(dataset, seed=42)
+    factory = DatasetEnvFactory(dataset, inventory_valued_config(dataset.environment_config()), seed=42)
     return (
         StackelbergConfig()
         .scenarios(
@@ -56,10 +60,10 @@ def configuration(output):
         .rl_module(model_config=model_settings(32))
         .training(
             gamma=GAMMA,
-            lambda_gae=0.9025,
+            lambda_gae=0.97,
             critic_lambda=1.0,
             critic_epochs=4,
-            rollout_length=64,
+            rollout_length=192,
             inner_updates=2,
             response_updates=2,
             uc_candidates=1,
@@ -67,7 +71,7 @@ def configuration(output):
             deviation_updates=0,
             num_epochs=2,
             minibatch_size=32,
-            evaluation_steps=96,
+            evaluation_steps=None,
             stopping_patience=0,
             storage_path=str(output),
             checkpoint_interval=0,
@@ -75,28 +79,34 @@ def configuration(output):
     )
 
 
-def run_pilot(output, reference_path, *, outer_rounds=3):
+def round_budget(cfg):
+    """Actual branch work and retained main trajectory for this fixed pilot."""
+    if cfg.deviation_updates:
+        raise ValueError("Fixed pilot budget requires deviation_updates=0")
+    batches = (cfg.inner_updates + cfg.uc_candidates * cfg.uc_updates_per_candidate
+               + (cfg.uc_candidates + 1) * cfg.response_updates)
+    minibatches = (cfg.rollout_length + cfg.minibatch_size - 1) // cfg.minibatch_size
+    return {
+        "batches": batches,
+        "ppo_periods": batches * cfg.rollout_length,
+        "main_periods": (cfg.inner_updates + cfg.response_updates) * cfg.rollout_length,
+        "critic_steps_per_module": batches * cfg.critic_epochs * minibatches,
+    }
+
+
+def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoint_each_round=False):
     import ray
     import torch
 
     cfg = configuration(output)
+    budget = round_budget(cfg)
     evaluation_rounds = sorted({n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds})
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     full_reference = json.loads(FULL_MONTH_REFERENCE.read_text(encoding="utf-8"))
     assert full_reference["performance"] == reference["final"]["performance"]
     assert full_reference["critic"]["modules"] == reference["final"]["critic"]["modules"]
-    # Compare learning settings and data semantics; source hashes describe each
-    # run separately and intentionally change when the implementation is cleaned.
-    actual, expected = cfg.learning_contract(), reference["learning_contract"]
-    for key, value in actual.items():
-        if key not in {"value_architecture", "scenario"}:
-            assert value == expected[key], f"Pilot learning setting changed: {key}"
-    for key in ("manifest_sha256", "loaded_splits", "household_ids", "config",
-                "resource_calibration", "scenario_prices"):
-        assert actual["scenario"][key] == expected["scenario"][key], key
-    assert reference["ppo_sampled_periods"] == 1536
-    assert reference["critic_auxiliary_periods"] == 0
-    assert source_hashes("environments/sn_energy_market/src") == reference["environment_source_sha256"]
+    # Historical reports retain their original action/reward/evaluation contracts.
+    # They supply descriptive reference results, not an identical-objective control.
     output.mkdir(parents=True, exist_ok=False)
     torch.set_num_threads(1)
     temporary = ROOT / ".tmp" / output.parent.name
@@ -116,11 +126,12 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
     write_json(output / "experiment.json", {
         "source_sha256": execution_sources,
         "learning_contract": cfg.learning_contract(),
-        "initialization": "fresh_seed_42_same_actors_new_critic_architecture",
+        "initialization": "fresh_seed_42_hybrid_storage_full_episode_inventory_objective",
         "reference_report": str(reference_path.relative_to(ROOT)),
         "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
         "outer_rounds": outer_rounds,
-        "ppo_budget": 512 * outer_rounds,
+        "ppo_budget": budget["ppo_periods"] * outer_rounds,
+        "round_budget": budget,
         "evaluation_rounds": evaluation_rounds,
         "critic_auxiliary_periods": 0,
         "actor_epochs": 2,
@@ -134,19 +145,16 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
     try:
         algorithm = cfg.build_algo()
         audit = TrainingAudit(algorithm, output).install()
+        if observer is not None:
+            observer.on_ready(algorithm, audit)
         start = cursor(algorithm.env_runner)
         audit.phase = "validation_initial"
+        if observer is not None:
+            observer.before_evaluation(0)
         initial = frozen_evaluation(algorithm)
-        for mode in ("sampled", "mean"):
-            for new, old in zip(initial["performance"][mode]["rows"],
-                                reference["initial"]["performance"][mode]["rows"], strict=True):
-                # Critic bootstrap diagnostics intentionally differ; actions,
-                # realized returns and energy/cash metrics must match exactly.
-                for key in ("seed", "returns", "metrics", "physical_periods"):
-                    assert new[key] == old[key], (mode, key)
-        assert initial["critic"]["periods"] == reference["initial"]["critic"]["periods"]
-        assert start == reference["start"]
         write_json(output / "validation-0000.json", initial)
+        if observer is not None:
+            observer.after_evaluation(0, initial)
         evaluations = {"0": initial}
         rounds = []
         started = time.monotonic()
@@ -160,36 +168,45 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
                 "start": before,
                 "end": cursor(algorithm.env_runner),
             }
-            assert row["end"]["main_periods"] - before["main_periods"] == 256
+            assert row["end"]["main_periods"] - before["main_periods"] == budget["main_periods"]
             rounds.append(row)
             write_json(output / f"round-{index + 1:04d}.json", row)
+            if checkpoint_each_round:
+                algorithm.save_to_path()
+            if observer is not None:
+                observer.after_round(index + 1, row)
             print(json.dumps({"round": index + 1, "selected": algorithm.last_round["selected_candidate"],
                               "cursor": row["end"], "elapsed_seconds": time.monotonic() - started}), flush=True)
             if index + 1 in evaluation_rounds:
                 audit.phase = f"validation_{index + 1}"
+                if observer is not None:
+                    observer.before_evaluation(index + 1)
                 evaluation = frozen_evaluation(algorithm)
                 evaluations[str(index + 1)] = evaluation
                 write_json(output / f"validation-{index + 1:04d}.json", evaluation)
                 # Managed checkpoints keep the latest two, including their full
                 # environment, optimizer and RNG state.
-                algorithm.save_to_path()
+                if not checkpoint_each_round:
+                    algorithm.save_to_path()
+                if observer is not None:
+                    observer.after_evaluation(index + 1, evaluation)
                 print(json.dumps({"validated_round": index + 1,
                                   "uc_rmse": evaluation["critic"]["modules"]["uc"]["all"]["rmse"],
                                   "elapsed_seconds": time.monotonic() - started}), flush=True)
-        assert algorithm.sampled_periods == 512 * outer_rounds
-        main_periods = 256 * outer_rounds
+        assert algorithm.sampled_periods == budget["ppo_periods"] * outer_rounds
+        main_periods = budget["main_periods"] * outer_rounds
         assert cursor(algorithm.env_runner)["main_periods"] == main_periods
-        assert len(audit.updates) == 16 * outer_rounds
+        assert len(audit.updates) == 2 * budget["batches"] * outer_rounds
         from experiments.sn_energy_market.plot_batch_losses import load_batches
 
         batch_log = Path(algorithm.logdir) / "batch_losses.jsonl"
         batch_rows = load_batches(batch_log)
-        assert [row["batch_id"] for row in batch_rows] == list(range(1, 8 * outer_rounds + 1))
-        assert all(row["samples"] == 64 and row["branch_status"] != "pending" for row in batch_rows)
+        assert [row["batch_id"] for row in batch_rows] == list(range(1, budget["batches"] * outer_rounds + 1))
+        assert all(row["samples"] == cfg.rollout_length and row["branch_status"] != "pending" for row in batch_rows)
         (output / "batch_losses.jsonl").write_bytes(batch_log.read_bytes())
         for key in algorithm.config.agent_order:
             steps = [row for row in audit.optimizer_steps if row["agent"] == key and row["role"] == "value"]
-            assert len(steps) == 64 * outer_rounds
+            assert len(steps) == budget["critic_steps_per_module"] * outer_rounds
         final = evaluations[str(outer_rounds)]
         audit.phase = "checkpoint_replay"
         saved = copy.deepcopy(algorithm.get_state())
@@ -213,11 +230,11 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
             "outer_rounds": outer_rounds,
             "evaluations": evaluations,
             "elapsed_training_and_validation_seconds": time.monotonic() - started,
-            "ppo_sampled_periods": 512 * outer_rounds,
+            "ppo_sampled_periods": budget["ppo_periods"] * outer_rounds,
             "main_advanced_periods": main_periods,
             "critic_auxiliary_periods": 0,
-            "critic_optimizer_steps_executed_per_module": 64 * outer_rounds,
-            "initial_actor_performance_matches_reference": True,
+            "critic_optimizer_steps_executed_per_module": budget["critic_steps_per_module"] * outer_rounds,
+            "initial_actor_performance_matches_reference": False,
             "initial_critic_matches_reference": False,
             "reference_report": str(reference_path.relative_to(ROOT)),
             "reference_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
@@ -225,7 +242,7 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
             "full_month_reference_sha256": hashlib.sha256(FULL_MONTH_REFERENCE.read_bytes()).hexdigest(),
             "batch_loss_log": str((output / "batch_losses.jsonl").relative_to(ROOT)),
             "batch_loss_sha256": hashlib.sha256(batch_log.read_bytes()).hexdigest(),
-            "logged_batches": 8 * outer_rounds,
+            "logged_batches": budget["batches"] * outer_rounds,
             "checkpoint_exact_replay": True,
             "retained_optimizer_steps": [
                 item.get() for item in algorithm.learner_group.foreach_learner(retained_optimizer_steps)
@@ -240,11 +257,17 @@ def run_pilot(output, reference_path, *, outer_rounds=3):
         }
         write_json(output / "report.json", report)
         write_json(output / "optimizer_steps.json", audit.optimizer_steps)
+        if observer is not None:
+            observer.on_completed(report)
         print(json.dumps({"status": "completed", "report": str(output / "report.json")}), flush=True)
     except Exception as exc:
         write_json(output / "failure.json", {"error": repr(exc), "diagnostics": audit.report() if audit else None})
+        if observer is not None:
+            observer.on_failure(exc)
         raise
     finally:
+        if observer is not None:
+            observer.close()
         if audit is not None:
             audit.close()
         if algorithm is not None:

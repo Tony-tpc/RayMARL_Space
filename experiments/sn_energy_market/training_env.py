@@ -15,7 +15,7 @@ from snmarket import (
     ProfileExhaustedError,
     Profiles,
 )
-from snmarket.action import action_tuple, map_uc_controls
+from snmarket.action import action_tuple, map_uc_controls, uc_control_bounds
 from snmarket.contracts import EngineSnapshot, LocalBounds
 from snmarket.observation import consumer_fields, uc_fields
 
@@ -81,6 +81,10 @@ class MarketTrainingEnv:
             seed=seed, options={"episode_id": f"scenario-{seed}", **(options or {})}
         )
 
+    def uc_bounds(self) -> np.ndarray:
+        state = self.engine.state
+        return uc_control_bounds(state, float(self.engine.profiles.der_kw[state.period_id]), self.config)
+
     def publish(self, raw_controls) -> Decision:
         if self.engine.data_exhausted:
             raise ProfileExhaustedError(
@@ -130,6 +134,9 @@ class MarketTrainingEnv:
         record = self.engine.apply_consumer_actions(consumer_actions)
         dt = self.config.system.dt_hours
         metrics = {
+            "terminal_energy_value": record.ledger.terminal_energy_value,
+            "initial_energy_kwh": self.engine.state.initial_ess_energy_kwh if record.terminated else 0.0,
+            "final_energy_kwh": record.physical.ess_energy_after_kwh if record.terminated else 0.0,
             "uc_cash": record.ledger.cash_profit,
             "uc_book_profit": record.ledger.book_profit,
             "native_lost_kwh": sum(
@@ -140,6 +147,9 @@ class MarketTrainingEnv:
             * dt,
             "served_kwh": record.physical.supply_served_kw * dt,
             "grid_kwh": record.physical.grid_buy_kw * dt,
+            "der_charge_kwh": record.uc_action.der_to_ess_kw * dt,
+            "grid_charge_kwh": record.uc_action.grid_to_ess_kw * dt,
+            "ess_discharge_kwh": record.physical.ess_discharge_kw * dt,
             "der_spill_kwh": record.physical.der_spill_kw * dt,
             "dr_net_kwh": record.dr.net_dr_kw * dt,
             "dr_payment": record.dr.total_payment,

@@ -4,11 +4,16 @@ import math
 
 import torch
 from ray.rllib.core.columns import Columns
+from ray.rllib.core.distribution.torch.torch_distribution import (
+    TorchCategorical,
+    TorchDiagGaussian,
+    TorchMultiDistribution,
+)
 from ray.rllib.core.rl_module.apis.inference_only_api import InferenceOnlyAPI
 from ray.rllib.core.rl_module.apis.value_function_api import ValueFunctionAPI
 from ray.rllib.core.rl_module.torch.torch_rl_module import TorchRLModule
 from torch import nn
-from torch.distributions import Beta, Normal
+from torch.distributions import Beta
 from torch.nn import functional as F
 
 BOUNDS_FIELDS = (
@@ -73,8 +78,29 @@ def shift_interval(bounds, cut):
     return low, torch.where(due > 0, -due, high)
 
 
+class ActiveDiagGaussian(TorchDiagGaussian):
+    """RLlib Gaussian with point masses for inactive/zero-width coordinates.
+
+    Sampling and the active coordinate densities use RLlib's Gaussian. Only
+    the sum excludes coordinates whose physical interval has collapsed.
+    """
+
+    def __init__(self, loc, scale, active):
+        self.active = active
+        super().__init__(torch.where(active, loc, 0.0), torch.where(active, scale, 1.0))
+
+    def sample(self):
+        return torch.where(self.active, super().sample(), 0.0)
+
+    def logp(self, value):
+        return torch.where(self.active, self._dist.log_prob(value), 0.0).sum(-1)
+
+    def entropy(self):
+        return torch.where(self.active, self._dist.entropy(), 0.0).sum(-1)
+
+
 class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
-    """UC raw Gaussian or one consumer's conditional Beta policy.
+    """UC masked categorical/conditional Gaussian; Consumer conditional Beta.
 
     Only ``obs`` enters an actor. UC value reads that same aggregate observation;
     consumer value reads ``critic_obs`` from the trusted post-announcement state.
@@ -94,9 +120,11 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         obs_dim = self.observation_space.shape[0]
         self.actor = nn.ModuleDict({"encoder": mlp(obs_dim, hidden)})
         if self.role == "uc":
-            self.actor["head"] = nn.Linear(hidden, 12)
+            self.actor["head"] = nn.Linear(hidden, 6)  # grid, curtailment, DR
+            self.actor["mode"] = nn.Linear(hidden + 3, 3)
+            self.actor["storage"] = nn.Linear(hidden + 6, 6)
             initial_mean = torch.as_tensor(
-                self.model_config.get("uc_initial_mean", [0.5, 0.5, 0.5, 0.5, 0.0, 0.5])
+                self.model_config.get("uc_initial_mean", [0.5, 0.5, 0.2, 0.2, 0.5, 0.5])
             )
             initial_std = torch.as_tensor(self.model_config.get("uc_initial_std", math.exp(-0.5)))
             if (
@@ -110,9 +138,12 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
                     "UC initialization requires six finite means and positive scalar/six-vector std"
                 )
             with torch.no_grad():
-                self.actor["head"].weight.mul_(self.model_config.get("uc_head_scale", 1.0))
-                self.actor["head"].bias[:6].copy_(initial_mean)
-                self.actor["head"].bias[6:].copy_(initial_std.log().expand(6))
+                for name, indices in (("head", [0, 1, 5]), ("storage", [2, 3, 4])):
+                    self.actor[name].weight.mul_(self.model_config.get("uc_head_scale", 1.0))
+                    self.actor[name].bias[:3].copy_(initial_mean[indices])
+                    self.actor[name].bias[3:].copy_(initial_std.log().expand(6)[indices])
+                self.actor["mode"].weight.mul_(self.model_config.get("uc_head_scale", 1.0))
+                self.actor["mode"].bias.zero_()
         else:
             self.actor["cut"] = nn.Linear(hidden, 2)
             self.actor["shift"] = nn.Linear(hidden + 1, 2)
@@ -135,9 +166,75 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         alpha, beta = (F.softplus(parameters) + 1.0).unbind(-1)
         return Beta(alpha, beta)
 
-    def _normal(self, features):
-        mean, log_std = self.actor["head"](features).chunk(2, -1)
-        return Normal(mean, log_std.clamp(-5.0, 2.0).exp())
+    @staticmethod
+    def _gaussian(parameters, active):
+        mean, log_std = parameters.double().chunk(2, -1)
+        return ActiveDiagGaussian(mean, log_std.clamp(-5.0, 2.0).exp(), active)
+
+    def _uc_base(self, features, bounds):
+        return self._gaussian(self.actor["head"](features), bounds[..., [0, 1, 5]] > 0)
+
+    def _uc_mode(self, features, base, bounds):
+        unit = base.clamp(0, 1)
+        grid = unit[..., 0] * bounds[..., 0]
+        der = bounds[..., 1] * (1 - unit[..., 1])
+        mask = torch.stack((torch.ones_like(grid, dtype=torch.bool),
+                            (bounds[..., 2] > 0) & (grid + der > 0), bounds[..., 4] > 0), -1)
+        logits = self.actor["mode"](torch.cat((features, unit.float()), -1))
+        return TorchCategorical.from_logits(logits.double().masked_fill(~mask, -torch.inf)), mask
+
+    def _uc_storage_parameters(self, features, base, mode):
+        # Like RLlib's autoregressive_actions_rlm: condition on the sampled
+        # categorical action. PPO supplies the stored action, never a new draw.
+        inputs = torch.cat((features, base.clamp(0, 1).float(), F.one_hot(mode.long(), 3).float()), -1)
+        return self.actor["storage"](inputs)
+
+    @staticmethod
+    def _uc_intervals(bounds, controls, mode):
+        unit = controls.clamp(0, 1)
+        charge = mode == 1
+        der_cap = torch.where(charge, torch.minimum(bounds[..., 1] * (1 - unit[..., 1]),
+                                                    bounds[..., 2]), 0.0)
+        grid_cap = torch.where(charge, torch.minimum(bounds[..., 0] * unit[..., 0],
+                              (bounds[..., 2] - unit[..., 2] * der_cap).clamp_min(0)), 0.0)
+        upper = torch.stack((bounds[..., 0], bounds[..., 1], der_cap, grid_cap,
+                             torch.where(mode == 2, bounds[..., 4], 0.0), bounds[..., 5]), -1)
+        return torch.stack((torch.zeros_like(upper), upper), -1)
+
+    def _uc_distribution(self, features, controls, bounds, mode):
+        base = controls[..., [0, 1, 5]]
+        base_dist = self._uc_base(features, bounds)
+        mode_dist, mask = self._uc_mode(features, base, bounds)
+        intervals = self._uc_intervals(bounds, controls, mode)
+        storage = self._gaussian(self._uc_storage_parameters(features, base, mode),
+                                 intervals[..., [2, 3, 4], 1] > 0)
+        return TorchMultiDistribution((base_dist, mode_dist, storage)), intervals, mask
+
+    def _draw_uc(self, features, bounds, deterministic=False):
+        bounds = bounds.double()
+        base_dist = self._uc_base(features, bounds)
+        base = base_dist.loc if deterministic else base_dist.sample()
+        mode_dist, _ = self._uc_mode(features, base, bounds)
+        mode = mode_dist.to_deterministic().sample() if deterministic else mode_dist.sample()
+        storage_dist = self._gaussian(self._uc_storage_parameters(features, base, mode),
+                                      torch.ones_like(base, dtype=torch.bool))
+        storage = storage_dist.loc if deterministic else storage_dist.sample()
+        controls = torch.stack((base[..., 0], base[..., 1], storage[..., 0], storage[..., 1],
+                                storage[..., 2], base[..., 2]), -1)
+        distribution, intervals, mask = self._uc_distribution(features, controls, bounds, mode)
+        active = intervals[..., 1] > 0
+        controls = torch.where(active, controls, 0.0)
+        logp = distribution.logp((controls[..., [0, 1, 5]], mode, controls[..., [2, 3, 4]]))
+        return {
+            Columns.ACTIONS: controls.clamp(0, 1) * intervals[..., 1],
+            "raw_latents": controls,
+            "storage_mode": mode,
+            "mode_mask": mask,
+            "bounds": bounds,
+            Columns.ACTION_LOGP: logp,
+            "conditional_bounds": intervals,
+            "zero_width_mask": ~active,
+        }
 
     def _consumer_distributions(self, features, controls):
         cut = controls[..., :1].to(features.dtype)
@@ -207,15 +304,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
     def draw(self, obs, bounds=None, deterministic=False):
         features = self._features(obs)
         if self.role == "uc":
-            distribution = self._normal(features)
-            controls = distribution.mean if deterministic else distribution.sample()
-            return {
-                Columns.ACTIONS: controls,
-                "raw_latents": controls,
-                Columns.ACTION_LOGP: distribution.log_prob(controls).sum(-1),
-                "conditional_bounds": controls.new_zeros((*controls.shape, 2)),
-                "zero_width_mask": torch.zeros_like(controls, dtype=torch.bool),
-            }
+            return self._draw_uc(features, bounds, deterministic)
         actions, controls, intervals = self._draw_consumer(features, bounds, deterministic)
         logp, _ = self._consumer_logp_entropy(features, controls, intervals)
         return {
@@ -230,10 +319,12 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         features = self._features(batch[Columns.OBS])
         controls = batch["raw_latents"]
         if self.role == "uc":
-            distribution = self._normal(features)
+            mode = batch["storage_mode"].long()
+            distribution, _, _ = self._uc_distribution(features, controls, batch["bounds"].double(), mode)
             return {
-                Columns.ACTION_LOGP: distribution.log_prob(controls).sum(-1),
-                "entropy": distribution.entropy().sum(-1),
+                Columns.ACTION_LOGP: distribution.logp((controls[..., [0, 1, 5]], mode,
+                                                       controls[..., [2, 3, 4]])),
+                "entropy": distribution.entropy(),
             }
         logp, entropy = self._consumer_logp_entropy(features, controls, batch["conditional_bounds"])
         return {Columns.ACTION_LOGP: logp, "entropy": entropy}
@@ -242,7 +333,13 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         """Differentiable Monte Carlo entropy under the current conditional policy."""
         features = self._features(batch[Columns.OBS])
         if self.role == "uc":
-            return self._normal(features).entropy().sum(-1)
+            # Unbiased score-function entropy gradient for the full conditional
+            # mixed distribution, including mode-dependent active dimensions.
+            with torch.no_grad():
+                sample = self._draw_uc(features, batch["bounds"])
+            logp = self.evaluate_actions({Columns.OBS: batch[Columns.OBS], **sample})[Columns.ACTION_LOGP]
+            surrogate = -(logp.detach() + 1) * logp
+            return -logp.detach() + surrogate - surrogate.detach()
         _, controls, intervals = self._draw_consumer(features, batch["bounds"], reparameterize=True)
         return self._consumer_logp_entropy(features, controls, intervals)[1]
 

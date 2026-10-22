@@ -38,28 +38,42 @@ def coerce_consumer_action(value):
     return ConsumerAction(**dict(zip(CONSUMER_PHYSICAL_FIELDS, finite_vector(action_tuple(value), 4), strict=True)))
 
 
-def map_uc_controls(z, state, generation_kw, config):
-    """Document §13.2 output layer. The engine never calls this to repair an action."""
-    z = finite_vector(z, 6)
-    u = np.clip(z, 0.0, 1.0)
-    signed = float(np.clip(z[4], -1.0, 1.0))
+def uc_control_bounds(state, generation_kw, config):
+    """Decision-time upper bounds in the six physical-coordinate order."""
     sys = config.system
     dt = sys.dt_hours
-    pg = float(u[0]) * sys.grid_import_max_kw
-    curtail = float(u[1]) * generation_kw
-    der_int = float(u[2]) * max(signed, 0.0) * (generation_kw - curtail)
-    pg_int = float(u[3]) * max(signed, 0.0) * pg
-    charge_cap = min(sys.ess_charge_max_kw,
+    charge_cap = max(0.0, min(sys.ess_charge_max_kw,
                      (sys.ess_energy_capacity_kwh - state.ess_energy_kwh)
-                     / (sys.ess_charge_efficiency * dt))
-    total = der_int + pg_int
-    beta = min(1.0, max(0.0, charge_cap) / total) if total > 0.0 else 0.0
-    dis_cap = min(sys.ess_discharge_max_kw,
-                  sys.ess_discharge_efficiency * (state.ess_energy_kwh - sys.ess_energy_min_kwh) / dt)
+                     / (sys.ess_charge_efficiency * dt)))
+    dis_cap = max(0.0, min(sys.ess_discharge_max_kw,
+                  sys.ess_discharge_efficiency * (state.ess_energy_kwh - sys.ess_energy_min_kwh) / dt))
     active, _ = event_context(state.timestamp, config)
-    return UCAction(grid_import_offer_kw=pg, der_planned_curtailment_kw=curtail, der_to_ess_kw=beta * der_int, grid_to_ess_kw=beta * pg_int,
-                      ess_discharge_offer_kw=max(-signed, 0.0) * max(0.0, dis_cap),
-                      dr_procurement_cap_kw=float(u[5]) * float(active) * config.market.dr_procurement_max_kw)
+    return np.array([sys.grid_import_max_kw, generation_kw, charge_cap, charge_cap,
+                     dis_cap, float(active) * config.market.dr_procurement_max_kw], dtype=np.float64)
+
+
+def map_uc_controls(controls, state, generation_kw, config):
+    """§13.2: [mode, six raw controls] -> the original six physical decisions.
+
+    Modes: 0 idle, 1 charge, 2 discharge. Source coordinates directly set
+    powers in conditional feasible intervals; there is no signed common gate.
+    """
+    controls = finite_vector(controls, 7)
+    mode = controls[0]
+    if mode not in (0, 1, 2):
+        raise ValueError("Storage mode must be 0 (idle), 1 (charge), or 2 (discharge)")
+    u = np.clip(controls[1:], 0.0, 1.0)
+    caps = uc_control_bounds(state, generation_kw, config)
+    pg, curtail = u[0] * caps[0], u[1] * caps[1]
+    available = (True, caps[2] > 0 and generation_kw - curtail + pg > 0, caps[4] > 0)
+    if not available[int(mode)]:
+        raise ValueError("Storage mode is unavailable at the decision-time resource state")
+    der_charge = u[2] * min(generation_kw - curtail, caps[2]) if mode == 1 else 0.0
+    grid_charge = u[3] * min(pg, max(0.0, caps[2] - der_charge)) if mode == 1 else 0.0
+    return UCAction(grid_import_offer_kw=float(pg), der_planned_curtailment_kw=float(curtail),
+                    der_to_ess_kw=float(der_charge), grid_to_ess_kw=float(grid_charge),
+                    ess_discharge_offer_kw=float(u[4] * caps[4]) if mode == 2 else 0.0,
+                    dr_procurement_cap_kw=float(u[5] * caps[5]))
 
 
 def build_local_bounds(consumer, base, rigid, flex, period, config, index=0, timestamp=None):

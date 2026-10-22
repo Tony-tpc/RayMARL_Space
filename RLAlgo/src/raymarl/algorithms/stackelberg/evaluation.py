@@ -7,6 +7,8 @@ def paired_gain(candidate, incumbent, agent="uc", z=1.96):
     """Approximate normal interval over independent, matched scenario seeds."""
     if [row["seed"] for row in candidate] != [row["seed"] for row in incumbent]:
         raise ValueError("Candidate evaluation requires the same ordered scenario seeds")
+    if any(not row["score_complete"] for row in (*candidate, *incumbent)):
+        raise ValueError("Candidate comparison requires complete terminal returns; windows are diagnostic only")
     gains = np.asarray(
         [a["returns"][agent] - b["returns"][agent] for a, b in zip(candidate, incumbent, strict=True)],
         dtype=np.float64,

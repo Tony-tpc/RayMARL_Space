@@ -24,9 +24,10 @@ from snmarket import EnergyMarketEngine, map_uc_controls, map_consumer_controls
 
 engine = EnergyMarketEngine()
 uc_obs = engine.reset(seed=42)
-# 显式输出层：6个内部值一次取得；第5项在[-1,1]，其他项映射到[0,1]。
+# 显式输出层：[储能模式, 六个连续控制]；模式 0 闲置、1 充电、2 放电。
+# 连续控制均映射到 [0,1]；此处选择放电额度的 50%。
 uc_action = map_uc_controls(
-    [0.8, 0, 0, 0, -0.5, 0.5],
+    [2, 0.8, 0, 0, 0, 0.5, 0.5],
     engine.state, engine.profiles.der_kw[0], engine.config,
 )
 consumer_obs = engine.apply_uc_action(uc_action)

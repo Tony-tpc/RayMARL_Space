@@ -1,13 +1,23 @@
 # 能源市场实验
 
-当前固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：仅保留 Critic LayerNorm 和诊断日志，时间支路与供电／现金硬筛选已回退。沿用连续采样及原候选选择，3 轮共 24 批；动作和环境保持。结果与 GRU 分析见[当前报告](LAYERNORM_PILOT.md)，原[三轮基线](BATCH_CRITIC_PILOT.md)、[上次全回滚实验](CRITIC_STABILITY_PILOT.md)保留，测试集继续保留。
+2026-10-22 已将现有 γ 统一设为 0.99、Actor GAE λ 设为 0.97、Ausgrid 每批延长为 192 步。网络参数量与奖励不变，未重新训练。下一次 10 轮入口使用新目录 `20261022-long-horizon-10rounds`，对应 15,360 个 PPO 分支时段、7,680 个主轨迹时段；详见 [训练协议第 9 节](TRAINING.md)。
 
-修改前算法已完成 72 轮（576 批）验证，协议与结果见[中长期报告](YEAR_STUDY.md)。本次仅新增一次三轮实验。
+当前实现已改为三模式储能：闲置／充电／放电，复用 RLlib 分类、高斯和组合分布；环境接收的 v9 物理动作仍为六维。两路充电分别控制，空电屏蔽放电。能源实验采用完整有限回合、`gamma=0.99` 和正终端库存估值，短窗口仅作诊断。模型、概率链及命令见[训练协议](TRAINING.md)和[v9 建模](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。新固定预算输出使用 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-pilot/`；旧 checkpoint 由旧源码复现。
+
+2026-10-21 已完成旧配置 **10 轮**，当时入口源码冻结在输出目录，结果位于 `outputs/ausgrid-hybrid-storage/20261021-10rounds/`。沿用原年度实验的数据、seed 42 和每轮预算：80 批、5,120 个 PPO 分支时段、2,560 个主轨迹时段；第 0、3、10 轮保存四个完整验证月的逐时段数据，每轮保存 checkpoint。完整报告见输出目录的 `comparison/report.html`，含 PNG/SVG 及逐月／逐日 CSV。原年度实验的第 72 轮为历史参照，旧第 10 轮没有完整月验证数据。此入口固定停在第 10 轮。
+
+下列已完成的训练报告均属于本次储能修改前的历史实验；保留其原始结果和结论。
+
+
+2026-10-20 的历史固定预算入口为 [batch_critic_pilot.py](batch_critic_pilot.py)：仅保留 Critic LayerNorm 和诊断日志，时间支路与供电／现金硬筛选已回退。沿用连续采样及原候选选择，3 轮共 24 批；动作和环境保持。结果与 GRU 分析见[当前报告](LAYERNORM_PILOT.md)，原[三轮基线](BATCH_CRITIC_PILOT.md)、[上次全回滚实验](CRITIC_STABILITY_PILOT.md)保留，测试集继续保留。
+
+修改前算法已完成 72 轮（576 批）验证，协议与结果见[中长期报告](YEAR_STUDY.md)。
 
 | 模块 | 职责 |
 |---|---|
 | `train.py` | 通用合成／数据场景入口、预算、checkpoint、导出 |
 | `batch_critic_pilot.py` | 固定预算配置与一次完整训练、验证、审计 |
+| `hybrid_storage_study.py`、`plot_hybrid_storage.py` | 当前三模式储能的 10 轮训练、被动逐时段记录及自动历史对比报告 |
 | `evaluation.py` | 冻结窗口表现、完整验证月 MC、日期分层 RMSE |
 | `training_audit.py` | 独立目标复算、物理账本及梯度／Adam 隔离检查 |
 | `profile_dataset.py`、`training_env.py` | 月窗口、数据契约、两阶段训练适配 |

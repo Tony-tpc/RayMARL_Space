@@ -1,4 +1,4 @@
-"""Frozen validation windows and full-month, true-terminal Critic diagnostics."""
+"""Frozen complete-episode evaluation and true-terminal Critic diagnostics."""
 
 import copy
 import hashlib
@@ -10,7 +10,7 @@ import numpy as np
 from experiments.sn_energy_market.training_audit import assert_same_state
 
 ROOT = Path(__file__).resolve().parents[2]
-GAMMA = 0.9801
+GAMMA = 0.99
 VALIDATION_SEEDS = (10042, 10045, 10048, 10051)
 
 
@@ -92,7 +92,7 @@ def full_value_validation(algorithm):
                 samples, result = runner._period()
                 for key, samples_for_agent in rows.items():
                     samples_for_agent.append(samples[key])
-                    discounted_returns[key] += GAMMA**period * result.rewards[key]
+                    discounted_returns[key] += runner.config.gamma**period * result.rewards[key]
                 for key, value in result.metrics.items():
                     totals[key] = totals.get(key, 0.0) + value
                 period += 1
@@ -107,7 +107,7 @@ def full_value_validation(algorithm):
                 returns = terminal_returns(
                     np.array([row["rewards"] for row in samples]),
                     np.array([row["terminateds"] for row in samples]),
-                    GAMMA,
+                    runner.config.gamma,
                 )
                 predictions[key].extend(values)
                 targets[key].extend(returns)

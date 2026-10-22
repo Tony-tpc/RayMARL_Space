@@ -16,7 +16,7 @@ from raymarl.algorithms.stackelberg.evaluation import (
 
 
 def rows(values):
-    return [{"seed": i, "returns": {"uc": value}} for i, value in enumerate(values)]
+    return [{"seed": i, "returns": {"uc": value}, "score_complete": True} for i, value in enumerate(values)]
 
 
 def comparison(mean, width=0.02):

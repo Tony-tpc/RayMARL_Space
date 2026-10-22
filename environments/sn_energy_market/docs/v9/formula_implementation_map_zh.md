@@ -65,7 +65,7 @@
 | 规则 | 实现与实际证据 |
 |---|---|
 | UC 聚合观测 H+20 | `observation.build_uc_observation` 依次生成 13 个当期标量、H+1 个聚合桶、6 个历史值。`test_every_current_observation_coordinate_against_hand_vector` 核对固定双户例的完整 UC 向量；另有逐户限幅汇总、负现金及 info 隔离测试。`test_private_queue_redistribution_preserves_uc_aggregates_and_other_consumer_input` 检查交换两户私有任务后，UC 聚合观测和第三户个人观测保持相同。 |
-| 神经网络一次输出后的可行映射 | `action.map_uc_controls` 实现第 13.2 节的固定数值映射。测试覆盖正负储能方向、零域、目标行动和 1,000 个内部控制采样。这里没有实现神经网络、随机策略概率或 PPO 更新。 |
+| UC 三模式可行映射 | `action.uc_control_bounds` 与 `map_uc_controls` 实现第 13.2 节的决策前边界及 `[mode,*z]` 到六维物理动作映射。闲置／充电／放电互斥，两路充电分别取条件区间；空电拒绝放电。环境测试覆盖零域、目标行动和 1,000 个合法模式采样；`RLAlgo/tests/test_stackelberg_hybrid.py` 检查 RLlib 混合分布、概率重算、模式掩码和梯度。 |
 | 时间、月累计和冻结零售价 | `tariff.uc_price` 与 `consumer.next_consumer_state`。分时时窗、三组费率及累计阈值均来自配置；窗口使用小时半开区间并校验不重叠。跨月测试先用入期单价结算，再记录关账量并将下一月累计清零。`test_calendar_audit.py` 与 `test_append_cannot_switch_local_calendar_offset` 拒绝构造、恢复或追加时改变本地价表日历。 |
 | 原子执行和幂等 | `evaluate_consumer_actions` 构造候选，`commit` 提交一次。`test_two_stage_clock_atomic_candidate_and_idempotent_concurrent_commit`、`test_injected_failure_and_tampered_candidate_preserve_state` 检验并发重放、失败回滚和候选完整性。 |
 | 快照与状态一致性 | `get_state/set_state` 保存阶段、公告、队列、电量、月账本、历史反馈和随机状态。测试覆盖公告前后恢复、负现金恢复、字段篡改、公开返回对象隔离；`test_restored_history_order_is_chronological` 检查字典插入顺序变化后按真实物理期恢复最后记录与终端公告。 |

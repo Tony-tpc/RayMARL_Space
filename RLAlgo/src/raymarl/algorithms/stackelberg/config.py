@@ -172,9 +172,9 @@ class StackelbergConfig(AlgorithmConfig):
             model=self.model_config,
             scenario=self.scenario_factory.get_contract(),
             input_transform="signed_log1p",
-            uc_probability="raw_diagonal_gaussian",
+            uc_probability="masked_categorical_conditional_active_gaussian",
             consumer_probability="conditional_beta_physical_density",
-            evaluation_return="sampled_discounted_window",
+            evaluation_return="complete_finite_episode_with_terminal_inventory",
             sampling_protocol="continuous_main_common_response_snapshot_selected_branch_v1",
             update_protocol="all_critics_then_selected_actors_common_consumer_state_v1",
             value_architecture="layernorm_tanh",
@@ -232,7 +232,7 @@ class StackelbergConfig(AlgorithmConfig):
         ):
             raise ValueError("evaluation_steps must be a positive integer or None")
         env = self.scenario_factory(self.train_seeds[0])
-        if env.episode_mode == "continuous" and (
-            self.gamma >= 1 or not self.evaluation_steps or self.evaluation_steps < 1
-        ):
-            raise ValueError("Continuous evaluation needs gamma < 1 and a positive evaluation_steps window")
+        if env.episode_mode != "finite":
+            raise ValueError("Candidate selection requires finite scenarios; continuous runners support sampling and diagnostics")
+        if self.evaluation_steps is not None:
+            raise ValueError("Finite candidate evaluation requires complete episodes (evaluation_steps=None)")
