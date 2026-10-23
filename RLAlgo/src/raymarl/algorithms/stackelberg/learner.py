@@ -7,6 +7,7 @@ import torch
 from ray.rllib.core.columns import Columns
 from ray.rllib.core.learner.torch.torch_learner import TorchLearner
 
+from .mode_diagnostics import gradient_norms, mode_statistics, soc_advantages, summarize_minibatches
 from .runner import generalized_advantages
 
 
@@ -39,9 +40,24 @@ class StackelbergTorchLearner(TorchLearner):
             raise ValueError("update_phase must be joint, critic or actor")
         previous = getattr(self, "_update_phase", "joint")
         self._update_phase = update_phase
-        if update_phase == "critic":
-            self._critic_gradient_norms = {}
         try:
+            self._mode_diagnostics = {}
+            self._pending_mode_diagnostics = {}
+            if update_phase == "critic":
+                self._critic_gradient_norms = {}
+            elif update_phase == "actor":
+                batch = kwargs.get("batch", args[0] if args else None)
+                # LearnerGroup wraps local batches in RLlib TrainingData before forwarding.
+                if batch is None:
+                    batch = getattr(kwargs.get("training_data"), "batch", None)
+                if batch is not None:
+                    for key, data in self._convert_batch_type(batch).policy_batches.items():
+                        module = self.module[key].unwrapped()
+                        if module.role == "uc":
+                            self._mode_diagnostics[key] = {
+                                "unique_samples": len(data["advantages"]),
+                                "soc_advantages": soc_advantages(module, data), "minibatches": [],
+                            }
             return super().update(*args, **kwargs)
         finally:
             self._update_phase = previous
@@ -133,6 +149,8 @@ class StackelbergTorchLearner(TorchLearner):
                 "policy_loss": policy_loss, "value_scale": module.value_scale,
                 "value_diagnostics": diagnostics,
                 "critic_gradient_norms": getattr(self, "_critic_gradient_norms", {}).get(key, []),
+                "mode_diagnostics": copy.deepcopy(getattr(self, "_mode_diagnostics", {}).get(key))
+                    if key in actor_ids else None,
             }
         return results
 
@@ -153,6 +171,15 @@ class StackelbergTorchLearner(TorchLearner):
             if phase == "critic":
                 return config.vf_loss_coeff * value_loss
         advantages = batch["advantages"].detach()
+        if phase == "actor" and module_id in self._mode_diagnostics:
+            diagnostics = self._mode_diagnostics[module_id]
+            entry = mode_statistics(self.module[module_id].unwrapped(), batch, fwd_out, config.clip_param)
+            visits = sum(row["samples"] for row in diagnostics["minibatches"])
+            entry.update(minibatch=len(diagnostics["minibatches"]) + 1,
+                         epoch=visits // diagnostics["unique_samples"] + 1,
+                         entropy_coeff=config.entropy_coeff)
+            diagnostics["minibatches"].append(entry)
+            self._pending_mode_diagnostics[module_id] = entry
         actor_loss, ratio = clipped_policy_loss(
             fwd_out[Columns.ACTION_LOGP], batch[Columns.ACTION_LOGP].detach(), advantages, config.clip_param
         )
@@ -183,9 +210,19 @@ class StackelbergTorchLearner(TorchLearner):
                 p for group in optimizer.param_groups for p in group["params"] if p.grad is not None
             ]
             if parameters:
+                key = self._optimizer_name_to_module[name]
+                module = self.module[key].unwrapped()
+                entry = getattr(self, "_pending_mode_diagnostics", {}).get(key)
+                mode_update = entry is not None and any(p is module.actor["mode"].weight for p in parameters)
+                if mode_update:
+                    entry["gradient_norm_before"] = gradient_norms(module)
                 norm = torch.nn.utils.clip_grad_norm_(
                     parameters, self.config.grad_clip, error_if_nonfinite=True
                 )
+                if mode_update:
+                    entry["gradient_norm_after"] = gradient_norms(module)
+                    entry["actor_global_norm"] = float(norm)
+                    entry["global_clip_multiplier"] = min(1.0, self.config.grad_clip / (float(norm) + 1e-6))
                 self.metrics.log_value(
                     (self._optimizer_name_to_module[name], "grad_norm"), norm.detach(), window=1
                 )
@@ -193,6 +230,38 @@ class StackelbergTorchLearner(TorchLearner):
                     key = self._optimizer_name_to_module[name]
                     self._critic_gradient_norms.setdefault(key, []).append(float(norm))
         return {key: value for key, value in gradients_dict.items() if value is not None}
+
+    def apply_gradients(self, gradients_dict):
+        # Observe native Adam; diagnostics never call backward/step or enter checkpoint state.
+        before = {
+            key: {name: p.detach().clone() for name, p in self.module[key].actor.named_parameters()
+                  if name.startswith(("mode.", "mode_soc."))}
+            for key in getattr(self, "_pending_mode_diagnostics", {})
+        }
+        optimizers = {
+            key: next(opt for opt in self._named_optimizers.values() if any(
+                p is self.module[key].actor["mode"].weight
+                for group in opt.param_groups for p in group["params"]
+            )) for key in before
+        }
+        for key, optimizer in optimizers.items():
+            state = optimizer.state.get(self.module[key].actor["mode"].weight, {})
+            self._pending_mode_diagnostics[key]["adam_step_before"] = int(state.get("step", 0))
+        super().apply_gradients(gradients_dict)
+        with torch.no_grad():
+            for key, saved in before.items():
+                current = dict(self.module[key].actor.named_parameters())
+                entry = self._pending_mode_diagnostics[key]
+                entry["adam_step_after"] = int(optimizers[key].state[current["mode.weight"]]["step"])
+                delta = {name: current[name] - value for name, value in saved.items()}
+                entry["parameter_delta_norm"] = {name: float(value.double().norm()) for name, value in delta.items()}
+                entry["mode_bias_delta"] = delta["mode.bias"].tolist()
+                if "mode_soc.weight" in current:
+                    entry["soc_weight_delta"] = delta["mode_soc.weight"].flatten().tolist()
+                    entry["soc_weights_after"] = current["mode_soc.weight"].flatten().tolist()
+                diagnostics = self._mode_diagnostics[key]
+                diagnostics["summary"] = summarize_minibatches(diagnostics["minibatches"])
+        self._pending_mode_diagnostics.clear()
 
     def set_state(self, state):
         # Candidate rollback must restore older snapshots, not reject them as

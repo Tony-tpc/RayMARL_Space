@@ -33,6 +33,7 @@ class TrainingEnvironment(Protocol):
 
     consumer_ids: tuple[str, ...]
     uc_observation_dim: int
+    uc_soc_input: Mapping[str, float | int]
     consumer_observation_dim: int
     consumer_value_dim: int
     episode_mode: str

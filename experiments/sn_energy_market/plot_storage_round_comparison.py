@@ -26,12 +26,13 @@ from experiments.sn_energy_market.plot_hybrid_storage import (
     verify_month,
     write_csv,
 )
+from experiments.sn_energy_market.plot_mode_learning import add_mode_learning
 
 NAMES = ("闲置", "充电", "放电")
 MODE_KEYS = ("idle", "charge", "discharge")
-LABELS = {"initial": "共同初始策略", "previous": "上一版 10 轮",
+LABELS = {"initial": "新初始策略", "previous_initial": "旧初始策略", "previous": "上一版 10 轮",
           "round3": "新 3 轮", "current": "新 10 轮"}
-COLORS = {"initial": "#c78e35", "previous": "#73669a", "round3": "#75a49b", "current": "#007f86"}
+COLORS = {"initial": "#c78e35", "previous_initial": "#ab967b", "previous": "#73669a", "round3": "#75a49b", "current": "#007f86"}
 
 
 def discounted_returns(rows, gamma):
@@ -146,7 +147,7 @@ def training_loss_comparison(target, output, previous, reports, figures):
                 axis.set_ylabel(title)
                 axis.grid(alpha=.2)
         axes[0].legend(fontsize=8, ncol=2)
-        axis_scope = "有效 10 轮路径的累计 PPO 分支采样时段" if reports["current"].get("recovery") else "累计实际 PPO 分支采样时段"
+        axis_scope = "有效路径的累计 PPO 分支采样时段" if any(r.get("recovery") for r in reports.values()) else "累计实际 PPO 分支采样时段"
         axes[-1].set_xlabel(axis_scope + "；叉号为回滚更新，冻结 Actor 留空")
         title = "UC" if role == "uc" else "16 位 Consumer 的逐批指标均值（逐户数值见 CSV）"
         save(fig, target, filename, title + "：相同采样预算轴上的训练 loss", figures)
@@ -174,14 +175,20 @@ def main(output, previous):
     if equal_budget:
         assert report["main_advanced_periods"] == old_report["main_advanced_periods"]
         assert effective_critic_steps == old_report.get("critic_optimizer_steps_effective_per_module", old_report["critic_optimizer_steps_executed_per_module"])
-        assert {k for k, v in report["learning_contract"].items()
-                if v != old_report["learning_contract"][k]} <= {"update_protocol"}
+        changes = {k for k, v in report["learning_contract"].items()
+                   if v != old_report["learning_contract"][k]}
+        if "scenario" in changes:
+            assert {k: v for k, v in report["learning_contract"]["scenario"].items() if k != "source_sha256"} == {
+                k: v for k, v in old_report["learning_contract"]["scenario"].items() if k != "source_sha256"}
+            changes.remove("scenario")
+        assert changes <= {"update_protocol", "input_transform"}, changes
+    same_inputs = report["learning_contract"]["input_transform"] == old_report["learning_contract"]["input_transform"]
     LABELS["previous"] = f'上一版 {old_rounds} 轮：{old_report["ppo_sampled_periods"] // old_report["logged_batches"]} 步/批'
     LABELS["current"] = f'新 {rounds} 轮：{report["ppo_sampled_periods"] // report["logged_batches"]} 步/批'
     inventory = protocol["physical_config"]["rewards"]["terminal_energy_value_per_kwh"]
     inputs = [output / "report.json", previous / "report.json", output / "protocol.json"]
     data, combined, summaries, daily_data, critic, consumer_critic = {}, {}, {}, {}, {}, {}
-    specs = {"initial": (output, 0, report), "previous": (previous, old_rounds, old_report),
+    specs = {"previous_initial": (previous, 0, old_report), "initial": (output, 0, report), "previous": (previous, old_rounds, old_report),
              "round3": (output, 3, report), "current": (output, rounds, report)}
     for label, (directory, number, result) in specs.items():
         data[label] = {}
@@ -203,7 +210,7 @@ def main(output, previous):
         consumer_critic[label] = consumer_critic_metrics(result["evaluations"][str(number)]["critic"]["modules"])
         summaries[label]["common_gamma_099_return"] = float(sum(
             discounted_returns(data[label][seed], .99)[0] for seed in SEEDS) / len(SEEDS))
-    # Initialization must match the previous run's physical trajectory, independently of gamma.
+    # Same seed does not imply identical initial policies after input-transform changes.
     initial_error = 0.0
     for seed in SEEDS:
         path = previous / f"data/validation-0000-sampled-{seed}.csv"
@@ -214,7 +221,8 @@ def main(output, previous):
         for left, right in zip(old_rows, new_rows):
             assert left["timestamp"] == right["timestamp"]
             initial_error = max(initial_error, *(abs(left[k] - right[k]) for k in left if k != "timestamp"))
-    assert initial_error < 1e-6, initial_error
+    if same_inputs:
+        assert initial_error < 1e-6, initial_error
 
     old_fixed_path = previous / f"data/fixed-state-probe-{old_rounds:04d}.npz"
     if old_fixed_path.exists():
@@ -235,6 +243,14 @@ def main(output, previous):
         with np.load(path) as fixed:
             probabilities[label] = fixed["probs"]
             mask = fixed["mask"]
+    path = previous / "data/fixed-state-probe-0000.npz"
+    if path.exists():
+        inputs.append(path)
+        with np.load(path) as fixed:
+            probabilities["previous_initial"] = fixed["probs"]
+    else:
+        assert same_inputs
+        probabilities["previous_initial"] = probabilities["initial"]
     if previous_mask is not None:
         np.testing.assert_array_equal(previous_mask, mask)
     mode_metrics = {label: probability_metrics(p, mask) for label, p in probabilities.items()}
@@ -306,8 +322,8 @@ def main(output, previous):
     for ax, key, title in zip(axes.flat, ("rmse", "rmse_over_target_std", "explained_variance", "target_std"),
                               ("原单位 RMSE（同 γ）" if same_gamma else "原单位 RMSE（折扣目标不同）",
                                "RMSE / 目标标准差", "解释方差 EV（越高越好）", "MC 目标标准差")):
-        ax.bar(range(4), [critic[k][key] for k in specs], color=[COLORS[k] for k in specs])
-        ax.set(xticks=range(4), xticklabels=["初始", f"上一版 {old_rounds} 轮", "新 3 轮", f"新 {rounds} 轮"], title=title)
+        ax.bar(range(len(specs)), [critic[k][key] for k in specs], color=[COLORS[k] for k in specs])
+        ax.set(xticks=range(len(specs)), xticklabels=["旧初始", "新初始", f"旧 {old_rounds} 轮", "新 3 轮", f"新 {rounds} 轮"], title=title)
     save(fig, target, "04-critic-errors", "Critic：同时检查误差、解释方差和目标尺度，不能只看 loss 下降", figures)
 
     fig, axes = plt.subplots(4, 2, figsize=(15, 13), layout="constrained")
@@ -378,6 +394,8 @@ def main(output, previous):
     save(fig, target, "11-soc-occupancy-and-errors", "检查长期空电状态及对应 Critic 误差", figures)
     inputs.extend(training_loss_comparison(target, output, previous,
                                           {"current": report, "previous": old_report}, figures))
+    mode_learning, mode_inputs, mode_body = add_mode_learning(target, output, previous, figures)
+    inputs.extend(mode_inputs)
 
     metrics = ("der_to_ess_kwh", "grid_to_ess_kwh", "ess_discharge_kwh", "soc_mean_kwh", "near_empty_fraction",
                "uc_cash_per_day", "uc_book_per_day", "native_lost_kwh", "consumer_reward_per_day")
@@ -388,12 +406,16 @@ def main(output, previous):
     payload = {"status": "completed", "summaries": summaries, "critic": critic, "consumer_critic": consumer_critic,
                "fixed_state_modes": mode_metrics,
                "deterministic": deterministic, "differences": differences, "monthly": monthly,
-               "soc_stratified_errors": soc_rows, "initial_physical_replay_max_error": initial_error,
+               "soc_stratified_errors": soc_rows,
+               "initial_physical_replay_max_error": initial_error if same_inputs else None,
+               "initial_trajectory_max_difference": initial_error, "same_initial_input_transform": same_inputs,
+               "mode_learning": mode_learning,
                "figures": figures, "previous": str(previous), "current": str(output),
                 "same_rounds_different_sample_budget": rounds == old_rounds and not equal_budget,
                 "outer_rounds": {"current": rounds, "previous": old_rounds},
                "same_effective_sample_and_optimizer_budget": equal_budget,
-               "same_sample_and_optimizer_budget": equal_budget and not report.get("recovery"),
+               "same_sample_and_optimizer_budget": equal_budget and not report.get("recovery") and not old_report.get("recovery"),
+               "previous_recovery": old_report.get("recovery"),
                "recovery": report.get("recovery"), "same_gamma": same_gamma,
                "input_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
     (target / "summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
@@ -402,10 +424,14 @@ def main(output, previous):
                     "现金 / AUD/日", "经营收益 / AUD/日", "原生失供 / kWh", "Consumer 合计奖励 / 元等值/日")
     body = f'<h1>储能模式与经济调度：{rounds} 轮对比此前 {old_rounds} 轮</h1>'
     if equal_budget:
-        body += ('<p>同一 seed 42、16 户、训练年和四个验证月。上一版为 80×192 步，本次为 40×384 步，'
-                 '并在 Critic 拟合后重算 GAE；γ=0.99、λ=0.97、网络、奖励及物理配置一致。'
+        body += (f'<p>同一 seed 42、16 户、训练年和四个验证月。上一版为 {old_report["logged_batches"]} 个学习批，'
+                 f'本次为 {report["logged_batches"]} 个学习批；γ=0.99、λ=0.97、奖励及物理配置一致。'
                  '两版有效 10 轮轨迹均为 15,360 个 PPO 分支时段、7,680 个主轨迹时段，每个 Critic 对应 1,920 次更新。'
-                 '本对照同时包含合批与优势重算两项修改，不单独归因于其中一项。测试集未加载。</p>')
+                 f'契约变化项：{html.escape(", ".join(protocol["changes_from_previous_ten_rounds"]))}。测试集未加载。</p>')
+        if not same_inputs:
+            body += ('<p>本次 UC Actor 改用中心化 SOC，并增加三个零初始化的 SOC 直连权重；'
+                     '采样起点、384 步合批、Critic 后重算 GAE、联合 PPO 裁剪和总训练预算保持。'
+                     '输入转换会改变初始动作，两版初始策略分别列出；不把同一 seed 称为完全相同初始策略。</p>')
     else:
         body += ('<p>同一 seed 42、16 户、训练年和四个验证月。各版本轮次和训练预算以实际记录为准，'
                  f'PPO 时段分别为 {old_report["ppo_sampled_periods"]:,} 和 {report["ppo_sampled_periods"]:,}，'
@@ -415,13 +441,16 @@ def main(output, previous):
                  '本报告曲线使用去除故障重复段的完整 10 轮路径；实际共采样 15,968 个训练时段，完成学习的时段为 15,744，'
                  '每个 Critic 实际执行 1,968 次更新。有效路径预算相同，总计算开销多于上一版。'
                  '恢复时网络、Adam 和随机状态逐项核对，checkpoint 采样精确重放通过。详细账本：../recovery/from-round-0007/ledger.json。</p>')
+    if old_report.get("recovery"):
+        body += ('<p>上一版曾故障恢复，其有效路径预算用于本对照；故障导致的额外学习和未完成采样另见上一版 recovery 账本。'
+                 '有效预算相同不表示两次实际总计算开销相同。</p>')
     body += (f'<p><b>最终检查：</b>随机执行充电覆盖 {summaries["current"]["charging_days"]} / 123 天；'
              f'确定性执行闲置占比 {deterministic["current"]["mode_fraction"]["0"]*100:.4f}%，'
              f'实际充电 {deterministic["current"]["charge_kwh"]:.6f} kWh、放电 {deterministic["current"]["ess_discharge_kwh"]:.6f} kWh。'
              f'UC Critic RMSE 为 {critic["current"]["rmse"]:.4f}，解释方差为 {critic["current"]["explained_variance"]:.6f}。'
              '两种执行方式必须分别评价；持续随机充电并不能证明策略已学会按状态调度。</p>')
-    body += table(["指标", "共同初始", f"旧 {old_rounds} 轮", "新 3 轮", f"新 {rounds} 轮", "相对旧版变化"],
-                  [[name, *(f'{summaries[label][key]:.6f}' for label in ("initial", "previous", "round3", "current")),
+    body += table(["指标", "旧初始", "新初始", f"旧 {old_rounds} 轮", "新 3 轮", f"新 {rounds} 轮", "相对旧版变化"],
+                  [[name, *(f'{summaries[label][key]:.6f}' for label in specs),
                     f'{differences["previous"][key]["difference"]:+.6f}'] for name, key in zip(metric_names, metrics)])
     body += '<p>近空电定义为可用容量最低 1%；所有电量与账本收益按完整月份未折扣累计。各策略原生请求可能变化，失供同时结合原生请求量和供电率判断。共同 γ=0.99 的策略回报另存 summary.json，只用于统一目标比较，不替换任一版本的训练折扣。</p>'
     body += '<h2>模式概率与确定性执行</h2>'
@@ -453,6 +482,7 @@ def main(output, previous):
                     f'{r["round"]["candidates"][1]["paired_uc_gain"]["lower"]:.6f}',
                     f'{r["round"]["policy_change"]["per_agent"]["uc"]:.8f}'] for r in report["rounds"]])
     body += '<p>筛选比较同轮配对策略的完整月折扣回报；接受门槛为平均增益减 1.96 倍标准误大于 0。现金、经营收益与原生失供使用全月未折扣账本，需分别判断。</p>'
+    body += mode_body
     body += '<h2>完整曲线</h2>'
     for name, title in figures:
         body += f'<figure><h3>{html.escape(title)}</h3><img src="{name}.png"><figcaption><a href="{name}.svg">SVG</a></figcaption></figure>'

@@ -4,6 +4,8 @@
 
 当前为三模式 UC 混合策略、独立两路充电和六维物理行动。每阶段连续采样 384 步，γ=0.99、Actor λ=0.97、Critic λ=1；全部 Critic 拟合后重算固定 GAE，再更新本阶段 Actor。Value 使用 LayerNorm，UC / 消费者输出单位为 20 / 10。
 
+2026-10-23 增加 UC Actor 中心化 SOC 输入及三个零初始化模式直连权重，补齐逐 minibatch 模式概率比、PPO 截断、分支梯度与实际 Adam 变化诊断。Critic、奖励、采样起点和训练预算保持；未采用高 SOC 初态或重采样。原始电量观察仍为 kWh；新输入契约拒绝直接恢复旧训练 checkpoint，旧导出 Actor 按原配置仍可读取。实现及检查入口见 `test_stackelberg_mode_diagnostics.py`、阶段合批集成测试和 [TRAINING.md](TRAINING.md)。用户已授权提交后从 seed 42 新开 10 轮，输出 `20261023-soc-mode-10rounds`，对照此前 `20261022-phase-batch-10rounds`；实际进度以新目录 status.json 为准。
+
 月初开始采样，批间保留 SOC、FIFO、月累计和历史反馈，真实月末结算一次。候选从相同消费者网络、Adam、环境及 RNG 分支，只保留选定响应。新候选未通过配对 UC 收益规则时选择候选 0。完整协议见 [TRAINING.md](TRAINING.md)。
 
 最新完整实验为 `20261022-phase-batch-10rounds`，已完成 10 轮、40 批。计划 72 轮的 `20261022-phase-batch-72rounds` 已按用户要求停止，只完成 1 轮，内存训练状态未保存。本次整理没有恢复或新开真实训练。历史最长完整实验为旧 72 轮、576 批。结果统一由 [RESULTS.md](RESULTS.md) 导航。

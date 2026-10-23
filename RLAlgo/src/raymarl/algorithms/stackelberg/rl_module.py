@@ -119,10 +119,17 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             raise ValueError("value_scale must be finite and positive")
         obs_dim = self.observation_space.shape[0]
         self.actor = nn.ModuleDict({"encoder": mlp(obs_dim, hidden)})
+        self.soc_input = self.model_config.get("soc_input") if self.role == "uc" else None
         if self.role == "uc":
             self.actor["head"] = nn.Linear(hidden, 6)  # grid, curtailment, DR
             self.actor["mode"] = nn.Linear(hidden + 3, 3)
             self.actor["storage"] = nn.Linear(hidden + 6, 6)
+            if self.soc_input is not None:
+                index, low, high = (self.soc_input[key] for key in ("index", "min", "max"))
+                if not (0 <= index < obs_dim and math.isfinite(low) and math.isfinite(high) and high >= low):
+                    raise ValueError("soc_input requires an observation index and finite ordered energy bounds")
+                # Zero construction consumes no RNG and leaves all existing initial weights unchanged.
+                self.actor["mode_soc"] = nn.ParameterDict({"weight": nn.Parameter(torch.zeros(3, 1))})
             initial_mean = torch.as_tensor(
                 self.model_config.get("uc_initial_mean", [0.5, 0.5, 0.2, 0.2, 0.5, 0.5])
             )
@@ -158,7 +165,18 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         return []
 
     def _features(self, obs):
-        return self.actor["encoder"](signed_log1p(obs.float()))
+        inputs = signed_log1p(obs.float())
+        if self.soc_input is not None:
+            inputs[..., self.soc_input["index"]] = self.centered_soc(obs)
+        return self.actor["encoder"](inputs)
+
+    def centered_soc(self, obs):
+        """Actor-only capacity fraction; raw observations and all Critics retain kWh."""
+        if self.soc_input is None:
+            return None
+        low, high = self.soc_input["min"], self.soc_input["max"]
+        energy = obs[..., self.soc_input["index"]].float()
+        return 2 * ((energy - low) / (high - low)).clamp(0, 1) - 1 if high > low else torch.zeros_like(energy)
 
     @staticmethod
     def _beta(parameters):
@@ -174,13 +192,17 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
     def _uc_base(self, features, bounds):
         return self._gaussian(self.actor["head"](features), bounds[..., [0, 1, 5]] > 0)
 
-    def _uc_mode(self, features, base, bounds):
+    def _uc_mode(self, features, base, bounds, soc=None):
         unit = base.clamp(0, 1)
         grid = unit[..., 0] * bounds[..., 0]
         der = bounds[..., 1] * (1 - unit[..., 1])
         mask = torch.stack((torch.ones_like(grid, dtype=torch.bool),
                             (bounds[..., 2] > 0) & (grid + der > 0), bounds[..., 4] > 0), -1)
         logits = self.actor["mode"](torch.cat((features, unit.float()), -1))
+        if self.soc_input is not None:
+            if soc is None:
+                raise ValueError("The UC mode distribution requires the original observation's SOC")
+            logits = logits + F.linear(soc[..., None], self.actor["mode_soc"]["weight"])
         return TorchCategorical.from_logits(logits.double().masked_fill(~mask, -torch.inf)), mask
 
     def _uc_storage_parameters(self, features, base, mode):
@@ -201,27 +223,27 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
                              torch.where(mode == 2, bounds[..., 4], 0.0), bounds[..., 5]), -1)
         return torch.stack((torch.zeros_like(upper), upper), -1)
 
-    def _uc_distribution(self, features, controls, bounds, mode):
+    def _uc_distribution(self, features, controls, bounds, mode, soc=None):
         base = controls[..., [0, 1, 5]]
         base_dist = self._uc_base(features, bounds)
-        mode_dist, mask = self._uc_mode(features, base, bounds)
+        mode_dist, mask = self._uc_mode(features, base, bounds, soc)
         intervals = self._uc_intervals(bounds, controls, mode)
         storage = self._gaussian(self._uc_storage_parameters(features, base, mode),
                                  intervals[..., [2, 3, 4], 1] > 0)
         return TorchMultiDistribution((base_dist, mode_dist, storage)), intervals, mask
 
-    def _draw_uc(self, features, bounds, deterministic=False):
+    def _draw_uc(self, features, bounds, deterministic=False, soc=None):
         bounds = bounds.double()
         base_dist = self._uc_base(features, bounds)
         base = base_dist.loc if deterministic else base_dist.sample()
-        mode_dist, _ = self._uc_mode(features, base, bounds)
+        mode_dist, _ = self._uc_mode(features, base, bounds, soc)
         mode = mode_dist.to_deterministic().sample() if deterministic else mode_dist.sample()
         storage_dist = self._gaussian(self._uc_storage_parameters(features, base, mode),
                                       torch.ones_like(base, dtype=torch.bool))
         storage = storage_dist.loc if deterministic else storage_dist.sample()
         controls = torch.stack((base[..., 0], base[..., 1], storage[..., 0], storage[..., 1],
                                 storage[..., 2], base[..., 2]), -1)
-        distribution, intervals, mask = self._uc_distribution(features, controls, bounds, mode)
+        distribution, intervals, mask = self._uc_distribution(features, controls, bounds, mode, soc)
         active = intervals[..., 1] > 0
         controls = torch.where(active, controls, 0.0)
         logp = distribution.logp((controls[..., [0, 1, 5]], mode, controls[..., [2, 3, 4]]))
@@ -232,9 +254,16 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             "mode_mask": mask,
             "bounds": bounds,
             Columns.ACTION_LOGP: logp,
+            "logp_parts": self._uc_logp_parts(distribution, controls, mode),
             "conditional_bounds": intervals,
             "zero_width_mask": ~active,
         }
+
+    @staticmethod
+    def _uc_logp_parts(distribution, controls, mode):
+        values = (controls[..., [0, 1, 5]], mode, controls[..., [2, 3, 4]])
+        return torch.stack([dist.logp(value) for dist, value in
+                            zip(distribution._flat_child_distributions, values, strict=True)], -1)
 
     def _consumer_distributions(self, features, controls):
         cut = controls[..., :1].to(features.dtype)
@@ -304,7 +333,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
     def draw(self, obs, bounds=None, deterministic=False):
         features = self._features(obs)
         if self.role == "uc":
-            return self._draw_uc(features, bounds, deterministic)
+            return self._draw_uc(features, bounds, deterministic, self.centered_soc(obs))
         actions, controls, intervals = self._draw_consumer(features, bounds, deterministic)
         logp, _ = self._consumer_logp_entropy(features, controls, intervals)
         return {
@@ -320,11 +349,15 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         controls = batch["raw_latents"]
         if self.role == "uc":
             mode = batch["storage_mode"].long()
-            distribution, _, _ = self._uc_distribution(features, controls, batch["bounds"].double(), mode)
+            soc = self.centered_soc(batch[Columns.OBS])
+            distribution, _, _ = self._uc_distribution(features, controls, batch["bounds"].double(), mode, soc)
             return {
                 Columns.ACTION_LOGP: distribution.logp((controls[..., [0, 1, 5]], mode,
                                                        controls[..., [2, 3, 4]])),
                 "entropy": distribution.entropy(),
+                "logp_parts": self._uc_logp_parts(distribution, controls, mode),
+                "mode_probs": distribution._flat_child_distributions[1]._dist.probs,
+                "mode_inputs": torch.cat((features, controls[..., [0, 1, 5]].clamp(0, 1).float()), -1),
             }
         logp, entropy = self._consumer_logp_entropy(features, controls, batch["conditional_bounds"])
         return {Columns.ACTION_LOGP: logp, "entropy": entropy}
@@ -336,7 +369,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             # Unbiased score-function entropy gradient for the full conditional
             # mixed distribution, including mode-dependent active dimensions.
             with torch.no_grad():
-                sample = self._draw_uc(features, batch["bounds"])
+                sample = self._draw_uc(features, batch["bounds"], soc=self.centered_soc(batch[Columns.OBS]))
             logp = self.evaluate_actions({Columns.OBS: batch[Columns.OBS], **sample})[Columns.ACTION_LOGP]
             surrogate = -(logp.detach() + 1) * logp
             return -logp.detach() + surrogate - surrogate.detach()

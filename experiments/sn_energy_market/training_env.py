@@ -70,6 +70,11 @@ class MarketTrainingEnv:
         self.uc_observation_fields = uc_fields(horizon)
         self.consumer_observation_fields = consumer_fields(horizon)
         self.uc_observation_dim = len(self.uc_observation_fields)
+        self.uc_soc_input = {
+            "index": self.uc_observation_fields.index("ess_energy_kwh"),
+            "min": config.system.ess_energy_min_kwh,
+            "max": config.system.ess_energy_capacity_kwh,
+        }
         self.consumer_observation_dim = len(self.consumer_observation_fields)
         self.consumer_value_dim = (
             self.uc_observation_dim

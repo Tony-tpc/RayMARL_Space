@@ -118,6 +118,7 @@ class StackelbergConfig(AlgorithmConfig):
                     **self.model_config,
                     "role": "uc" if leader else "consumer",
                     "critic_dim": obs_dim if leader else env.consumer_value_dim,
+                    **({"soc_input": env.uc_soc_input} if leader else {}),
                 },
             )
         self._stackelberg_spec = MultiRLModuleSpec(rl_module_specs=specs)
@@ -171,7 +172,12 @@ class StackelbergConfig(AlgorithmConfig):
         contract.update(
             model=self.model_config,
             scenario=self.scenario_factory.get_contract(),
-            input_transform="signed_log1p",
+            input_transform={
+                "default": "signed_log1p",
+                "uc_actor_soc": self.scenario_factory(self.train_seeds[0]).uc_soc_input,
+                "uc_actor_soc_transform": "centered_fraction_with_zero_initialized_mode_skip_v1",
+                "critic": "signed_log1p",
+            },
             uc_probability="masked_categorical_conditional_active_gaussian",
             consumer_probability="conditional_beta_physical_density",
             evaluation_return="complete_finite_episode_with_terminal_inventory",

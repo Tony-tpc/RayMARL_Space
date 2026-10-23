@@ -11,8 +11,6 @@ Stackelberg.training_step()        本算法真正的一整轮训练
 多次 _adapt(...)                   每次完成一批同阶段采样和学习
     ↓
 learner_group.update(...)          进入 Learner 的 minibatch 更新
-
-
 """
 
 import copy
@@ -111,6 +109,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             lambda learner: learner.recompute_advantages(selected)
         )
         for key, advantage in next(iter(refreshed)).get().items():
+            selected[key]["advantages_raw"] = advantage.copy()
             selected[key]["advantages"] = advantage
         # Normalize once over the phase batch, then freeze across Actor epochs.
         if self.config.normalize_advantages:
@@ -179,6 +178,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                     "diagnostics_before": before[key]["value_diagnostics"],
                     "diagnostics_after": after[key]["value_diagnostics"],
                     "critic_gradient_norms": after[key]["critic_gradient_norms"],
+                    "mode_diagnostics": after[key]["mode_diagnostics"],
                 }
                 for key in batch.policy_batches
             },

@@ -39,7 +39,7 @@ def utc_now():
 
 
 def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
-    """Check the equal-budget comparison with the completed 192-step study."""
+    """Check the configured reference's data, physical model and per-round budget."""
     old = json.loads((OLD / "report.json").read_text(encoding="utf-8"))["learning_contract"]
     cfg = configuration(output)
     new = cfg.learning_contract()
@@ -64,7 +64,13 @@ def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
     prior_report = json.loads((previous / "report.json").read_text(encoding="utf-8"))
     prior_contract = prior_report["learning_contract"]
     changed = {key for key in new if new[key] != prior_contract[key]}
-    assert changed <= {"update_protocol"}, changed
+    source_changed = new["scenario"]["source_sha256"] != prior_contract["scenario"]["source_sha256"]
+    if source_changed:
+        assert {k: v for k, v in new["scenario"].items() if k != "source_sha256"} == {
+            k: v for k, v in prior_contract["scenario"].items() if k != "source_sha256"
+        }
+        changed.discard("scenario")
+    assert changed <= {"update_protocol", "input_transform"}, changed
     current_budget = round_budget(cfg)
     for name, key in (("ppo_periods", "ppo_sampled_periods"), ("main_periods", "main_advanced_periods"),
                       ("critic_steps_per_module", "critic_optimizer_steps_executed_per_module")):
@@ -76,6 +82,8 @@ def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
         "seed": 42, "validation_rounds": sorted({0, *(n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds)}), "test_loaded": False,
         "same_data_and_per_round_budget": False,
         "same_data_and_calibration": True,
+        "same_sampling_start_rule": True,
+        "initial_policy_input_changed": "input_transform" in changed,
         "previous_ten_rounds": str(previous),
         "comparison_equal_sample_and_optimizer_budget": outer_rounds == prior_report["outer_rounds"],
         "same_sample_and_optimizer_budget_as": str(previous) if outer_rounds == prior_report["outer_rounds"] else None,
@@ -83,6 +91,7 @@ def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
         "fixed_state_probe_sha256": hashlib.sha256(FIXED_STATES.read_bytes()).hexdigest(),
         "phase_batch_periods": cfg.rollout_length * cfg.inner_updates,
         "changes_from_previous_ten_rounds": sorted(changed),
+        "scenario_adapter_source_changed": source_changed,
         "reference": str(OLD), "manifest_sha256": new["scenario"]["manifest_sha256"],
         "physical_config": new_config,
         "changes_from_historical_run": [
@@ -105,7 +114,7 @@ def mode_diagnostics(module, sample):
         obs = torch.as_tensor(sample["obs"], dtype=torch.float32, device=device)[None]
         bounds = torch.as_tensor(sample["bounds"], dtype=torch.float64, device=device)[None]
         base = torch.as_tensor(sample["raw_latents"][[0, 1, 5]], device=device)[None]
-        distribution, _ = module._uc_mode(module._features(obs), base, bounds)
+        distribution, _ = module._uc_mode(module._features(obs), base, bounds, module.centered_soc(obs))
         probs = distribution._dist.probs[0].cpu().numpy()
     return {**{f"prob_{name}": float(probs[i]) for i, name in enumerate(("idle", "charge", "discharge"))},
             "mode_entropy": float(-sum(p * np.log(p) for p in probs if p > 0))}
@@ -121,9 +130,9 @@ def save_fixed_state_probe(module, target):
         bounds = torch.as_tensor(data["bounds"], device=device)
         features = module._features(obs)
         base = torch.as_tensor(data["controls"][:, [0, 1, 5]], device=device)
-        conditional, mask = module._uc_mode(features, base, bounds)
+        conditional, mask = module._uc_mode(features, base, bounds, module.centered_soc(obs))
         mean_base = module._uc_base(features, bounds).loc
-        mean_dist, _ = module._uc_mode(features, mean_base, bounds)
+        mean_dist, _ = module._uc_mode(features, mean_base, bounds, module.centered_soc(obs))
         np.savez_compressed(target, probs=conditional._dist.probs.cpu().numpy(),
                             mean_probs=mean_dist._dist.probs.cpu().numpy(),
                             mask=mask.cpu().numpy(), values=module.compute_values({"obs": obs}).cpu().numpy())
@@ -327,6 +336,9 @@ class StudyObserver:
     def on_completed(self, report):
         self.close()
         self.update_status(status="postprocessing", phase="plots", checkpoint_exact_replay=report["checkpoint_exact_replay"])
+        if report["outer_rounds"] == 10 and isinstance(report["learning_contract"]["input_transform"], dict):
+            subprocess.run([sys.executable, str(ROOT / "experiments/sn_energy_market/audit_soc_mode.py"),
+                            str(self.output), self.protocol["previous_ten_rounds"]], cwd=ROOT, check=True)
         if report["outer_rounds"] == 10:
             subprocess.run([str(ROOT / ".venv-plots/Scripts/python.exe"),
                             str(ROOT / "experiments/sn_energy_market/plot_hybrid_storage.py"),

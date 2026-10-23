@@ -444,6 +444,16 @@ def test_phase_batch_records_targets_and_budget_do_not_roll_back(ray_runtime, tm
             assert item["critic_epochs"] == 4 and item["actor_epochs"] == 2
             assert item["branch_status"] != "pending"
             for key, values in item["modules"].items():
+                mode_diagnostics = values["mode_diagnostics"]
+                if key == "uc" and key in item["actor_ids"]:
+                    assert mode_diagnostics["unique_samples"] == 8
+                    assert sum(row["count"] for row in mode_diagnostics["soc_advantages"]) == 8
+                    assert mode_diagnostics["summary"]["sample_visits"] == 16
+                    assert len(mode_diagnostics["minibatches"]) == 4
+                    assert all(row["adam_step_after"] == row["adam_step_before"] + 1
+                               for row in mode_diagnostics["minibatches"])
+                else:
+                    assert mode_diagnostics is None
                 assert values["critic_loss_before"] == measured[key]["critic_loss"]
                 for suffix in ("before", "after"):
                     assert values[f"critic_loss_{suffix}"] == pytest.approx(

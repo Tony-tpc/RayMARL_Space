@@ -70,7 +70,7 @@ def test_long_study_keeps_learning_contract_and_scales_only_round_budget(tmp_pat
 
     previous = ROOT / "outputs/ausgrid-hybrid-storage/20261022-phase-batch-10rounds"
     protocol = check_protocol(tmp_path, outer_rounds=72, previous=previous)
-    assert protocol["changes_from_previous_ten_rounds"] == []
+    assert protocol["changes_from_previous_ten_rounds"] == ["input_transform"]
     assert protocol["outer_rounds"] == 72
     assert protocol["validation_rounds"] == [0, 3, 12, 24, 48, 72]
     assert protocol["ppo_periods"] == 110592

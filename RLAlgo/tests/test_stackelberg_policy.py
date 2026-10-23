@@ -23,7 +23,8 @@ def module_spec(role, inference_only=False):
         observation_space=gym.spaces.Box(-np.inf, np.inf, (7,), np.float32),
         action_space=gym.spaces.Box(-np.inf, np.inf, (6 if role == "uc" else 4,), np.float64),
         inference_only=inference_only,
-        model_config={"role": role, "hidden_dim": 12, "critic_dim": 13},
+        model_config={"role": role, "hidden_dim": 12, "critic_dim": 13,
+                      **({"soc_input": {"index": 2, "min": 0.0, "max": 10.0}} if role == "uc" else {})},
     )
 
 
