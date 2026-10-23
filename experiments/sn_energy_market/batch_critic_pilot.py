@@ -96,13 +96,15 @@ def round_budget(cfg):
 
 
 def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoint_each_round=False,
-              recovery=None):
+              recovery=None, evaluation_rounds=None, full_period_checks=True):
     import ray
     import torch
 
     cfg = configuration(output)
     budget = round_budget(cfg)
-    evaluation_rounds = sorted({n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds})
+    evaluation_rounds = sorted(set(evaluation_rounds if evaluation_rounds is not None else
+                                  (n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds)))
+    assert outer_rounds in evaluation_rounds and all(0 < n <= outer_rounds for n in evaluation_rounds)
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     full_reference = json.loads(FULL_MONTH_REFERENCE.read_text(encoding="utf-8"))
     assert full_reference["performance"] == reference["final"]["performance"]
@@ -151,7 +153,12 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
         algorithm = cfg.build_algo()
         if recovery is not None:
             recovery.restore(algorithm)
-        audit = TrainingAudit(algorithm, output).install()
+            cfg = algorithm.config
+            metadata_path = recovery.folder / "experiment.json"
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            metadata.update(learning_contract=cfg.learning_contract(), initialization="checkpoint_restore")
+            write_json(metadata_path, metadata)
+        audit = TrainingAudit(algorithm, output, full_period_checks=full_period_checks).install()
         if observer is not None:
             observer.on_ready(algorithm, audit)
         if recovery is None:

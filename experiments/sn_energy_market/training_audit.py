@@ -4,9 +4,11 @@ import copy
 import math
 from collections import Counter, defaultdict
 from contextlib import ExitStack
+from dataclasses import fields, is_dataclass
 from unittest.mock import patch
 
 import numpy as np
+from snmarket.profiles import Profiles
 
 from experiments.sn_energy_market.validation_helpers import check_record, compare_oracle
 
@@ -70,7 +72,13 @@ def reference_refreshed_advantages(learner, batch):
 
 
 def assert_same_state(left, right):
-    if isinstance(left, dict):
+    if isinstance(left, Profiles):
+        assert isinstance(right, Profiles) and left.fingerprint() == right.fingerprint()
+    elif is_dataclass(left):
+        assert type(left) is type(right)
+        for field in fields(left):
+            assert_same_state(getattr(left, field.name), getattr(right, field.name))
+    elif isinstance(left, dict):
         assert left.keys() == right.keys()
         for key in left:
             assert_same_state(left[key], right[key])
@@ -85,8 +93,9 @@ def assert_same_state(left, right):
 class TrainingAudit:
     """Observe the existing collector and optimizers; leave update rules unchanged."""
 
-    def __init__(self, algorithm, output):
+    def __init__(self, algorithm, output, *, full_period_checks=True):
         self.algorithm, self.output = algorithm, output
+        self.full_period_checks = full_period_checks
         self.phase = "setup"
         self.coverage, self.maximums = Counter(), {}
         self.samples, self.updates, self.optimizer_steps = [], [], []
@@ -116,6 +125,11 @@ class TrainingAudit:
                 and runner._scenario_seed in runner.config.train_seeds
             ):
                 self.sampled_dates[self.phase].add(record.timestamp.isoformat())
+            if not self.full_period_checks:
+                # Long runs retain the engine's checks and all batch/optimizer
+                # checks below, without repeating the exhaustive physical audit.
+                self.coverage[f"periods/{self.phase}"] += 1
+                return samples, result
             check_record(
                 runner.env.engine,
                 before,
@@ -418,6 +432,7 @@ class TrainingAudit:
                 "parameter_delta_max": max(row["parameter_delta"] for row in rows),
             }
         return {
+            "full_period_checks": self.full_period_checks,
             "coverage": dict(self.coverage),
             "maximums": self.maximums,
             "samples": self.samples,

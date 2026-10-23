@@ -245,7 +245,8 @@ class StudyObserver:
         write_json(source_root / "source_manifest.json", sources)
         if self.recovery is not None:
             self.batch_id = self.recovery.batches
-            self.status.update(completed_rounds=self.recovery.round, last_validated_round=3,
+            self.status.update(completed_rounds=self.recovery.round,
+                               last_validated_round=getattr(self.recovery, "last_validated_round", 3),
                                main_periods=algorithm.env_runner.trajectory_periods,
                                ppo_sampled_periods=algorithm.sampled_periods,
                                collected_batches=self.batch_id, resumed_from_round=self.recovery.round,
@@ -336,7 +337,7 @@ class StudyObserver:
     def on_completed(self, report):
         self.close()
         self.update_status(status="postprocessing", phase="plots", checkpoint_exact_replay=report["checkpoint_exact_replay"])
-        if report["outer_rounds"] == 10 and isinstance(report["learning_contract"]["input_transform"], dict):
+        if isinstance(report["learning_contract"]["input_transform"], dict):
             subprocess.run([sys.executable, str(ROOT / "experiments/sn_energy_market/audit_soc_mode.py"),
                             str(self.output), self.protocol["previous_ten_rounds"]], cwd=ROOT, check=True)
         if report["outer_rounds"] == 10:

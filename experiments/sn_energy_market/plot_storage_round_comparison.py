@@ -444,6 +444,12 @@ def main(output, previous):
     if old_report.get("recovery"):
         body += ('<p>上一版曾故障恢复，其有效路径预算用于本对照；故障导致的额外学习和未完成采样另见上一版 recovery 账本。'
                  '有效预算相同不表示两次实际总计算开销相同。</p>')
+    if report.get("continuation"):
+        continued = report["continuation"]
+        body += (f'<p>本次从第 {continued["source_round"]} 轮原生 checkpoint 继续，新增 '
+                 f'{rounds - continued["source_round"]} 轮。前缀结果为此前实测，未重复训练。'
+                 '第 11 轮起候选筛选使用冬、夏两个完整月，完整四个月报告验证只在第 30、72 轮执行；'
+                 '网络、奖励、采样起点和每轮学习预算保持。减少筛选月份会改变接受统计口径，不能作为同筛选协议的消融。</p>')
     body += (f'<p><b>最终检查：</b>随机执行充电覆盖 {summaries["current"]["charging_days"]} / 123 天；'
              f'确定性执行闲置占比 {deterministic["current"]["mode_fraction"]["0"]*100:.4f}%，'
              f'实际充电 {deterministic["current"]["charge_kwh"]:.6f} kWh、放电 {deterministic["current"]["ess_discharge_kwh"]:.6f} kWh。'

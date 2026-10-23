@@ -21,7 +21,7 @@ def add_mode_learning(target, output, previous, figures):
     inputs = [path, output / "batch_losses.jsonl", previous / "batch_losses.jsonl"]
     policies = audit["policies"]
     labels = {"previous_initial": "旧初始", "previous": "旧 384 步第 10 轮", "initial": "新初始",
-              "round3": "新第 3 轮", "current": "新第 10 轮"}
+              "round3": "新第 3 轮", "current": f"新第 {audit.get('outer_rounds', 10)} 轮"}
     fig, axes = plt.subplots(2, 3, figsize=(15, 9), sharex=True, layout="constrained")
     for label, style in (("previous", "--"), ("initial", ":"), ("current", "-")):
         stats = policies[label]
@@ -142,7 +142,7 @@ def add_mode_learning(target, output, previous, figures):
     body = ('<h2>SOC 模式切换与实际训练诊断</h2><p>固定其他观测、基础额度和原可行掩码，仅扫描内部 SOC 5%–95%；'
             '该探针测量 Actor 对 SOC 的条件响应，不作为物理反事实收益。排除空电/满电的强制掩码切换。'
             f'旧第 10 轮发生模式排序切换的状态比例为 {policies["previous"]["switch_fraction"]:.2%}，'
-            f'新第 10 轮为 {policies["current"]["switch_fraction"]:.2%}。</p>'
+            f'新第 {audit.get("outer_rounds", 10)} 轮为 {policies["current"]["switch_fraction"]:.2%}。</p>'
             '<p>新运行记录每次实际 UC Actor 更新的联合/模式/连续概率比、范围裁剪与真实平坦比例、'
             '全局裁剪前后梯度和 Adam 参数变化，包含最终被回滚的提案。旧运行没有相同的逐 minibatch 历史诊断，'
             '不补造旧值；模式单独裁剪仅用于假设梯度诊断，实际优化仍使用联合裁剪。</p>'

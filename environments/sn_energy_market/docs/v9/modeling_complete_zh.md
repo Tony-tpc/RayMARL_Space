@@ -661,6 +661,797 @@ UC 和消费者分别拥有服务效用，社会评价另按明确的汇总口�
 
 # 第四部分　市场出清与环境执行
 
+## 单时段交互全流程：从 UC 公告到下一期报表
+
+本节沿一个物理时段，把“UC 看见什么、公布什么，消费者怎样报价，环境怎样得到成交、设备执行、账单和下一状态”写成一条可以逐步计算的链。每一步计算出的量，直接作为下一步的输入。单期公式省略时段下标 $t$，$E'$、$B_i'$ 表示本期执行后的候选状态；上期反馈保留下标 $t-1$。
+
+功率 $p$ 的单位为 kW，电池和任务电量 $E,B_i,D_i^{due}$ 的单位为 kWh，步长 $\Delta t$ 的单位为 h。功率乘 $\Delta t$ 才得到本期电量。$[x]_+=\max(x,0)$，$\chi\in\{0,1\}$ 表示本期是否处于 DR 事件。
+
+> 入期状态与报表 → UC 六维行动与容量公告 → 个人观测与可行动作 → 联合订单 → 必要层出清 → 提前回补层出清 → 设备与 FIFO 执行 → DR、账单与奖励 → 状态提交与下一期报表。
+
+### 第一步：UC 读取入期报表，提交本期调度公告
+
+**先从历史状态算出本期必须面对的任务。** 环境读取电池入期电量 $E$、各户月累计 UC 购电量 $M_i$ 和任务队列 $\mathcal Q_i$。对队列中的任务 $j$，记剩余电量为 $e_{i,j}$、截止期为 $d_{i,j}$。全部任务余额、当前到期及逾期电量、能力内最低回补功率分别为：
+
+$$
+\begin{aligned}
+B_i&=\sum_{j\in\mathcal Q_i}e_{i,j},\\
+D_i^{due}&=\sum_{j\in\mathcal Q_i:\ d_{i,j}\le t}e_{i,j},\\
+p_i^{due}&=\min\left(\frac{D_i^{due}}{\Delta t},\bar p_i^{flex}\right).
+\end{aligned}
+$$
+
+$B_i$ 回答“还欠多少电量”，$D_i^{due}$ 回答“其中多少已经到期”，$p_i^{due}$ 回答“按本户当前能力，本期至少应提出多大的回补请求”。例如，一项任务的电量除以步长，才是本期完成它所需的功率；超过柔性能力的部分会继续形成到期责任。
+
+**再冻结本轮价格并形成 UC 报表。** 环境读取本期基线 $p_i^{base}$、刚性负荷 $p_i^{rigid}$、柔性能力 $\bar p_i^{flex}$、DER 出力 $p^{DER}$、PG 进口上限 $\bar p^{PG}$ 和采购价 $w$。每户 UC 单价由本地日历与入期月累计量确定：
+
+$$
+\begin{aligned}
+T_i^U&=T^U(t,M_i),\\
+T^{U,avg}&=
+\begin{cases}
+\displaystyle
+\frac{\sum_iT_i^U(p_i^{base}+p_i^{due})}
+{\sum_i(p_i^{base}+p_i^{due})},
+&\sum_i(p_i^{base}+p_i^{due})>0,\\[4pt]
+0,&\sum_i(p_i^{base}+p_i^{due})=0.
+\end{cases}
+\end{aligned}
+$$
+
+$T_i^U$ 是本户这次 UC 成交的结算单价；$T^{U,avg}$ 是 UC 报表中的需求加权均价。环境按个人能力计算 $p_i^{due}$ 后才汇总，因此一户的闲置柔性能力不会替另一户完成到期任务。
+
+UC 收到的聚合报表为：
+
+$$
+\begin{aligned}
+o_t^U=[&t,T_{remain},E,p^{DER},\bar p^{PG},w,\chi,T^{DR},\\
+&\sum_i p_i^{base},\sum_i p_i^{rigid},
+\sum_i\bar p_i^{flex},\sum_i p_i^{due},T^{U,avg},\\
+&\sum_iq_i^{(0)},\ldots,\sum_iq_i^{(H)},\\
+&p_{t-1}^{DER,sold},p_{t-1}^{UC,sold},p_{t-1}^{DR,net},\\
+&\sum_iC_{i,t-1}^{DR},\sum_ip_{i,t-1}^{lost},C_{t-1}^{cash}].
+\end{aligned}
+$$
+
+其中，$q_i^{(0)}=D_i^{due}$，$q_i^{(h)}$ 表示还剩 $h$ 个时段到期的任务电量。报表前半部分描述本期资源和需求，截止桶描述未来回补压力，最后六个量描述上一期已经实现的交易与服务结果。UC 策略以 $o_t^U$ 为输入，按第 13.2 节生成模式与连续控制，映射为本轮六维物理行动：
+
+$$
+a^U=
+\left(
+p^{PG,offer},p^{curt},p^{ch,DER},
+p^{ch,PG},p^{dis,offer},p^{DR,cap}
+\right).
+$$
+
+六个坐标依次为 PG 进口额度、主动弃 DER、DER 充电、PG 充电、ESS 放电额度和 DR 采购上限。为判断这些坐标能否共同执行，先由当前电量得到可充、可放功率：
+
+$$
+\begin{aligned}
+C&=\max\left(0,\min\left(\bar p^{ch},
+\frac{E_{max}-E}{\eta_c\Delta t}\right)\right),\\
+D&=\max\left(0,\min\left(\bar p^{dis},
+\frac{\eta_d(E-E_{min})}{\Delta t}\right)\right).
+\end{aligned}
+$$
+
+$C$ 同时考虑充电设备功率和剩余电池空间，$D$ 同时考虑放电设备功率和可用电量。环境按下列联合约束接收行动：
+
+$$
+\begin{aligned}
+&0\le p^{PG,offer}\le\bar p^{PG},\\
+&p^{curt},p^{ch,DER},p^{ch,PG},p^{dis,offer}\ge0,\\
+&p^{curt}+p^{ch,DER}\le p^{DER},\qquad
+p^{ch,PG}\le p^{PG,offer},\\
+&p^{ch,DER}+p^{ch,PG}\le C,\qquad
+p^{dis,offer}\le D,\\
+&(p^{ch,DER}+p^{ch,PG})p^{dis,offer}=0,\\
+&0\le p^{DR,cap}\le\chi\bar p^{DR}.
+\end{aligned}
+$$
+
+来源约束保证充电和弃电有对应资源；充放电乘积为零表示同一时段选择充电、放电或闲置。DR 事件外 $\chi=0$，可提交采购上限随之为零。
+
+**UC 把六维行动交给环境，环境将资源分流转成市场容量。**
+
+$$
+\begin{aligned}
+p^{DER,cap}&=p^{DER}-p^{curt}-p^{ch,DER},\\
+p^{UC,cap}&=p^{PG,offer}+p^{dis,offer}-p^{ch,PG}.
+\end{aligned}
+$$
+
+第一式从 DER 出力中扣除主动弃电和确定充电，剩下的进入 DER 池。第二式把 PG 额度与放电额度相加，再扣除 PG 充电，剩下的进入 UC 池。两路充电因此在消费者报价之前就已经占用本期供给。
+
+环境保存原行动，并发布本轮资源与激励公告。其核心交易条件可写为：
+
+$$
+\mathcal A_t=
+\left(
+a^U,p^{DER,cap},p^{UC,cap},
+T^R,T^{DR},\chi,p^{dis,avail}
+\right),
+\qquad p^{dis,avail}=D.
+$$
+
+$T^R$ 是 DER 买方报价底价，$T^{DR}$ 是本期 DR 补偿单价，二者来自配置和事件条件。UC 本轮选择的是资源额度与 DR 采购上限。公告保存后，阶段从 UC 决策转入消费者决策；电池、队列、月累计和物理时钟仍保持入期值。实际进口和实际放电由后面的成交量决定。
+
+### 第二步：环境把同一份公告送入各户个人观测
+
+**环境将公开公告与本人状态组合。** 消费者 $i$ 收到：
+
+$$
+\begin{aligned}
+o_i=[&t,T_{remain},p_i^{base},p_i^{rigid},
+\bar p_i^{flex},M_i,\\
+&T_i^U,T^R,\bar b_i^R,T^{DR},p^{DR,cap},\chi,\\
+&p^{DER},\bar p^{PG},p^{dis,avail},
+p^{PG,offer},p^{curt},\\
+&p^{ch,DER},p^{ch,PG},p^{dis,offer},
+p^{DER,cap},p^{UC,cap},\bar B_i,\\
+&q_i^{(0)},q_i^{(1)},\ldots,q_i^{(H)}].
+\end{aligned}
+$$
+
+同一公告让各户面对相同的资源条件，个人负荷、任务与阶梯状态让各户形成不同的响应。消费者利用这些量回答两个问题：本期要保留多少用电，以及愿意用什么报价竞争 DER。
+
+**环境先为到期回补预留柔性能力，再形成削减与移峰边界。** 本户可削减功率满足：
+
+$$
+0\le p_i^{cut}\le
+\min\left(p_i^{base}-p_i^{rigid},
+\bar p_i^{flex}-p_i^{due}\right).
+$$
+
+第一项保护刚性负荷，第二项把能力内到期回补所需的功率留出来。消费者选定 $p_i^{cut}$ 后，带符号移峰的下界为：
+
+$$
+p_i^{shift}\ge
+-\min\left(\bar p_i^{flex}-p_i^{cut},
+\frac{B_i}{\Delta t}\right).
+$$
+
+负移峰表示请求回补，因此它的绝对值同时受剩余柔性能力和已有任务电量限制。其上界按当前任务状态分为三种情况：
+
+$$
+p_i^{shift}\le
+\begin{cases}
+-p_i^{due},&p_i^{due}>0,\\
+\displaystyle
+\min\left(
+p_i^{base}-p_i^{rigid}-p_i^{cut},
+\bar p_i^{flex}-p_i^{cut},
+\frac{\bar B_i-B_i}{\Delta t}
+\right),
+&p_i^{due}=0\ \text{且允许新移出},\\[4pt]
+0,&p_i^{due}=0\ \text{且关闭新移出}.
+\end{cases}
+$$
+
+第一种情况强制提出能力内到期回补请求。第二种情况允许把当前负荷移向未来，但移出功率要同时满足当前可调整负荷、剩余柔性和队列空位。第三种情况用于有限期收尾：当 $t+H>T-1$ 时，新任务会在回合结束后才到期，因此关闭正移峰，仍允许等待或回补。连续运行始终开放新任务时域。
+
+来源比例和 DER 报价的边界为：
+
+$$
+0\le\rho_i\le1,\qquad
+T^R\le b_i^R\le\bar b_i^R.
+$$
+
+这里 $\bar b_i^R$ 已经取配置报价上限与本人当期 UC 单价 $T_i^U$ 的较小值。至此，公开供给、个人任务和合法报价区间都已确定，各户开始在同一公告下同时作出本轮响应。
+
+### 第三步：消费者提交四维行动，环境形成分层订单
+
+消费者提交的行动为：
+
+$$
+a_i=\left(p_i^{cut},p_i^{shift},\rho_i,b_i^R\right).
+$$
+
+**从个人观测到这四个数的生成顺序也有明确计算关系。** 消费者策略读取 $o_i$，先生成削减控制，再生成条件移峰控制，最后生成来源比例与报价控制，共四个 $[0,1]$ 内的归一化控制 $u_{i,1},\ldots,u_{i,4}$。记第二步的削减上界为 $c_i^{max}$，给定削减后的移峰上下界为 $\underline s_i(p_i^{cut})$、$\overline s_i(p_i^{cut})$，则策略侧将它们映射为：
+
+$$
+\begin{aligned}
+p_i^{cut}&=u_{i,1}c_i^{max},\\
+p_i^{shift}
+&=\underline s_i(p_i^{cut})
++u_{i,2}\left[
+\overline s_i(p_i^{cut})-\underline s_i(p_i^{cut})
+\right],\\
+\rho_i&=u_{i,3},\\
+b_i^R&=T^R+u_{i,4}\left(\bar b_i^R-T^R\right).
+\end{aligned}
+$$
+
+先算削减，才能得到本次移峰的条件区间；再在该区间内生成带符号移峰。报价控制 $u_{i,4}=0$ 对应本户底价，$u_{i,4}=1$ 对应当前合法上限，中间值按区间位置定价。零宽区间对应一个确定物理值。环境收到的正是映射后的四维行动，并使用同一组边界校验。
+
+削减 $p_i^{cut}$ 永久取消当前部分用电。移峰通过一个带符号变量表达两个方向：
+
+$$
+\text{本期新移出功率}=[p_i^{shift}]_+,\qquad
+\text{历史回补请求功率}=[-p_i^{shift}]_+.
+$$
+
+环境收到行动并核对本地边界后，先把这两个调整量作用到原始基线上，再形成市场请求：
+
+$$
+\begin{aligned}
+p_i^{native}&=p_i^{base}-p_i^{cut}-[p_i^{shift}]_+,\\
+p_i^{req}&=p_i^{base}-p_i^{cut}-p_i^{shift},\\
+p_i^{nec}&=p_i^{native}+p_i^{due},\\
+\text{提前回补请求}&=p_i^{req}-p_i^{nec},\\
+\text{DER 初始来源意向}&=\rho_i p_i^{req}.
+\end{aligned}
+$$
+
+$p_i^{native}$ 是调整后仍需在本期服务的原生需求。负移峰使总请求 $p_i^{req}$ 增加，因为历史任务需要占用本期电力。必要请求 $p_i^{nec}$ 则把原生需求与能力内到期回补放在一起，使它们在市场中先于其他历史任务得到分配。总请求超过必要请求的部分，就是消费者主动提出的提前回补。
+
+送入出清计算的核心订单量因此为：
+
+$$
+O_i=
+\left(
+p_i^{nec},\ p_i^{req}-p_i^{nec},\
+\rho_i p_i^{req},\ b_i^R,\ T_i^U
+\right).
+$$
+
+DER 报价 $b_i^R$ 同时决定竞争顺序和该户 DER 成交的实际付款单价；UC 成交使用已经冻结的 $T_i^U$。来源比例 $\rho_i$ 确定 DER 首轮申购意向，后续补配还会受两池剩余容量影响。环境收齐所有 $O_i$ 后开始同一轮出清，整个计算使用原 UC 公告。
+
+### 第四步：先出清全部消费者的必要需求
+
+**先明确每次 DER PAB 分配怎样逐户计算。** 设当前这一轮每户申购为 $r_i$，DER 可用容量为 $K$。将不同报价从高到低排列为 $v_1>\cdots>v_L$；同价组 $G_\ell$ 及其总申购为：
+
+$$
+G_\ell=\{i:b_i^R=v_\ell\},\qquad
+Q_\ell=\sum_{i\in G_\ell}r_i.
+$$
+
+从最高价组开始，令 $K_1=K$。到第 $\ell$ 组时，每户得到：
+
+$$
+x_i=
+\begin{cases}
+\displaystyle r_i\min\left(1,\frac{K_\ell}{Q_\ell}\right),
+&Q_\ell>0,\ i\in G_\ell,\\[4pt]
+0,&Q_\ell=0,\ i\in G_\ell.
+\end{cases}
+$$
+
+该组分配完毕后，留给下一报价组的容量为：
+
+$$
+K_{\ell+1}=K_\ell-\sum_{i\in G_\ell}x_i.
+$$
+
+容量足够时，该价组全部满足；容量不足时，同价组按申购比例分配；容量用完后，后续价组成交为零。下面用 $\operatorname{PAB}_i(\mathbf r,\mathbf b^R,K)$ 表示按这三条式子算出的本户分配，$\mathbf r$ 和 $\mathbf b^R$ 分别是全体申购和报价向量。
+
+**必要层的第一轮先处理 DER 意向。** 每户在这一层的 DER 申购只占其必要请求以内：
+
+$$
+\begin{aligned}
+r_i^{DER,nec}
+&=\min\left(\rho_i p_i^{req},p_i^{nec}\right),\\
+p_i^{DER,nec,1}
+&=\operatorname{PAB}_i
+\left(\mathbf r^{DER,nec},\mathbf b^R,p^{DER,cap}\right).
+\end{aligned}
+$$
+
+上标 $nec$ 表示必要层，末尾的 $1$ 表示该层 DER 首轮。DER 首轮完成后，剩余 DER 容量与各户转入 UC 的必要请求为：
+
+$$
+\begin{aligned}
+K_D^{(1)}&=p^{DER,cap}-\sum_i p_i^{DER,nec,1},\\
+r_i^{UC,nec}&=\left[p_i^{nec}-p_i^{DER,nec,1}\right]_+.
+\end{aligned}
+$$
+
+**然后让全部剩余必要请求共同参加 UC 比例分配。**
+
+$$
+p_i^{UC,nec}=
+\begin{cases}
+\displaystyle r_i^{UC,nec}
+\min\left(1,\frac{p^{UC,cap}}{\sum_jr_j^{UC,nec}}\right),
+&\sum_jr_j^{UC,nec}>0,\\[4pt]
+0,&\sum_jr_j^{UC,nec}=0.
+\end{cases}
+$$
+
+这一步按剩余请求大小分享 UC 容量。DER 报价已经用于前面的 DER 竞争，UC 侧按冻结零售价对这些剩余请求分配。
+
+**最后把仍未满足的必要请求送回剩余 DER。**
+
+$$
+\begin{aligned}
+r_i^{rescue,nec}
+&=\left[p_i^{nec}
+-p_i^{DER,nec,1}-p_i^{UC,nec}\right]_+,\\
+p_i^{DER,nec,2}
+&=\operatorname{PAB}_i
+\left(\mathbf r^{rescue,nec},\mathbf b^R,K_D^{(1)}\right).
+\end{aligned}
+$$
+
+上标末尾的 $2$ 表示必要层 DER 补配。补配使用原报价，因此本户通过补配拿到的 DER 仍按 $b_i^R$ 付费。必要层最终成交和剩余两池容量为：
+
+$$
+\begin{aligned}
+p_i^{DER,nec}
+&=p_i^{DER,nec,1}+p_i^{DER,nec,2},\\
+K_D^{nec}
+&=K_D^{(1)}-\sum_i p_i^{DER,nec,2},\\
+K_U^{nec}
+&=p^{UC,cap}-\sum_i p_i^{UC,nec}.
+\end{aligned}
+$$
+
+这些量直接交给下一层。若必要请求仍有缺口，两池可用于服务的公告容量已经耗尽，提前回补层得到的可用容量随之为零。
+
+### 第五步：用剩余容量出清提前回补，形成最终成交
+
+提前回补层使用必要层剩下的 $K_D^{nec}$ 和 $K_U^{nec}$。每户这一层的请求及 DER 首轮申购为：
+
+$$
+\begin{aligned}
+r_i^{early}&=p_i^{req}-p_i^{nec},\\
+r_i^{DER,early}
+&=\min\left(r_i^{early},
+\left[\rho_i p_i^{req}-p_i^{DER,nec}\right]_+\right).
+\end{aligned}
+$$
+
+$early$ 表示超过能力内最低到期要求的回补。这一层从 DER 总意向中扣除必要层已经得到的全部 DER 功率，保证两个层次接续使用同一份来源意向。
+
+**先做提前回补的 DER 首轮：**
+
+$$
+\begin{aligned}
+p_i^{DER,early,1}
+&=\operatorname{PAB}_i
+\left(\mathbf r^{DER,early},\mathbf b^R,K_D^{nec}\right),\\
+K_D^{early,1}
+&=K_D^{nec}-\sum_i p_i^{DER,early,1},\\
+r_i^{UC,early}
+&=\left[r_i^{early}-p_i^{DER,early,1}\right]_+.
+\end{aligned}
+$$
+
+**再用必要层剩下的 UC 容量分配当前剩余请求：**
+
+$$
+p_i^{UC,early}=
+\begin{cases}
+\displaystyle r_i^{UC,early}
+\min\left(1,\frac{K_U^{nec}}{\sum_jr_j^{UC,early}}\right),
+&\sum_jr_j^{UC,early}>0,\\[4pt]
+0,&\sum_jr_j^{UC,early}=0.
+\end{cases}
+$$
+
+**最后完成这一层的 DER 补配：**
+
+$$
+\begin{aligned}
+r_i^{rescue,early}
+&=\left[r_i^{early}
+-p_i^{DER,early,1}-p_i^{UC,early}\right]_+,\\
+p_i^{DER,early,2}
+&=\operatorname{PAB}_i
+\left(\mathbf r^{rescue,early},\mathbf b^R,K_D^{early,1}\right).
+\end{aligned}
+$$
+
+两层处理结束后，将各次成交相加，得到本期真正进入设备执行和账单的功率：
+
+$$
+\begin{aligned}
+p_i^{DER}
+&=p_i^{DER,nec,1}+p_i^{DER,nec,2}
++p_i^{DER,early,1}+p_i^{DER,early,2},\\
+p_i^{UC}&=p_i^{UC,nec}+p_i^{UC,early},\\
+p_i^{serve}&=p_i^{DER}+p_i^{UC}.
+\end{aligned}
+$$
+
+这里 $p_i^{serve}$ 是市场实际分给本户的总服务功率。每户只提交过一次行动，必要层和提前回补层是环境对同一份订单的内部计算。所得成交满足：
+
+$$
+\begin{aligned}
+&0\le p_i^{serve}\le p_i^{req},\\
+&\sum_i p_i^{DER}\le p^{DER,cap},\qquad
+\sum_i p_i^{UC}\le p^{UC,cap},\\
+&\sum_i p_i^{serve}
+=\min\left(\sum_i p_i^{req},
+p^{DER,cap}+p^{UC,cap}\right).
+\end{aligned}
+$$
+
+最后一式说明，公告内可用供给会被当前请求充分利用。请求超出公告的部分接着由服务模块分解为原生失供和回补未完成。
+
+**沿用第 11 节的三户算例，可以直接检查这条出清链。** DER、UC 公告容量分别为 4、5 kW；必要请求均为 4 kW，总请求为 4、4、5 kW，DER 首轮意向均为 2 kW。DER 报价顺序为 A、B、C，因此必要层 DER 首轮为 $(2,2,0)$。转入 UC 的剩余请求为 $(2,2,4)$，按 $5/8$ 比例分配，得到：
+
+$$
+\begin{aligned}
+(p_A^{UC},p_B^{UC},p_C^{UC})&=(1.25,1.25,2.50),\\
+(p_A^{serve},p_B^{serve},p_C^{serve})&=(3.25,3.25,2.50).
+\end{aligned}
+$$
+
+此时两池已经用完，C 额外提出的 1 kW 提前回补成交为零。环境把以上每户 DER、UC 成交送给下一步，计算实际电源使用和任务完成。
+
+### 第六步：把成交落实到电源、电池和任务队列
+
+**先把 UC 成交落实为 ESS 和 PG 功率。** 汇总两种来源成交：
+
+$$
+p^{DER,sold}=\sum_i p_i^{DER},\qquad
+p^{UC,sold}=\sum_i p_i^{UC}.
+$$
+
+UC 池按公告内 ESS 优先、PG 补足的顺序执行：
+
+$$
+\begin{aligned}
+p^{dis,exec}
+&=\min\left(p^{dis,offer},p^{UC,sold}\right),\\
+p^{PG,exec}
+&=p^{UC,sold}+p^{ch,PG}-p^{dis,exec}.
+\end{aligned}
+$$
+
+第一式把实际放电限制在公告额度和本期 UC 成交以内。第二式让 PG 承担剩余 UC 售电及已经确定的 PG 充电。未使用的放电额度对应电量继续留在电池中。
+
+**再把 DER 出力分成已售、充电和弃电。**
+
+$$
+\begin{aligned}
+p^{unsold}&=p^{DER,cap}-p^{DER,sold},\\
+p^{spill}&=p^{curt}+p^{unsold}\\
+&=p^{DER}-p^{ch,DER}-p^{DER,sold}.
+\end{aligned}
+$$
+
+$p^{curt}$ 是 UC 主动退出的部分，$p^{unsold}$ 是公告后仍未卖出的部分，两者相加才是实际弃电。DER 充电与 PG 充电分别按已提交功率执行，候选期末电量为：
+
+$$
+E'=E+\eta_c(p^{ch,DER}+p^{ch,PG})\Delta t
+-\frac{p^{dis,exec}\Delta t}{\eta_d}.
+$$
+
+充电输入先扣除效率损耗才进入库存，向外放出的交流侧电量则需要从库存中扣除更多能量。各路功率同时满足：
+
+$$
+p^{PG,exec}+p^{DER}+p^{dis,exec}
+=\sum_i p_i^{serve}
++p^{ch,DER}+p^{ch,PG}+p^{spill}.
+$$
+
+左边是 PG、DER、ESS 的本期供给，右边是消费者实际服务、两路充电和弃电。环境据此检查整期功率平衡。
+
+**每户得到的服务先用于原生负荷，再用于历史任务。**
+
+$$
+\begin{aligned}
+p_i^{native,serve}&=\min(p_i^{native},p_i^{serve}),\\
+p_i^{lost}&=[p_i^{native}-p_i^{serve}]_+,\\
+p_i^{repay}&=[p_i^{serve}-p_i^{native}]_+,\\
+p_i^{repay,unfilled}
+&=[-p_i^{shift}]_+-p_i^{repay}.
+\end{aligned}
+$$
+
+原生需求尚未满足时，本期服务全部用于原生负荷，实际回补为零；原生需求已经满足后，剩余服务才完成历史任务。由于市场服务不超过总请求，$p_i^{repay,unfilled}\ge0$。
+
+**FIFO 扣减使用实际回补电量。** 将入期任务按截止期、同截止期按创建顺序排列为 $j=1,\ldots,m_i$。本期完成任务 $j$ 的电量为：
+
+$$
+\begin{aligned}
+e_{i,j}^{done}
+&=\min\left(e_{i,j},
+\left[p_i^{repay}\Delta t
+-\sum_{\ell<j}e_{i,\ell}^{done}\right]_+\right),\\
+e_{i,j}'&=e_{i,j}-e_{i,j}^{done}.
+\end{aligned}
+$$
+
+这条递推把前面任务已经用去的回补电量扣掉，再处理下一个任务。余额归零的任务移出队列，尚未完成的任务保留原截止期。历史回补完成后，本期正移峰追加 $[p_i^{shift}]_+\Delta t$ kWh 新任务，截止期为 $t+H$。总余额及到期残留因此为：
+
+$$
+\begin{aligned}
+B_i'&=B_i+[p_i^{shift}]_+\Delta t-p_i^{repay}\Delta t,\\
+V_i^{due}&=[D_i^{due}-p_i^{repay}\Delta t]_+.
+\end{aligned}
+$$
+
+在前述三户算例中，三户调整后的原生需求均为 4 kW，而实际服务为 3.25、3.25、2.50 kW，所以原生失供为 0.75、0.75、1.50 kW，实际回补均为零。A 新移出的 0.25 kWh 进入队列，C 的 0.25 kWh 历史任务继续保留。两路充电各 1 kW、效率 0.95、步长 0.25 h，使电池由 5 增至 5.475 kWh。当前服务结果和下一期任务压力由同一份成交共同确定。
+
+### 第七步：计算 DR 采购、双边账单和各方奖励
+
+**先用请求计算净 DR。** 环境比较本期原始基线与已经提交的总请求：
+
+$$
+\begin{aligned}
+p_i^{DR}
+&=\chi(p_i^{base}-p_i^{req})
+=\chi(p_i^{cut}+p_i^{shift}),\\
+p^{DR,net}&=\left[\sum_i p_i^{DR}\right]_+,\\
+p^{DR,buy}&=\min(p^{DR,cap},p^{DR,net}).
+\end{aligned}
+$$
+
+$p^{DR,buy}$ 在本节表示 UC 实际采购的 DR 功率。削减、新移出使个人响应为正，历史回补使其减小或为负；先将正负响应相加，再决定全体净减载。这里的基数是请求，实际服务缺口已经在上一步单独记录为失供。
+
+当全体正响应之和大于零时，总采购补偿按正贡献分摊：
+
+$$
+C_i^{DR}=
+\begin{cases}
+\displaystyle
+T^{DR}\Delta t\,p^{DR,buy}
+\frac{[p_i^{DR}]_+}{\sum_j[p_j^{DR}]_+},
+&\sum_j[p_j^{DR}]_+>0,\\[5pt]
+0,&\sum_j[p_j^{DR}]_+=0.
+\end{cases}
+$$
+
+$T^{DR}\Delta t\,p^{DR,buy}$ 是本期总补偿金额，后面的分数是本户份额。负响应户份额为零，但其请求回补仍会抵扣全体净减载，从而影响实际采购总量。事件外 $\chi=0$，采购和补偿均为零。
+
+沿用前述三户算例，其有符号请求 DR 为 $(2,1,-1)$ kW，采购上限 2 kW，补偿价 0.20 元/kWh，步长 0.25 h。因此：
+
+$$
+\begin{aligned}
+p^{DR,net}&=[2+1-1]_+=2,\\
+p^{DR,buy}&=\min(2,2)=2,\\
+(C_A^{DR},C_B^{DR},C_C^{DR})
+&=0.20\times0.25\times2
+\left(\frac23,\frac13,0\right)\\
+&\approx(0.066667,0.033333,0).
+\end{aligned}
+$$
+
+**随后计算个人电费、赔偿和净转账。**
+
+$$
+\begin{aligned}
+C_i^{energy}
+&=(b_i^R p_i^{DER}+T_i^U p_i^{UC})\Delta t,\\
+C_i^{comp}&=\alpha_i p_i^{lost}\Delta t,\\
+C_i^{bill}&=C_i^{energy}-C_i^{DR}-C_i^{comp}.
+\end{aligned}
+$$
+
+DER 的每个成交 kWh 按本户 $b_i^R$ 付款，UC 的每个成交 kWh 按冻结的 $T_i^U$ 付款。$C_i^{bill}>0$ 表示本户向 UC 净付款；补偿与赔偿超过能源电费时，该净转账可以为负。
+
+**再把个人用电与调节结果转为效用成本。**
+
+$$
+\begin{aligned}
+C_i^{flex}
+&=\kappa_i
+\frac{(p_i^{cut})^2+([p_i^{shift}]_+)^2}
+{\max(p_i^{base},\epsilon)}\Delta t,\\
+C_i^{service}
+&=\lambda_i^n p_i^{lost}\Delta t
++\lambda_i^B B_i'\Delta t
++\lambda_i^{late}V_i^{due}\Delta t.
+\end{aligned}
+$$
+
+第一式给削减和新移出计调整不适。第二式分别对原生失供、期末待办持续占用和逾期持续占用计成本。等待与逾期量已经是 kWh，再乘 $\Delta t$ 表示持续了多长时间。
+
+令 $\iota_T=1$ 表示本期恰为有限回合最后一个物理时段，其余时段及连续运行取零。个人本期奖励为：
+
+$$
+R_i=-\left(
+C_i^{bill}+C_i^{flex}+C_i^{service}
++\iota_T\lambda_i^{term}B_i'
+\right).
+$$
+
+普通时段只计常规费用与成本，真实终止时再对剩余任务追加一次终端责任。回补能够减少 $B_i'$ 和 $V_i^{due}$，因而同时影响当前电费以及后续等待、逾期和终端成本。
+
+继续看同一算例中的 A：基线 6 kW，削减、新移出各 1 kW，DER 报价 0.70 元/kWh，UC 单价 0.90 元/kWh；刚才已经算出 DER 成交 2 kW、UC 成交 1.25 kW、原生失供 0.75 kW、新任务 0.25 kWh。本例为普通时段，$\iota_T=0$，赔偿单价为 1 元/kWh。代入账单得到：
+
+$$
+\begin{aligned}
+C_A^{energy}
+&=(0.70\times2+0.90\times1.25)\times0.25\\
+&=0.63125,\\
+C_A^{comp}&=1\times0.75\times0.25=0.18750,\\
+C_A^{bill}
+&\approx0.63125-0.066667-0.18750\\
+&=0.377083.
+\end{aligned}
+$$
+
+取原算例的调整系数 $\kappa_A=0.50$ 元/kWh、原生失供系数 $\lambda_A^n=2$ 元/kWh 和等待系数 $\lambda_A^B=0.10$ 元/(kWh·h)，A 本期没有到期残留，因此：
+
+$$
+\begin{aligned}
+C_A^{flex}
+&=0.50\frac{1^2+1^2}{6}\times0.25
+\approx0.041667,\\
+C_A^{service}
+&=2\times0.75\times0.25
++0.10\times0.25\times0.25\\
+&=0.38125,\\
+R_A&\approx-(0.377083+0.041667+0.38125)\\
+&=-0.800000.
+\end{aligned}
+$$
+
+这样，A 的“削减与移出—来源报价—实际成交—失供与任务—电费与补偿—个人奖励”已经沿同一条数据链逐项算完。
+
+**UC 先结现金，再结经济成本与服务责任。**
+
+$$
+\begin{aligned}
+C^{PG}&=w p^{PG,exec}\Delta t,\\
+C^{DER,op}&=k_R(p^{DER}-p^{spill})\Delta t,\\
+C^{cash}
+&=\sum_i C_i^{bill}-C^{PG}-C^{DER,op}-C^{ext}.
+\end{aligned}
+$$
+
+实际使用 DER 包括售电与 DER 充电，已弃电部分退出 DER 运行成本。个人净账单已经扣除了 DR 补偿和失供赔偿，汇总现金时直接使用这些净账单。$C^{ext}$ 是已经计算完成的本期外部金额。
+
+储能吞吐、弃电和 DR 服务估值继续由已实现的功率计算：
+
+$$
+\begin{aligned}
+C^{ESS}
+&=k_E(p^{ch,DER}+p^{ch,PG}+p^{dis,exec})\Delta t,\\
+C^{spill}&=k_a p^{spill}\Delta t,\\
+C^{DR,value}&=v^{DR}p^{DR,net}\Delta t.
+\end{aligned}
+$$
+
+UC 的供给责任参照在行动前取各户原始基线加能力内到期回补。正补偿价事件中的实际采购量可以抵扣相同功率的供给要求，剩余缺口和到期残留共同形成：
+
+$$
+\begin{aligned}
+C^{UC,service}={}&
+\lambda_n\Bigl[
+\sum_i(p_i^{base}+p_i^{due})
+-p^{DER,cap}-p^{UC,cap}\\
+&\qquad
+-\mathbf1_{\{\chi=1,\ T^{DR}>0\}}p^{DR,buy}
+\Bigr]_+\Delta t
++\lambda_d\sum_iV_i^{due}.
+\end{aligned}
+$$
+
+括号内先减两池公告容量，再减正价事件中实际采购的 DR；公告采购上限本身通过 $p^{DR,buy}$ 与真实净响应结合后才产生抵扣。第一项是 kW 缺口乘时长，第二项直接按本次期末的 kWh 到期残留考核。供给考核使用入期基线与公告容量，失供赔偿使用调整后原生需求与实际服务，各自按对应基数计算。
+
+UC 奖励最终为：
+
+$$
+\begin{aligned}
+R_U={}&C^{cash}-C^{ESS}-C^{spill}
++C^{DR,value}-C^{UC,service}\\
+&+\iota_T\left[
+v_E(E'-E_0)-\lambda_U^{term}\sum_iB_i'
+\right].
+\end{aligned}
+$$
+
+$E_0$ 是本回合初始电量。真实终止时，环境用本期执行后的 $E'$ 和 $B_i'$ 计算存量与任务终端项；普通时段 $\iota_T=0$。到这里，每项收入、成本和奖励都已经能够追溯到本轮的公告、订单、成交或服务结果。
+
+在第 11 节同一组参数下，三户能源电费合计 1.800 元、DR 补偿 0.100 元、失供赔偿 0.750 元。实际 PG 进口为 6 kW，PG 单价 $w=0.65$ 元/kWh；储能吞吐系数 $k_E=0.02$ 元/kWh，弃电系数 $k_a=0.10$ 元/kWh，DR 服务估值系数 $v^{DR}=0.40$ 元/kWh。对应成本与估值先算为：
+
+$$
+\begin{aligned}
+C^{PG}&=0.65\times6\times0.25=0.975,\\
+C^{ESS}&=0.02(1+1+0)\times0.25=0.010,\\
+C^{spill}&=0.10\times1\times0.25=0.025,\\
+C^{DR,value}&=0.40\times2\times0.25=0.200.
+\end{aligned}
+$$
+
+原始基线合计 15 kW、公告总容量 9 kW、实际采购 DR 2 kW，供给考核系数 $\lambda_n=2$ 元/kWh，到期残留为零；DER 运行成本和其他外部支出均为零。UC 账本继续得到：
+
+$$
+\begin{aligned}
+C^{cash}&=1.800-0.100-0.750-0.975=-0.025,\\
+C^{UC,service}
+&=2[15-9-2]_+\times0.25=2.000,\\
+R_U&=-0.025-0.010-0.025+0.200-2.000\\
+&=-1.860.
+\end{aligned}
+$$
+
+三户消费者按个人账单与效用成本计算的奖励分别为 −0.800000、−0.785417、−0.943750。以上成交、实际功率、任务和费用与后文贯穿算例使用同一组数据。
+
+### 第八步：一次提交状态，返回结果并接续下一期
+
+**先按实际 UC 成交更新月累计。** 本期关账量为：
+
+$$
+M_i^{close}=M_i+p_i^{UC}\Delta t.
+$$
+
+本期电费仍使用行动前已经冻结的 $T_i^U$。环境在计算下一时刻时判断是否跨月，并设置下一期累计：
+
+$$
+M_{i,t+1}=
+\begin{cases}
+0,&t\text{ 与 }t+1\text{ 对应的本地月份不同},\\
+M_i^{close},&\text{仍处于同一月份}.
+\end{cases}
+$$
+
+这样，同一时段不会因本期新成交越过阶梯阈值而重算旧账单；新增电量通过月累计影响下一时段的费率。跨月时保存旧月关账量，再从零开始新月计量。
+
+**再将物理、任务与历史结果组合为候选下一状态。**
+
+$$
+\begin{aligned}
+E_{t+1}&=E',\qquad B_{i,t+1}=B_i',\\
+\mathcal Q_{i,t+1}
+&=\{\text{回补后尚有余额的历史任务}\}\\
+&\quad\cup\{\text{本期正移峰形成的新任务}\},\\
+\tau_{t+1}&=\tau_t+\Delta t.
+\end{aligned}
+$$
+
+$\tau_t$ 表示实际日历时间，任务对象继续保留身份与截止期。下一轮 UC 报表的六项历史反馈取本期实际结果：
+
+$$
+\begin{aligned}
+h_{t+1}=\bigl(&p^{DER,sold},p^{UC,sold},p^{DR,net},\\
+&\sum_iC_i^{DR},\sum_i p_i^{lost},C^{cash}\bigr).
+\end{aligned}
+$$
+
+环境此时检查成交上限、功率平衡、电池边界、队列余额与双边资金关系。检查通过后，把电池、任务、月累计、历史反馈、奖励和执行记录统一提交，物理时钟从 $t$ 前进到 $t+1$。这一次提交使本期公告正式转化为已实现的状态和账本。
+
+**最后生成下一轮的决策输入。** 普通时段提交后，队列以新的物理时段重新分桶。用 $e_{i,j,t+1}$ 表示已提交队列中任务 $j$ 的余额，则：
+
+$$
+\begin{aligned}
+q_{i,t+1}^{(0)}
+&=\sum_{j:\ d_{i,j}\le t+1}e_{i,j,t+1},\\
+q_{i,t+1}^{(h)}
+&=\sum_{j:\ d_{i,j}=t+1+h}e_{i,j,t+1},
+\qquad h=1,\ldots,H.
+\end{aligned}
+$$
+
+即将到期的任务向第零桶靠近，已经逾期的任务继续留在第零桶。环境读取下一期柔性能力和价格条件，继续计算：
+
+$$
+\begin{aligned}
+p_{i,t+1}^{due}
+&=\min\left(\frac{q_{i,t+1}^{(0)}}{\Delta t},
+\bar p_{i,t+1}^{flex}\right),\\
+T_{i,t+1}^{U}
+&=T^U(t+1,M_{i,t+1}),\\
+T_{remain,t+1}
+&=\begin{cases}
+T-t-1,&\text{有限回合},\\
+-1,&\text{连续运行}.
+\end{cases}
+\end{aligned}
+$$
+
+再按第一步的需求权重计算 $T_{t+1}^{U,avg}$，下一份 UC 报表便为：
+
+$$
+\begin{aligned}
+o_{t+1}^U=[&t+1,T_{remain,t+1},E',
+p_{t+1}^{DER},\bar p^{PG},w_{t+1},\\
+&\chi_{t+1},T_{t+1}^{DR},
+\sum_i p_{i,t+1}^{base},\sum_i p_{i,t+1}^{rigid},\\
+&\sum_i\bar p_{i,t+1}^{flex},
+\sum_i p_{i,t+1}^{due},T_{t+1}^{U,avg},\\
+&\sum_iq_{i,t+1}^{(0)},\ldots,
+\sum_iq_{i,t+1}^{(H)},h_{t+1}].
+\end{aligned}
+$$
+
+末尾的 $h_{t+1}$ 按上一式的六个历史标量展开。UC 取得该报表后决定新的六维行动，环境按第一步重新计算容量并发布 $\mathcal A_{t+1}$；消费者再按第二步的字段取得包含新公告的个人观测。有限期真实终点返回最终观测与结束标志，终端费用已经通过 $\iota_T$ 在本期奖励中结算一次；连续运行保留电池、队列和月累计，数据衔接后接续同一状态。
+
 ## 9. 市场：DER PAB、UC 比例分配与结算
 
 ### 9.1 同层分配规则
