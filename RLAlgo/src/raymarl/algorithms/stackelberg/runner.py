@@ -186,9 +186,33 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return {key: self._value(key, inputs[key], inputs[key]) if key in inputs else 0.0
                 for key in self.agent_ids}
 
-    def _period(self, *, deterministic=False):
+    def _action_period(self, deterministic):
+        """Same action draws and RNG order; candidate scores need no value/logp."""
+        with torch.no_grad():
+            controls = self.module["uc"].draw_action(
+                self._tensor("uc", self._observation),
+                self._tensor("uc", self.env.uc_bounds(), dtype=torch.float64), deterministic,
+            )[0].cpu().numpy()
+            decision = self.env.publish(controls)
+            actions = {
+                key: self.module[key].draw_action(
+                    self._tensor(key, decision.consumer_observations[key]),
+                    self._tensor(key, decision.consumer_bounds[key], dtype=torch.float64), deterministic,
+                )[0].cpu().numpy()
+                for key in self.env.consumer_ids
+            }
+        return {}, self.env.step(actions)
+
+    def _period(self, *, deterministic=False, actions_only=False):
         if self._data_exhausted:
             raise RuntimeError("Continuous data exhausted: append profiles before collecting another period")
+        if actions_only:
+            samples, result = self._action_period(deterministic)
+            self._observation = result.next_uc_observation
+            self._terminated, self._data_exhausted = result.terminated, result.data_exhausted
+            self.num_env_steps_sampled_lifetime += 1
+            self.trajectory_periods += 1
+            return samples, result
         uc_sample, decision = self._announce(deterministic)
         samples = {"uc": uc_sample}
         actions = {}
@@ -270,7 +294,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
     def sample(self, *, num_timesteps=None, **kwargs):
         return self.collect(num_timesteps or self.config.rollout_length)
 
-    def evaluate(self, seeds, *, steps=None, deterministic=False):
+    def evaluate(self, seeds, *, steps=None, deterministic=False, actions_only=False):
         """Realized finite-episode scores; optional windows are diagnostics only."""
         state = self.get_state()
         rows = []
@@ -280,7 +304,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                 returns = {key: 0.0 for key in self.agent_ids}
                 totals, period = {}, 0
                 while not self._terminated and (steps is None or period < steps):
-                    _, result = self._period(deterministic=deterministic)
+                    _, result = self._period(deterministic=deterministic, actions_only=actions_only)
                     for key, reward in result.rewards.items():
                         returns[key] += self.config.gamma**period * reward
                     for key, value in result.metrics.items():
@@ -338,7 +362,13 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                 "last_metrics": self.last_metrics,
                 "sampled_periods": self.trajectory_periods,
             }
-        return copy.deepcopy(state)
+        # The environment API returns an owned snapshot. All remaining mutable
+        # fields still need isolation from live modules and observation arrays.
+        environment = state.get("sampling", {}).pop("environment", None)
+        state = copy.deepcopy(state)
+        if environment is not None:
+            state["sampling"]["environment"] = environment
+        return state
 
     def set_state(self, state):
         if COMPONENT_RL_MODULE in state:

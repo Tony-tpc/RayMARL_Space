@@ -123,7 +123,8 @@ def test_critic_lambda_validation(tmp_path, value):
 def test_reserved_test_requires_explicit_evaluation_seeds():
     calls = []
 
-    def evaluate(seeds, deterministic):
+    def evaluate(seeds, deterministic, *, actions_only=False):
+        assert not actions_only
         calls.append((seeds, deterministic))
         return [
             {

@@ -2,6 +2,8 @@
 
 更新：2026-10-23。
 
+执行优化续跑：已在第 24 轮完整 checkpoint 后停机并保存 Git 基线 `58d8cd8`，完成重复快照复制、候选动作评估及轻量审计优化。真实 checkpoint 的两批更新和两个完整验证月结果逐项一致。新入口 `resume_optimized_study.py` 从第 24 轮继续至 72 轮，输出 `20261023-soc-mode-72rounds-optimized`；实际完成轮次以其 `status.json` 为准。完整证据、计时和审计范围见 [EXECUTION_OPTIMIZATION.md](EXECUTION_OPTIMIZATION.md)。
+
 当前为三模式 UC 混合策略、独立两路充电和六维物理行动。每阶段连续采样 384 步，γ=0.99、Actor λ=0.97、Critic λ=1；全部 Critic 拟合后重算固定 GAE，再更新本阶段 Actor。Value 使用 LayerNorm，UC / 消费者输出单位为 20 / 10。
 
 2026-10-23 增加 UC Actor 中心化 SOC 输入及三个零初始化模式直连权重，补齐逐 minibatch 模式概率比、PPO 截断、分支梯度与实际 Adam 变化诊断。Critic、奖励、采样起点和训练预算保持；未采用高 SOC 初态或重采样。原始电量观察仍为 kWh；新输入契约拒绝直接恢复旧训练 checkpoint，旧导出 Actor 按原配置仍可读取。实现及检查入口见 `test_stackelberg_mode_diagnostics.py`、阶段合批集成测试和 [TRAINING.md](TRAINING.md)。用户已授权提交后从 seed 42 新开 10 轮，输出 `20261023-soc-mode-10rounds`，对照此前 `20261022-phase-batch-10rounds`；实际进度以新目录 status.json 为准。

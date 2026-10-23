@@ -101,6 +101,8 @@ def run_pilot(output, reference_path, *, outer_rounds=3, observer=None, checkpoi
     import torch
 
     cfg = configuration(output)
+    if recovery is not None and hasattr(recovery, "configure"):
+        cfg = recovery.configure(cfg)
     budget = round_budget(cfg)
     evaluation_rounds = sorted(set(evaluation_rounds if evaluation_rounds is not None else
                                   (n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds)))

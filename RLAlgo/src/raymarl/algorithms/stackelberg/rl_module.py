@@ -232,7 +232,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
                                  intervals[..., [2, 3, 4], 1] > 0)
         return TorchMultiDistribution((base_dist, mode_dist, storage)), intervals, mask
 
-    def _draw_uc(self, features, bounds, deterministic=False, soc=None):
+    def _draw_uc(self, features, bounds, deterministic=False, soc=None, *, actions_only=False):
         bounds = bounds.double()
         base_dist = self._uc_base(features, bounds)
         base = base_dist.loc if deterministic else base_dist.sample()
@@ -243,6 +243,10 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         storage = storage_dist.loc if deterministic else storage_dist.sample()
         controls = torch.stack((base[..., 0], base[..., 1], storage[..., 0], storage[..., 1],
                                 storage[..., 2], base[..., 2]), -1)
+        if actions_only:
+            intervals = self._uc_intervals(bounds, controls, mode)
+            controls = torch.where(intervals[..., 1] > 0, controls, 0.0)
+            return torch.cat((mode[..., None].to(controls.dtype), controls), -1)
         distribution, intervals, mask = self._uc_distribution(features, controls, bounds, mode, soc)
         active = intervals[..., 1] > 0
         controls = torch.where(active, controls, 0.0)
@@ -329,6 +333,13 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             torch.where(active, logp - log_width, 0.0).sum(-1),
             torch.where(active, entropy + log_width, 0.0).sum(-1),
         )
+
+    def draw_action(self, obs, bounds, deterministic=False):
+        """Action-only evaluation with identical conditional sampling order."""
+        features = self._features(obs)
+        if self.role == "uc":
+            return self._draw_uc(features, bounds, deterministic, self.centered_soc(obs), actions_only=True)
+        return self._draw_consumer(features, bounds, deterministic)[0]
 
     def draw(self, obs, bounds=None, deterministic=False):
         features = self._features(obs)

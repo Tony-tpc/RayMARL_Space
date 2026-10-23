@@ -28,7 +28,8 @@ def test_light_audit_and_candidate_protocol_preserve_native_state(ray_runtime, t
                 audited.append((copy.deepcopy(algorithm.learner_group.get_state()),
                                 copy.deepcopy(algorithm.get_state()["raymarl_rng"])))
                 assert audit.coverage["refreshed_gae_checks"] > 0
-                assert audit.optimizer_steps and audit.coverage["frozen_optimizer_checks"] > 0
+                counter = "frozen_optimizer_checks" if full else "frozen_optimizer_inactive_skips"
+                assert audit.optimizer_steps and audit.coverage[counter] > 0
                 if not full:
                     assert audit.coverage["oracle_comparisons"] == 0
             finally:

@@ -65,17 +65,17 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.env_runner.module.set_state(self.learner_group.get_weights())
 
     def _snapshot(self):
-        return copy.deepcopy(
-            {
-                "learner": self.learner_group.get_state(),
-                "runner": self.env_runner.get_state(),
-                "rng": random_state(),
-            }
-        )
+        # Runner already owns an independent environment snapshot. Copying it
+        # again duplicates the entire execution history for every candidate.
+        return {
+            "learner": copy.deepcopy(self.learner_group.get_state()),
+            "runner": self.env_runner.get_state(),
+            "rng": random_state(),
+        }
 
     def _restore(self, snapshot):
-        self.learner_group.set_state(copy.deepcopy(snapshot["learner"]))
-        self.env_runner.set_state(copy.deepcopy(snapshot["runner"]))
+        self.learner_group.set_state(snapshot["learner"])
+        self.env_runner.set_state(snapshot["runner"])
         self._sync()
         restore_random_state(snapshot["rng"])
 
@@ -184,9 +184,10 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             },
         })
 
-    def _evaluate(self, seeds, deterministic=False):
+    def _evaluate(self, seeds, deterministic=False, *, actions_only=True):
         rows = self.env_runner.evaluate(
-            seeds, steps=self.config.evaluation_steps, deterministic=deterministic
+            seeds, steps=self.config.evaluation_steps, deterministic=deterministic,
+            actions_only=actions_only,
         )
         self.evaluated_periods += sum(row["physical_periods"] for row in rows)
         return rows
@@ -196,7 +197,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         seeds = tuple(self.config.test_seeds if seeds is None else seeds)
         if not seeds:
             raise ValueError("No test scenarios configured; pass explicit nonempty evaluation seeds")
-        rows = self._evaluate(seeds, deterministic)
+        rows = self._evaluate(seeds, deterministic, actions_only=False)
         return {"rows": rows, "summary": summarize_evaluation(rows), "deterministic": deterministic}
 
     def search_deviations(self):

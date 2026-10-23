@@ -119,17 +119,17 @@ class TrainingAudit:
         def period(**kwargs):
             before = runner.env.engine.state
             samples, result = original_period(**kwargs)
-            record = runner.env.engine.latest_record
             if (
                 self.phase.startswith("round_")
                 and runner._scenario_seed in runner.config.train_seeds
             ):
-                self.sampled_dates[self.phase].add(record.timestamp.isoformat())
+                self.sampled_dates[self.phase].add(before.timestamp.isoformat())
             if not self.full_period_checks:
                 # Long runs retain the engine's checks and all batch/optimizer
                 # checks below, without repeating the exhaustive physical audit.
                 self.coverage[f"periods/{self.phase}"] += 1
                 return samples, result
+            record = runner.env.engine.latest_record
             check_record(
                 runner.env.engine,
                 before,
@@ -333,8 +333,10 @@ class TrainingAudit:
             def before_step(
                 opt, args, kwargs, *, params=parameters, raw=raw, state=state
             ):
-                state["parameters"] = [p.detach().clone() for p in params]
                 state["active"] = any(p.grad is not None for p in params)
+                if not state["active"] and not self.full_period_checks:
+                    return
+                state["parameters"] = [p.detach().clone() for p in params]
                 state["raw_norm"] = math.sqrt(
                     sum(
                         raw.get(i, 0.0)
@@ -370,6 +372,10 @@ class TrainingAudit:
                 agent=agent,
                 role=role,
             ):
+                if not state["active"] and not self.full_period_checks:
+                    raw.clear()
+                    self.coverage["frozen_optimizer_inactive_skips"] += 1
+                    return
                 delta = math.sqrt(
                     sum(
                         float((p.detach().double() - old.double()).square().sum())
