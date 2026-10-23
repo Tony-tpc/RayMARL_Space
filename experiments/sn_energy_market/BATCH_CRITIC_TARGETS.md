@@ -1,6 +1,6 @@
 # Critic 目标分离与逐采样批日志
 
-本文记录目标分离和逐批日志的实现。随后已按原预算完成一次 Ausgrid 小规模训练与验证，实测结果和真实 24 批曲线见[固定预算对照](BATCH_CRITIC_PILOT.md)。测试集仍未加载或评估。旧报告缺少逐批 loss，不能由三个外层轮次的均值恢复旧实验的 24 个点。
+本文记录当前目标分离和逐批日志协议。最新 10 轮已完成，历史 24 / 80 / 576 批与当前 40 批分别保留实际编号，结果见[保留结果索引](RESULTS.md)。
 
 ## 1. 固定 Critic 目标，拟合后重算 Actor 优势
 
@@ -64,4 +64,4 @@ python experiments/sn_energy_market/plot_batch_losses.py <运行目录>/batch_lo
 
 绘图 Python 需安装 Matplotlib。每个模块输出 PNG 和 SVG，包含 Critic loss、原单位 RMSE、Actor loss 三行。回滚更新用叉号标出，pending 用方框，冻结 Actor 留缺口。批间目标和策略分布会变化，曲线不能当作同一固定数据集上的单调收敛证明。
 
-历史 `outputs/ausgrid-online-critic-pilot/20261020` 保持原状。目标与日志先通过单元测试和微型合成场景集成检查；新真实实验单独保存在 `outputs/ausgrid-batch-critic-pilot/20261020`，两类日志分别保留。
+当前结果按 [RESULTS.md](RESULTS.md) 保留。早期三轮的重复日志与图表已清理，历史 72 轮保留完整 576 批，涵盖其前 24 批基线。

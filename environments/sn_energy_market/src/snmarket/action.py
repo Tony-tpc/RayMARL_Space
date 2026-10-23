@@ -15,6 +15,8 @@ CONSUMER_PHYSICAL_FIELDS = tuple(ConsumerAction.__dataclass_fields__)
 
 
 def finite_vector(values, size):
+    if isinstance(values, (UCAction, ConsumerAction)):
+        values = tuple(asdict(values).values())
     array = np.asarray(values, dtype=np.float64)
     if array.shape != (size,) or not np.isfinite(array).all():
         raise ValueError(f"Expected a finite physical vector of shape ({size},)")
@@ -31,11 +33,11 @@ def action_tuple(action):
 
 
 def coerce_uc_action(value):
-    return UCAction(**dict(zip(UC_PHYSICAL_FIELDS, finite_vector(action_tuple(value), 6), strict=True)))
+    return UCAction(**dict(zip(UC_PHYSICAL_FIELDS, finite_vector(value, 6), strict=True)))
 
 
 def coerce_consumer_action(value):
-    return ConsumerAction(**dict(zip(CONSUMER_PHYSICAL_FIELDS, finite_vector(action_tuple(value), 4), strict=True)))
+    return ConsumerAction(**dict(zip(CONSUMER_PHYSICAL_FIELDS, finite_vector(value, 4), strict=True)))
 
 
 def uc_control_bounds(state, generation_kw, config):

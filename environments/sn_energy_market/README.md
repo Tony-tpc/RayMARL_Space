@@ -69,10 +69,12 @@ assert engine.state.period_id == 1
 
 `episode_mode="continuous"` 保留 SOC、任务和月累计，剩余期数为−1。数据耗尽后仍保留已结算状态；下一次 UC 行动抛出 `ProfileExhaustedError`。在 UC 阶段通过 `engine.append_profiles(连续的新Profiles)` 补充时序后继续，不重复旧数据。耗尽时返回的载体使用最后有效外生帧，适配器标记 `bootstrap_observation_valid=False`；追加数据并重新读取 `uc_observation()` 后才得到有效下一观测。采样切片由调用方承载，不在物理引擎中伪造终止或终端奖励。
 
-`get_state()/set_state()` 保存和恢复阶段、公告、初始/当前电量、队列、月账本、反馈、记录及 RNG。规则、配置、时序哈希不同的快照不能混用。transition ID 保证同输入重试不会重复付款；失败诊断位于异常的 `diagnostic` 字段。
+`get_state()/set_state()` 保存和恢复阶段、公告、初始/当前电量、队列、月账本、反馈、记录及 RNG。规则、配置、时序哈希不同的快照不能混用。transition ID 保证同输入重试不会重复付款；错误直接抛出原异常；批量验证入口保存失败输入和快照上下文。
 
 ## 验证和经济解释
 
+当前逐项审核见[实现审核](docs/v9/implementation_audit_zh.md)：物理及结算公式一致，公共日历尚未完整编码到观测；训练实际使用 γ=0.99。
+
 `tests/v9_oracle.py` 独立实现数学参考，`tests/v9_checks.py` 将生产结果逐字段对照。当前完整环境验证基线见[报告](docs/v9/full_validation_current_commit_zh.md)。
 
-当前模型保留 U02 来源替代、A01 已有减载付费认领、A02 到期回补额外容量责任、A03 公告容量平坦区。测试分别验证其数值结果；这些经济性质与程序守恒、实现一致性分开报告。双层 RL 已实现并完成一次固定预算训练与验证，见[最新报告](../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)；尚未建立动态均衡结论。
+当前模型保留 U02 来源替代、A01 已有减载付费认领、A02 到期回补额外容量责任、A03 公告容量平坦区。测试分别验证其数值结果；这些经济性质与程序守恒、实现一致性分开报告。双层 RL 已实现并完成一次固定预算训练与验证，见[结果索引](../../experiments/sn_energy_market/RESULTS.md)；尚未建立动态均衡结论。

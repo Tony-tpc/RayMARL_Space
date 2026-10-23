@@ -91,8 +91,6 @@ class SnEnergyMarketEnv(MultiAgentEnv):
             observations = self.engine.apply_uc_action(action_dict["uc"])
             self.agents = list(self.engine.consumer_ids)
             return observations, {}, {"__all__": False}, {"__all__": False}, self._infos(observations)
-        if set(action_dict) != set(self.engine.consumer_ids):
-            raise ValueError("Consumer phase requires exactly all consumer actions")
         record = self.engine.apply_consumer_actions(action_dict)
         observations = {"uc": self.engine.uc_observation()}
         if record.terminated:

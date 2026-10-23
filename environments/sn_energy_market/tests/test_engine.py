@@ -91,14 +91,15 @@ def test_injected_failure_and_tampered_candidate_preserve_state(make_engine, mon
     engine.apply_uc_action(U(grid_import_offer_kw=4, der_planned_curtailment_kw=0, der_to_ess_kw=0, grid_to_ess_kw=0, ess_discharge_offer_kw=0, dr_procurement_cap_kw=0))
     before = engine.get_state()
     original = module.settle
+    fault = RuntimeError("injected settlement fault")
 
     def fail(*args, **kwargs):
-        raise RuntimeError("injected settlement fault")
+        raise fault
 
     monkeypatch.setattr(module, "settle", fail)
     with pytest.raises(RuntimeError, match="injected") as error:
         engine.apply_consumer_actions(actions(engine))
-    assert error.value.diagnostic["phase"] == Phase.CONSUMER_TURN
+    assert error.value is fault
     assert engine.get_state() == before
     monkeypatch.setattr(module, "settle", original)
     delta = engine.evaluate_consumer_actions(actions(engine))

@@ -8,6 +8,7 @@
 - [环境验证基线](full_validation_current_commit_zh.md)及[机器汇总](full_validation_current_commit.json)：提交 `33f27b7` 的完整规模验证，保留原始哈希。
 - [训练协议](../../../../experiments/sn_energy_market/TRAINING.md)：当前接口、预算与运行方式。
 - [中长期实验](../../../../experiments/sn_energy_market/YEAR_STUDY.md)：同一算法的 72 轮训练与固定节点验证。
-- [小规模固定预算报告](../../../../experiments/sn_energy_market/BATCH_CRITIC_PILOT.md)：Critic 分层 RMSE、供电率、UC 收益与 24 批真实曲线。
+- [保留结果索引](../../../../experiments/sn_energy_market/RESULTS.md)：最近三次完整训练、最长 72 轮、最新冻结 Critic 对照及已停止运行。
+- [实现审核](implementation_audit_zh.md)：当前公式核对、公共日历差异与异常处理精简。
 
 旧版本模型、过时 HTML、文档修改过程记录及历史 verifier 已移出当前目录，历史内容由 Git 查阅。当前 HTML 保留为阅读交付物。

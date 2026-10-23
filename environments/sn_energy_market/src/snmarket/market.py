@@ -27,8 +27,6 @@ def clear(orders, offer):
     """Clear validated orders; the engine checks conservation before committing."""
     orders = tuple(orders)
     by_id = {order.consumer_id: order for order in orders}
-    if len(by_id) != len(orders):
-        raise ValueError("Duplicate consumer orders")
     ids = sorted(by_id)
     bids = {i: by_id[i].der_bid_price for i in ids}
     der_left, uc_left = offer.der_capacity_kw, offer.uc_capacity_kw

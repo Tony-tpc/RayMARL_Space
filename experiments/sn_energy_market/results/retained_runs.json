@@ -1,0 +1,306 @@
+{
+  "date": "2026-10-23",
+  "policy": "last three completed storage runs, longest completed run, latest offline Critic, stopped run",
+  "retained": [
+    {
+      "path": "outputs/ausgrid-hybrid-storage/20261022-phase-batch-10rounds",
+      "file_count": 618,
+      "bytes": 451240685,
+      "sha256": {
+        "report.json": "0cb11faac1c3a460f8a6ea92b6a4fc2370f801d8017f7f5650357a380c125101",
+        "status.json": "2c7c8839e3411410462d5cc938cb7e540bac0eb4cf71b200e6f138b74905f6a8",
+        "protocol.json": "ed223a43f6732a3cfb2c58a3864a4a6e2ee40118bc3267a6081f504ddc0dbf58",
+        "experiment.json": "c16a08324186f4d930762e52c6b05184b03ba8b7027211eb8476b0f622ce7a56",
+        "batch_losses.jsonl": "f50a9dbea34470f7449b96b57eace4a2946ace2cf7259932870edbb06f5a4591",
+        "source_manifest.json": "0028ae17c819152792937a0e7d07c8caeb70d17b699303ffe1279bf3afe9d941",
+        "checkpoint/learning_contract.json": "766080b032bd52e699c3529d8f52f0d8911c8f0dd4a269cb36b418e115c0ee91"
+      }
+    },
+    {
+      "path": "outputs/ausgrid-hybrid-storage/20261022-long-horizon-10rounds",
+      "file_count": 392,
+      "bytes": 297708263,
+      "sha256": {
+        "report.json": "bd210f25a82ef3a0ede6e1a31bfeb7869055c23af484acd5ebdbd4473532e9ea",
+        "status.json": "31609da3445d98b15c6286e048f94e8ffdbe85f845814318ca8f7d22bb1c3b69",
+        "protocol.json": "874b3478cff648ccb590af0e47e8f4c30a9fcf9a155b4a1d9d830662e0aa5f11",
+        "experiment.json": "a2ee167cc4ff7864f3ad34bc0f7fe492d2ec7e86435cca9221c4576dec4b0a5b",
+        "batch_losses.jsonl": "8286b93a1d468a1a805d98b7b71ffb5cf55b5a4bdcd5b3c17aee017d65921d22",
+        "source_manifest.json": "fd241c032147db723e16721cf4991a68279824507924a08e3d17de5ee8abec66",
+        "checkpoint/learning_contract.json": "77d6848620f803fe33bd93b4331027a94157796a2c94a4e0c6c89db6ba427074"
+      }
+    },
+    {
+      "path": "outputs/ausgrid-hybrid-storage/20261021-10rounds",
+      "file_count": 377,
+      "bytes": 339980544,
+      "sha256": {
+        "report.json": "2a7c4f0d7749fbce098fe2e3db1c71474cbe728ac1024eead468c2f10d1ba39a",
+        "status.json": "96db48fd75cef0a7674cd460201abd23f92b7434f6292c816c158729c7e1b084",
+        "protocol.json": "646463ebf29e4d9e45b7959be7a4accf7f45ca5607a598392ed33d52ccde3df4",
+        "experiment.json": "856dfc654bd6c53aff306d93bd0c82dc952f1162573e25dfa18d678934f6873d",
+        "batch_losses.jsonl": "a8dfcdcd4fc17046a49e75bade8b690ac89f2158878e65c471c9a6c147716a3e",
+        "source_manifest.json": "88b24b9ea3f309321c7a41e7dd24de06ba93a92e6695eaaf37edeb0c9f88f534",
+        "checkpoint/learning_contract.json": "08a22f83d793c16d4778ac04d3dc8dd8ce098617ac962c57bd10fd26a2ec22d9"
+      }
+    },
+    {
+      "path": "outputs/ausgrid-year-study/20261020",
+      "file_count": 443,
+      "bytes": 401102315,
+      "sha256": {
+        "report.json": "d7ee31b6b12f5ad3823cd66236f1ebc1038537015e268e000d810d671af56d99",
+        "experiment.json": "f6ad4beeb19b20f0f41810e460476b043d10d7b5fb10887bc866f90ffc6f9412",
+        "batch_losses.jsonl": "a564040247c2575abb14a6abdd298cfe12017de60050d9eb7deb1dacc30f8c54",
+        "checkpoint/learning_contract.json": "1f854d5965bcf0f9546d84dfcd651ed9114f971b5fd21aec20836d70fb2b3462"
+      }
+    },
+    {
+      "path": "outputs/ausgrid-frozen-critic/20261021",
+      "file_count": 57,
+      "bytes": 17491490,
+      "sha256": {
+        "report.json": "5e6e0d15a046d8b03dda6f0ef4b71365701ec68692f65636dfbfb45aa41b9cbd",
+        "protocol.json": "68f152ad44ad3088c5b802097bea76fd0d28f56de971b6a9110ce5aff647d8c6",
+        "postrun_audit.json": "6e1715ad043b565675a30b6de12aecb88483a55e81c62e27d10c41fd68d67d23"
+      }
+    },
+    {
+      "path": "outputs/ausgrid-hybrid-storage/20261022-phase-batch-72rounds",
+      "file_count": 148,
+      "bytes": 93700056,
+      "sha256": {
+        "status.json": "f9854bf0a15512b1fdde6a9b02b807c4d81c11dd6801160cc54bf44d49a3b58f",
+        "protocol.json": "396c5e249a3ec019098ce25db96b7dafe563097146c2980541ef500bb0a6cd93",
+        "experiment.json": "53790b6e80638baa47f1948d3592c6f810c8347153424ec6df4c38aab6f9c9b5",
+        "source_manifest.json": "136f5381fcac5e3a7e017ef90953611b5931a32db2b33abc6ecf015703f2904c"
+      }
+    }
+  ],
+  "support": [
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020",
+      "kept": [
+        "report.json"
+      ],
+      "reason": "historical reference or frozen Critic source checkpoint"
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020",
+      "kept": [
+        "report.json"
+      ],
+      "reason": "historical reference or frozen Critic source checkpoint"
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020",
+      "kept": [
+        "actors",
+        "checkpoint",
+        "experiment.json",
+        "report.json",
+        "validation-0003.json"
+      ],
+      "reason": "historical reference or frozen Critic source checkpoint"
+    }
+  ],
+  "removed": [
+    {
+      "path": "experiments/sn_energy_market/BATCH_CRITIC_PILOT.md",
+      "files": 1,
+      "bytes": 11596
+    },
+    {
+      "path": "experiments/sn_energy_market/CRITIC_STABILITY_PILOT.md",
+      "files": 1,
+      "bytes": 7666
+    },
+    {
+      "path": "experiments/sn_energy_market/LAYERNORM_PILOT.md",
+      "files": 1,
+      "bytes": 15132
+    },
+    {
+      "path": "experiments/sn_energy_market/ONLINE_CRITIC_PILOT.md",
+      "files": 1,
+      "bytes": 10192
+    },
+    {
+      "path": "experiments/sn_energy_market/LONG_STORAGE_STUDY.md",
+      "files": 1,
+      "bytes": 1908
+    },
+    {
+      "path": "experiments/sn_energy_market/online_critic_pilot_validation.json",
+      "files": 1,
+      "bytes": 127335
+    },
+    {
+      "path": "experiments/sn_energy_market/summarize_batch_critic.py",
+      "files": 1,
+      "bytes": 10863
+    },
+    {
+      "path": "experiments/sn_energy_market/results/batch_critic_20261020",
+      "files": 7,
+      "bytes": 1037368
+    },
+    {
+      "path": "experiments/sn_energy_market/results/critic_stability_20261020",
+      "files": 5,
+      "bytes": 1598452
+    },
+    {
+      "path": "experiments/sn_energy_market/results/layernorm_20261020",
+      "files": 5,
+      "bytes": 1500010
+    },
+    {
+      "path": "outputs/ausgrid-critic-stability-pilot/20261020",
+      "files": 225,
+      "bytes": 117191262
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/actors",
+      "files": 1,
+      "bytes": 324743
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/analysis",
+      "files": 10,
+      "bytes": 720947
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/checkpoint",
+      "files": 67,
+      "bytes": 84869989
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/experiment.json",
+      "files": 1,
+      "bytes": 16863
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/optimizer_steps.json",
+      "files": 1,
+      "bytes": 978344
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/raymarl",
+      "files": 3,
+      "bytes": 104258
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/round-0001.json",
+      "files": 1,
+      "bytes": 55173
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/round-0002.json",
+      "files": 1,
+      "bytes": 55194
+    },
+    {
+      "path": "outputs/ausgrid-online-critic-pilot/20261020/round-0003.json",
+      "files": 1,
+      "bytes": 55205
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/actors",
+      "files": 1,
+      "bytes": 324743
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/analysis",
+      "files": 39,
+      "bytes": 6656525
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/batch_losses.jsonl",
+      "files": 1,
+      "bytes": 167860
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/checkpoint",
+      "files": 67,
+      "bytes": 85240384
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/experiment.json",
+      "files": 1,
+      "bytes": 17058
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/optimizer_steps.json",
+      "files": 1,
+      "bytes": 976599
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/raymarl",
+      "files": 4,
+      "bytes": 279470
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/round-0001.json",
+      "files": 1,
+      "bytes": 54965
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/round-0002.json",
+      "files": 1,
+      "bytes": 55037
+    },
+    {
+      "path": "outputs/ausgrid-batch-critic-pilot/20261020/round-0003.json",
+      "files": 1,
+      "bytes": 54999
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/batch_losses.jsonl",
+      "files": 1,
+      "bytes": 835712
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/optimizer_steps.json",
+      "files": 1,
+      "bytes": 975951
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/plots",
+      "files": 4,
+      "bytes": 673755
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/post_run_formatting.json",
+      "files": 1,
+      "bytes": 961
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/raymarl",
+      "files": 72,
+      "bytes": 85814225
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/round-0001.json",
+      "files": 1,
+      "bytes": 54928
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/round-0002.json",
+      "files": 1,
+      "bytes": 54897
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/round-0003.json",
+      "files": 1,
+      "bytes": 54941
+    },
+    {
+      "path": "outputs/ausgrid-layernorm-pilot/20261020/validation-0000.json",
+      "files": 1,
+      "bytes": 72743
+    }
+  ],
+  "removed_files": 535,
+  "removed_bytes": 391058253
+}

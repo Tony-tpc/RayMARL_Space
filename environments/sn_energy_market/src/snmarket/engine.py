@@ -4,7 +4,6 @@ import hashlib
 import json
 import math
 import threading
-from contextlib import contextmanager
 from dataclasses import asdict, replace
 from datetime import datetime
 from uuid import uuid4
@@ -95,21 +94,6 @@ class EnergyMarketEngine:
     def data_exhausted(self):
         return self._state is not None and self._state.period_id >= len(self.profiles)
 
-    @contextmanager
-    def _diagnostics(self, operation, inputs):
-        try:
-            yield
-        except Exception as error:
-            if not hasattr(error, "diagnostic"):
-                error.diagnostic = {
-                    "operation": operation, "phase": self._phase.value,
-                    "physical_period": self._state.period_id if self._state else None,
-                    "state": self._state, "inputs": repr(inputs), "pending_uc_action": self._pending_plan,
-                    "residuals": copy.deepcopy(getattr(error, "residuals", {})),
-                    "exception_type": type(error).__name__, "message": str(error)}
-                error.add_note(f"snmarket {operation}: {self._phase.value}, period={error.diagnostic['physical_period']}")
-            raise
-
     def _require_reset(self):
         if self._state is None:
             raise StageError("Call reset before interacting with the environment")
@@ -185,7 +169,7 @@ class EnergyMarketEngine:
         return tuple(normalized)
 
     def reset(self, *, seed=None, options=None):
-        with self._lock, self._diagnostics("reset", options):
+        with self._lock:
             options = options or {}
             if set(options) - {"episode_id", "consumer_states", "ess_energy_kwh"}:
                 raise ValueError("Unknown reset options")
@@ -235,7 +219,7 @@ class EnergyMarketEngine:
                     for i, c in enumerate(state.consumers)}
 
     def apply_uc_action(self, action):
-        with self._lock, self._diagnostics("uc_announcement", action):
+        with self._lock:
             self._require_phase(Phase.UC_TURN)
             self._require_data()
             der = self.profiles.der_kw[self._state.period_id]
@@ -258,7 +242,7 @@ class EnergyMarketEngine:
         return hashlib.sha256(repr(delta).encode()).hexdigest()
 
     def evaluate_consumer_actions(self, actions, *, transition_id=None):
-        with self._lock, self._diagnostics("consumer_evaluation", actions):
+        with self._lock:
             self._require_phase(Phase.CONSUMER_TURN)
             if set(actions) != set(self.consumer_ids):
                 raise ValueError("Provide exactly one action per consumer")
@@ -331,12 +315,10 @@ class EnergyMarketEngine:
                        self._pending_offer.der_capacity_kw + self._pending_offer.uc_capacity_kw)
         residuals.append(market.der_total_kw + market.uc_total_kw - expected)
         if not all(math.isfinite(v) and abs(v) <= tol for v in residuals):
-            error = ValueError("Energy, cash, queue or market conservation failed")
-            error.residuals = {"values": residuals, "tolerance": tol}
-            raise error
+            raise ValueError(f"Energy, cash, queue or market conservation failed: {residuals}, tolerance={tol}")
 
     def commit(self, delta):
-        with self._lock, self._diagnostics("commit", delta):
+        with self._lock:
             if not isinstance(delta, StateDelta):
                 raise ValueError("Expected a StateDelta")
             identity = delta.record.transition_id
@@ -360,7 +342,7 @@ class EnergyMarketEngine:
             return delta.record
 
     def apply_consumer_actions(self, actions, *, transition_id=None):
-        with self._lock, self._diagnostics("consumer_execution", actions):
+        with self._lock:
             if transition_id is not None and transition_id in self._records:
                 old = self._records[transition_id]
                 if self._input_signature(old.uc_action, actions) != old.input_signature:
@@ -386,7 +368,7 @@ class EnergyMarketEngine:
                 frozenset(self._payment_keys), self._rng.bit_generator.state))
 
     def set_state(self, snapshot):
-        with self._lock, self._diagnostics("restore", snapshot):
+        with self._lock:
             if not isinstance(snapshot, EngineSnapshot) or snapshot.compatibility_signature != self.compatibility_signature:
                 raise ValueError("Snapshot has a different rule/configuration/profile version")
             snap = copy.deepcopy(snapshot)

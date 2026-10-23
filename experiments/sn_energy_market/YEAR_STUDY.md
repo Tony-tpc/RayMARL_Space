@@ -100,7 +100,7 @@ UC 有 471/576 批的更新后 loss 小于更新前。最初 24 批的更新后�
 - GAE 最大复算残差 `1.14e-13`，Critic 目标 `2.84e-13`，物理与现金账本残差不超过 `7.11e-15`；完整 checkpoint 的 8 步精确重放通过。
 - 算法和环境生产源码与运行启动时哈希一致；源码来源保存在原始报告中。绘图和文档后处理单独修改，不重写历史来源哈希。
 
-在仓库根目录执行以下 Python 可复现训练，输出必须使用新目录；此命令仅作说明，本次没有再执行。
+以下命令对应历史运行源码 `8509e88`，复现需先在独立历史检出中使用该源码与原数据，输出使用新目录。当前入口已改为三模式和阶段合批协议；直接运行当前入口会得到新的实验。本次没有重新训练。
 
 ```python
 from experiments.sn_energy_market.batch_critic_pilot import ROOT, run_pilot
@@ -112,4 +112,4 @@ run_pilot(
 )
 ```
 
-默认入口仍为 3 轮小规模配置。原始 `experiment.json` 绑定启动时源码和学习契约，`validation-XXXX.json` 保存六个节点，`round-XXXX.json` 保存候选选择；`report.json`、`optimizer_steps.json`、`checkpoint/`、`actors/` 与 `batch_losses.jsonl` 均已保存。保留测试集未加载、未评估。
+该历史版本默认入口为 3 轮小规模配置。原始 `experiment.json` 绑定启动时源码和学习契约，`validation-XXXX.json` 保存六个节点，`round-XXXX.json` 保存候选选择；`report.json`、`optimizer_steps.json`、`checkpoint/`、`actors/` 与 `batch_losses.jsonl` 均已保存。保留测试集未加载、未评估。

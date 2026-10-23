@@ -24,9 +24,7 @@ def execute(offer, market, generation_kw, state, config):
             or energy < s.ess_energy_min_kwh - energy_tol
             or energy > s.ess_energy_capacity_kwh + energy_tol
             or abs(residual) > 1e-8 * max(1.0, grid + generation_kw + discharge)):
-        error = ValueError("Physical power/SOC accounting failed")
-        error.residuals = {"power_balance_kw": residual, "grid_import_kw": grid, "SOC_kwh": energy}
-        raise error
+        raise ValueError(f"Physical power/SOC accounting failed: balance={residual}, grid={grid}, SOC={energy}")
     # Only normalize round-off beyond the storage interval, after checking the raw result.
     # All submitted actions and physical power flows remain untouched.
     raw_energy = energy
