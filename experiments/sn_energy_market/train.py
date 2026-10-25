@@ -384,6 +384,7 @@ def main(argv=None):
             .scenarios(
                 factory,
                 train_seeds=splits["train"],
+                train_seed_groups=factory.training_seed_groups if args.dataset else None,
                 validation_seeds=splits["validation"],
                 test_seeds=splits.get("test", ()),
             )

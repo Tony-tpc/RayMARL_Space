@@ -74,6 +74,14 @@ def test_disjoint_scenario_splits_and_continuous_contract(tmp_path):
         cfg.validate()
 
 
+@pytest.mark.parametrize("groups", [(), ((2,),), ((2, 3), (3,)), ((2, 3), ())])
+def test_sampling_groups_partition_training_seeds(tmp_path, groups):
+    cfg = configuration(tmp_path)
+    cfg.train_seed_groups = groups
+    with pytest.raises(ValueError, match="partition"):
+        cfg.validate()
+
+
 def test_candidate_configuration_requires_finite_complete_evaluation(tmp_path):
     cfg = configuration(tmp_path)
     cfg.evaluation_steps = 2
@@ -169,7 +177,15 @@ def test_learning_contract_tracks_targets_and_scenarios_not_output_path(tmp_path
 
 
 def assert_nested_equal(left, right):
-    if isinstance(left, dict):
+    from dataclasses import fields, is_dataclass
+
+    if hasattr(left, "fingerprint"):
+        assert left.fingerprint() == right.fingerprint()
+    elif is_dataclass(left):
+        assert type(left) is type(right)
+        for field in fields(left):
+            assert_nested_equal(getattr(left, field.name), getattr(right, field.name))
+    elif isinstance(left, dict):
         assert left.keys() == right.keys()
         for key in left:
             assert_nested_equal(left[key], right[key])

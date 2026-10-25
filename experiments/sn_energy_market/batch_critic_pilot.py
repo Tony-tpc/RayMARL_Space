@@ -53,6 +53,7 @@ def configuration(output):
         .scenarios(
             factory,
             train_seeds=factory.seed_splits["train"],
+            train_seed_groups=factory.training_seed_groups,
             validation_seeds=VALIDATION_SEEDS,
             test_seeds=(),
         )

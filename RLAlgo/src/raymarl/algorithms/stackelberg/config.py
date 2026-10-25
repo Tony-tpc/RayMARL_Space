@@ -28,6 +28,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.env_runner_cls = StackelbergEnvRunner
         self.scenario_factory = None
         self.train_seeds = tuple(range(32))
+        self.train_seed_groups = (self.train_seeds,)
         self.validation_seeds = tuple(range(1000, 1016))
         self.test_seeds = tuple(range(2000, 2032))
         self.gamma, self.lambda_gae = 0.99, 0.95
@@ -58,9 +59,14 @@ class StackelbergConfig(AlgorithmConfig):
         self.keep_checkpoints, self.checkpoint_interval = 2, 1
         self.detailed_outputs = False
 
-    def scenarios(self, factory: ScenarioFactory, *, train_seeds, validation_seeds, test_seeds):
+    def scenarios(self, factory: ScenarioFactory, *, train_seeds, validation_seeds, test_seeds,
+                  train_seed_groups=None):
         self.scenario_factory = factory
         self.train_seeds = tuple(train_seeds)
+        self.train_seed_groups = (
+            tuple(tuple(group) for group in train_seed_groups)
+            if train_seed_groups is not None else (self.train_seeds,)
+        )
         self.validation_seeds = tuple(validation_seeds)
         self.test_seeds = tuple(test_seeds)
         return self
@@ -165,6 +171,7 @@ class StackelbergConfig(AlgorithmConfig):
             "evaluation_steps",
             "seed",
             "train_seeds",
+            "train_seed_groups",
             "validation_seeds",
             "test_seeds",
         )
@@ -181,7 +188,7 @@ class StackelbergConfig(AlgorithmConfig):
             uc_probability="masked_categorical_conditional_active_gaussian",
             consumer_probability="conditional_beta_physical_density",
             evaluation_return="complete_finite_episode_with_terminal_inventory",
-            sampling_protocol="continuous_main_common_response_snapshot_selected_branch_v1",
+            sampling_protocol="round_robin_continuous_streams_private_rng_selected_branch_v2",
             update_protocol="phase_batch_fixed_targets_refreshed_gae_common_consumer_state_v2",
             value_architecture="layernorm_tanh",
         )
@@ -198,6 +205,10 @@ class StackelbergConfig(AlgorithmConfig):
             raise ValueError("Each scenario split needs distinct seeds")
         if any(set(splits[i]) & set(splits[j]) for i in range(3) for j in range(i + 1, 3)):
             raise ValueError("Training, validation and test scenarios must be disjoint")
+        grouped = [seed for group in self.train_seed_groups for seed in group]
+        if (not self.train_seed_groups or any(not group for group in self.train_seed_groups)
+                or len(grouped) != len(set(grouped)) or set(grouped) != set(self.train_seeds)):
+            raise ValueError("Training seed groups must partition the training seeds exactly once")
         if self.num_env_runners or self.num_learners or self.num_gpus_per_learner not in (0, 1):
             raise ValueError("Use one local EnvRunner and Learner, on CPU or one GPU")
         if not self.enable_rl_module_and_learner or not self.enable_env_runner_and_connector_v2:

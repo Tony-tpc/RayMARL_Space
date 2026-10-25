@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import random
+from contextlib import contextmanager
 
 import gymnasium as gym
 import numpy as np
@@ -75,16 +76,24 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
     def __init__(self, *, config, **kwargs):
         super().__init__(config=config, **kwargs)
         self._train_seed_index = 0
-        self._scenario_seed = int(self.config.train_seeds[0])
+        self._scenario_seed = int(self.config.train_seed_groups[0][0])
         self._weights_seq_no = 0
         # RLlib can broadcast its aggregate counter between train() calls.
         # This snapshot-owned cursor counts only the committed sampling branch.
         self.trajectory_periods = 0
+        self.active_lane = 0
+        self.lane_steps = [0] * len(self.config.train_seed_groups)
+        self._bank = []
         self.restart(self._scenario_seed)
         self.module = self.config.get_multi_rl_module_spec(
             spaces=self.get_spaces(), inference_only=False
         ).build()
         self.last_metrics = {}
+        first = self._single_state()
+        for group in self.config.train_seed_groups:
+            self.restart(group[0])
+            self._bank.append(self._single_state())
+        self._load_single(first)
 
     def assert_healthy(self):
         assert self.env is not None and self.module is not None
@@ -111,13 +120,40 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         self.env = self.config.scenario_factory(self._scenario_seed)
         self._observation = self.env.reset(self._scenario_seed)
         self._terminated = self._data_exhausted = False
-        torch.manual_seed(self._scenario_seed)
-        np.random.seed(self._scenario_seed)
-        random.seed(self._scenario_seed)
+        outside = random_state()
+        try:
+            seed = int(self.config.seed) * 1_000_003 + self._scenario_seed
+            torch.manual_seed(seed)
+            np.random.seed(seed % 2**32)
+            random.seed(seed)
+            self._action_rng = random_state()
+        finally:
+            restore_random_state(outside)
 
     def _start_next_episode(self):
-        index = (self._train_seed_index + 1) % len(self.config.train_seeds)
-        self.restart(self.config.train_seeds[index])
+        seeds = self.config.train_seed_groups[self.active_lane]
+        self.restart(seeds[(seeds.index(self._scenario_seed) + 1) % len(seeds)])
+
+    @contextmanager
+    def action_stream(self):
+        """Sampling owns its RNG; learner shuffles cannot change paused trajectories."""
+        outside = random_state()
+        restore_random_state(self._action_rng)
+        try:
+            yield
+        finally:
+            self._action_rng = random_state()
+            restore_random_state(outside)
+
+    def begin_round(self, outer_round):
+        """Switch only between complete outer rounds; each stream resumes in place."""
+        self._bank[self.active_lane] = self._single_state()
+        target = outer_round % len(self._bank)
+        if target != self.active_lane:
+            total = self.trajectory_periods
+            self.active_lane = target
+            self._load_single(dict(self._bank[target], sampled_periods=total), preserve_learner_rng=True)
+        return self.active_lane
 
     def append_profiles(self, profiles):
         self._observation = self.env.append_profiles(profiles)
@@ -161,6 +197,10 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return sample, decision
 
     def bootstrap_inputs(self, *, deterministic=False):
+        with self.action_stream():
+            return self._bootstrap_inputs(deterministic=deterministic)
+
+    def _bootstrap_inputs(self, *, deterministic=False):
         """Save next value inputs, including the original temporary UC announcement."""
         if self._terminated:
             return {}
@@ -204,6 +244,12 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return {}, self.env.step(actions)
 
     def _period(self, *, deterministic=False, actions_only=False):
+        with self.action_stream():
+            result = self._sample_period(deterministic=deterministic, actions_only=actions_only)
+        self.lane_steps[self.active_lane] += 1
+        return result
+
+    def _sample_period(self, *, deterministic=False, actions_only=False):
         if self._data_exhausted:
             raise RuntimeError("Continuous data exhausted: append profiles before collecting another period")
         if actions_only:
@@ -345,29 +391,45 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         self.metrics.log_value(NUM_ENV_STEPS_SAMPLED_LIFETIME, self.num_env_steps_sampled_lifetime, window=1)
         return self.metrics.reduce()
 
+    def _single_state(self):
+        return {
+            "environment": self.env.get_state(),
+            "observation": copy.deepcopy(self._observation),
+            "terminated": self._terminated,
+            "data_exhausted": self._data_exhausted,
+            "scenario_seed": self._scenario_seed,
+            "train_seed_index": self._train_seed_index,
+            "rng": random_state(),
+            "action_rng": copy.deepcopy(self._action_rng),
+            "last_metrics": copy.deepcopy(self.last_metrics),
+            "sampled_periods": self.trajectory_periods,
+        }
+
+    def _load_single(self, saved, *, preserve_learner_rng=False):
+        outside = random_state()
+        self.restart(saved["scenario_seed"])
+        self.env.set_state(saved["environment"])
+        self._observation = copy.deepcopy(saved["observation"])
+        self._terminated, self._data_exhausted = saved["terminated"], saved["data_exhausted"]
+        self._train_seed_index = saved["train_seed_index"]
+        self.last_metrics = copy.deepcopy(saved["last_metrics"])
+        self.num_env_steps_sampled_lifetime = self.trajectory_periods = saved["sampled_periods"]
+        self._action_rng = copy.deepcopy(saved["action_rng"])
+        restore_random_state(outside if preserve_learner_rng else saved["rng"])
+
     def get_state(self, components=None, *, not_components=None, **kwargs):
         state = {}
         if self._check_component(COMPONENT_RL_MODULE, components, not_components):
-            state[COMPONENT_RL_MODULE] = self.module.get_state()
+            state[COMPONENT_RL_MODULE] = copy.deepcopy(self.module.get_state())
             state["weights_seq_no"] = self._weights_seq_no
         if self._check_component("sampling", components, not_components):
-            state["sampling"] = {
-                "environment": self.env.get_state(),
-                "observation": self._observation,
-                "terminated": self._terminated,
-                "data_exhausted": self._data_exhausted,
-                "scenario_seed": self._scenario_seed,
-                "train_seed_index": self._train_seed_index,
-                "rng": random_state(),
-                "last_metrics": self.last_metrics,
-                "sampled_periods": self.trajectory_periods,
+            state["sampling"] = self._single_state()
+            state["sampling"]["streams"] = {
+                "seed_groups": self.config.train_seed_groups,
+                "active_lane": self.active_lane,
+                "lane_steps": self.lane_steps.copy(),
+                "bank": copy.deepcopy(self._bank),
             }
-        # The environment API returns an owned snapshot. All remaining mutable
-        # fields still need isolation from live modules and observation arrays.
-        environment = state.get("sampling", {}).pop("environment", None)
-        state = copy.deepcopy(state)
-        if environment is not None:
-            state["sampling"]["environment"] = environment
         return state
 
     def set_state(self, state):
@@ -378,15 +440,13 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             self.num_env_steps_sampled_lifetime = state[NUM_ENV_STEPS_SAMPLED_LIFETIME]
         if "sampling" in state:
             saved = state["sampling"]
-            self.restart(saved["scenario_seed"])
-            self.env.set_state(saved["environment"])
-            self._observation = copy.deepcopy(saved["observation"])
-            self._terminated, self._data_exhausted = saved["terminated"], saved["data_exhausted"]
-            self._train_seed_index = saved["train_seed_index"]
-            self.last_metrics = copy.deepcopy(saved["last_metrics"])
-            self.num_env_steps_sampled_lifetime = saved["sampled_periods"]
-            self.trajectory_periods = saved["sampled_periods"]
-            restore_random_state(saved["rng"])
+            streams = saved["streams"]
+            if tuple(map(tuple, streams["seed_groups"])) != self.config.train_seed_groups:
+                raise ValueError("Sampling stream groups differ from the configured training groups")
+            self.active_lane = streams["active_lane"]
+            self.lane_steps = streams["lane_steps"].copy()
+            self._bank = copy.deepcopy(streams["bank"])
+            self._load_single(saved)
 
     def get_ctor_args_and_kwargs(self):
         return (), {"config": self.config, "worker_index": self.worker_index}

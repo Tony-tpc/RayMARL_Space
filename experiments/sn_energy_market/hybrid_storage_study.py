@@ -63,14 +63,14 @@ def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
     assert new_config["rewards"]["terminal_energy_value_per_kwh"] > 0
     prior_report = json.loads((previous / "report.json").read_text(encoding="utf-8"))
     prior_contract = prior_report["learning_contract"]
-    changed = {key for key in new if new[key] != prior_contract[key]}
+    changed = {key for key in new if new[key] != prior_contract.get(key)}
     source_changed = new["scenario"]["source_sha256"] != prior_contract["scenario"]["source_sha256"]
     if source_changed:
         assert {k: v for k, v in new["scenario"].items() if k != "source_sha256"} == {
             k: v for k, v in prior_contract["scenario"].items() if k != "source_sha256"
         }
         changed.discard("scenario")
-    assert changed <= {"update_protocol", "input_transform"}, changed
+    assert changed <= {"update_protocol", "input_transform", "train_seed_groups", "sampling_protocol"}, changed
     current_budget = round_budget(cfg)
     for name, key in (("ppo_periods", "ppo_sampled_periods"), ("main_periods", "main_advanced_periods"),
                       ("critic_steps_per_module", "critic_optimizer_steps_executed_per_module")):
@@ -82,7 +82,7 @@ def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
         "seed": 42, "validation_rounds": sorted({0, *(n for n in (3, 12, 24, 48, 72, outer_rounds) if n <= outer_rounds)}), "test_loaded": False,
         "same_data_and_per_round_budget": False,
         "same_data_and_calibration": True,
-        "same_sampling_start_rule": True,
+        "same_sampling_start_rule": new.get("sampling_protocol") == prior_contract.get("sampling_protocol"),
         "initial_policy_input_changed": "input_transform" in changed,
         "previous_ten_rounds": str(previous),
         "comparison_equal_sample_and_optimizer_budget": outer_rounds == prior_report["outer_rounds"],

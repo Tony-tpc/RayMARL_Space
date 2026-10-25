@@ -63,6 +63,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
 
     def _sync(self):
         self.env_runner.module.set_state(self.learner_group.get_weights())
+        self.env_runner._weights_seq_no = self.learner_group._learner._weights_seq_no
 
     def _snapshot(self):
         # Runner already owns an independent environment snapshot. Copying it
@@ -225,6 +226,9 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "validation_seeds": list(self.config.validation_seeds),
         }
 
+    def _select_candidate(self, evaluated):
+        return select_candidate(evaluated, z=self.config.acceptance_z, min_gain=self.config.min_uc_gain)
+
     def training_step(self):
         """
         训练一轮 Stackelberg 迭代。每轮迭代包括：
@@ -237,6 +241,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
 
         # 给配置起一个简短的名字 cfg。开始新一轮日志，清空上一轮尚待标记的候选日志列表。保存轮初网络权重，供最后计算“这一轮 Actor 改变了多少”。这里还没有训练。
         cfg = self.config
+        self.env_runner.begin_round(self.outer_round)
         self.batch_loss_log.begin_round()
         starting_weights = copy.deepcopy(self.learner_group.get_weights())
         # Only a true episode boundary rotates the main training scenario.
@@ -274,7 +279,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             self._adapt(self.consumer_ids, cfg.response_updates, phase="response", candidate_index=index)
             evaluated.append(self._evaluate(cfg.validation_seeds))
             pairs.append(self._snapshot())
-        selected, gains = select_candidate(evaluated, z=cfg.acceptance_z, min_gain=cfg.min_uc_gain)
+        selected, gains = self._select_candidate(evaluated)
         self._restore(pairs[selected])
         self.batch_loss_log.resolve(selected)
         final_deviations = self.search_deviations()

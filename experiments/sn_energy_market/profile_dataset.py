@@ -294,6 +294,15 @@ class DatasetEnvFactory:
         """Read scenario data without constructing a training reset state."""
         return self.dataset.profiles(self._by_seed[seed], self.config)
 
+    @property
+    def training_seed_groups(self):
+        """Chronological months within each calendar quarter; first quarter visited first."""
+        groups = {}
+        for seed in self.seed_splits["train"]:
+            start = datetime.fromisoformat(self._by_seed[seed].start_datetime)
+            groups.setdefault((start.year, (start.month - 1) // 3), []).append(seed)
+        return tuple(tuple(group) for group in groups.values())
+
     def __call__(self, seed):
         window = self._by_seed[seed]
         config = replace(

@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture(scope="session")
-def ray_runtime():
+def ray_runtime(tmp_path_factory):
     import ray
 
     root = Path(__file__).resolve().parents[2]
@@ -20,7 +20,7 @@ def ray_runtime():
         num_cpus=2,
         include_dashboard=False,
         _node_ip_address="127.0.0.1",
-        _temp_dir=str(root / ".tmp" / "test-ray"),
+        _temp_dir=str(tmp_path_factory.mktemp("ray")),
     )
     yield
     ray.shutdown()

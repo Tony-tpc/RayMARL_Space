@@ -119,6 +119,8 @@ class ToyConfig(AlgorithmConfig):
     def __init__(self, terminal_at=5, data_until=100):
         super().__init__()
         self.train_seeds = (7, 8)
+        self.train_seed_groups = (self.train_seeds,)
+        self.seed = 0
         self.scenario_factory = ToyFactory(terminal_at, data_until)
         self.lambda_gae, self.gamma, self.rollout_length = 0.8, 0.9, 4
         self.critic_lambda = 1.0
@@ -129,6 +131,32 @@ class ToyConfig(AlgorithmConfig):
 
 def make_runner(**kwargs):
     return StackelbergEnvRunner(config=ToyConfig(**kwargs), worker_index=0)
+
+
+def test_native_round_robin_resumes_each_stream_and_owns_action_rng():
+    cfg = ToyConfig(terminal_at=3)
+    cfg.train_seeds = (9, 10, 7, 8)  # Group order owns the first sampling state.
+    cfg.train_seed_groups = ((7, 8), (9, 10))
+    runner = StackelbergEnvRunner(config=cfg, worker_index=0)
+    before_rng = torch.get_rng_state().clone()
+    runner.collect(4)
+    saved = runner.get_state()
+    assert runner._scenario_seed == 8 and runner.env.t == 1
+    runner.begin_round(1)
+    runner.collect(2)
+    assert runner.lane_steps == [4, 2]
+    runner.begin_round(2)
+    assert runner._scenario_seed == 8 and runner.env.t == 1
+    assert torch.equal(before_rng, torch.get_rng_state())
+    expected = runner.collect(3)
+    runner.set_state(saved)
+    # Changing the learner stream must not change sampled actions.
+    torch.rand(100)
+    actual = runner.collect(3)
+    assert_batches_equal(expected, actual)
+    runner.set_state(saved)
+    assert runner.lane_steps == [4, 0]
+    runner.stop()
 
 
 def assert_batches_equal(left, right):
