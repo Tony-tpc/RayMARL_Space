@@ -97,7 +97,8 @@ def test_value_units_preserve_gae_and_normalized_loss_gradients():
 
 
 @pytest.mark.parametrize("terminal_at", [191, 383, None])
-def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at):
+@pytest.mark.parametrize("segment_cut", [False, True])
+def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at, segment_cut):
     from experiments.sn_energy_market.training_audit import reference_refreshed_advantages
 
     torch.set_num_threads(1)
@@ -109,6 +110,9 @@ def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at
         data["next_value_obs"] = np.roll(data["obs" if key == "uc" else "critic_obs"], -1, axis=0).copy()
         data["rewards"] = np.linspace(-0.2, 0.3, 384, dtype=np.float64)
         data["terminateds"] = np.zeros(384, dtype=bool)
+        data["segment_end"] = np.zeros(384, dtype=bool)
+        if segment_cut:
+            data["segment_end"][191] = True
         if terminal_at is not None:
             data["terminateds"][terminal_at] = True
     original = copy.deepcopy(dict(batch.policy_batches))
@@ -123,13 +127,13 @@ def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at
     for key in fresh:
         np.testing.assert_allclose(fresh[key], expected[key], atol=1e-12, rtol=1e-12)
         assert not np.allclose(old[key], fresh[key])
-    # Row 191 is no longer an artificial cut: later rewards affect it unless
-    # this is an actual terminal. No new action or announcement is sampled.
+    # A later reward may cross an ordinary sampling unit, but cannot cross
+    # a true terminal or a boundary between independent streams.
     for data in batch.policy_batches.values():
         data["rewards"][192] += 7
     changed = learner.recompute_advantages(batch)
     for key in fresh:
-        difference = 0 if terminal_at == 191 else 7 * 0.99 * 0.97
+        difference = 0 if terminal_at == 191 or segment_cut else 7 * 0.99 * 0.97
         assert changed[key][191] - fresh[key][191] == pytest.approx(difference)
     # The exact next input saved at collection, rather than current RNG, sets the tail.
     torch.randn(100)

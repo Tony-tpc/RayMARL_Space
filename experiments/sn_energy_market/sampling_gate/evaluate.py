@@ -10,11 +10,6 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-from raymarl.algorithms.stackelberg.runner import (
-    StackelbergEnvRunner,
-    random_state,
-    restore_random_state,
-)
 
 from experiments.sn_energy_market.evaluation import (
     error_statistics,
@@ -32,6 +27,11 @@ from experiments.sn_energy_market.sampling_gate.runtime import (
     MONTH_SEEDS,
     digest_tree,
 )
+from raymarl.algorithms.stackelberg.runner import (
+    StackelbergEnvRunner,
+    random_state,
+    restore_random_state,
+)
 
 MODE_SOURCE = ROOT / "outputs/diagnostics/20261024-frozen72-order-mode/mode"
 MODE_REPLICATIONS = (824001, 824002, 824003, 824004)
@@ -47,6 +47,7 @@ def complete_mc(algorithm, target, progress=None):
     runner.module.set_state(algorithm.learner_group.get_weights())
     rows, episodes = [], []
     consumer_values, consumer_targets, consumer_periods = [], [], []
+    per_consumer = defaultdict(lambda: {"values": [], "targets": [], "periods": [], "months": []})
     try:
         for scenario in MONTH_SEEDS:
             for action_seed in EVALUATION_SEEDS:
@@ -63,10 +64,12 @@ def complete_mc(algorithm, target, progress=None):
                 )
                 discounted = dict.fromkeys(runner.agent_ids, 0.0)
                 t = 0
+                uc_inputs = []
                 while not runner._terminated:
                     stamp = runner.env.engine.state.timestamp.isoformat()
-                    samples, result = runner._period()
+                    samples, result = runner._period(with_values=False)
                     uc = samples["uc"]
+                    uc_inputs.append(uc["critic_obs"])
                     uc_rows.append(
                         {
                             "scenario_seed": scenario,
@@ -75,7 +78,7 @@ def complete_mc(algorithm, target, progress=None):
                             "period": t,
                             "soc_kwh": float(uc["obs"][2]),
                             "mode": int(uc["storage_mode"]),
-                            "prediction": float(uc["vf_preds"]),
+                            "prediction": 0.0,
                             "reward": float(result.rewards["uc"]),
                         }
                     )
@@ -83,13 +86,15 @@ def complete_mc(algorithm, target, progress=None):
                         discounted[key] += algorithm.config.gamma**t * value
                     for key, observations in consumers.items():
                         observations.append(
-                            (samples[key]["vf_preds"], result.rewards[key])
+                            (samples[key]["critic_obs"], result.rewards[key])
                         )
                     for key, value in result.metrics.items():
                         totals[key] += value
                     t += 1
                 flags = np.zeros(t, dtype=bool)
                 flags[-1] = True
+                for row, value in zip(uc_rows, runner._values("uc", uc_inputs), strict=True):
+                    row["prediction"] = float(value)
                 mc = terminal_returns(
                     np.asarray([r["reward"] for r in uc_rows]),
                     flags,
@@ -109,13 +114,17 @@ def complete_mc(algorithm, target, progress=None):
                 for row, value in zip(uc_rows, mc, strict=True):
                     row["mc"] = float(value)
                 rows.extend(uc_rows)
-                for data in consumers.values():
-                    values, rewards = np.asarray(data).T
+                for key, data in consumers.items():
+                    values = runner._values(key, [item[0] for item in data])
+                    rewards = np.asarray([item[1] for item in data])
+                    targets_for_agent = terminal_returns(rewards, flags, algorithm.config.gamma)
                     consumer_values.extend(values)
-                    consumer_targets.extend(
-                        terminal_returns(rewards, flags, algorithm.config.gamma)
-                    )
+                    consumer_targets.extend(targets_for_agent)
                     consumer_periods.extend(range(t))
+                    per_consumer[key]["values"].extend(values)
+                    per_consumer[key]["targets"].extend(targets_for_agent)
+                    per_consumer[key]["periods"].extend(range(t))
+                    per_consumer[key]["months"].extend([uc_rows[0]["timestamp"][:7]] * t)
                 episodes.append(
                     {
                         "scenario_seed": scenario,
@@ -166,6 +175,13 @@ def complete_mc(algorithm, target, progress=None):
         "macro_month_rmse": float(np.mean([r["rmse"] for r in by_month])),
         "worst_month_rmse": float(max(r["rmse"] for r in by_month)),
         "by_month": by_month,
+        "consumers": {key: {
+            **stratified_statistics(data["values"], data["targets"], data["periods"]),
+            "by_month": [{"month": month, **error_statistics(
+                np.asarray(data["values"])[np.asarray(data["months"]) == month],
+                np.asarray(data["targets"])[np.asarray(data["months"]) == month])}
+                for month in sorted(set(data["months"]))],
+        } for key, data in per_consumer.items()},
         "training_state_unchanged": True,
         "mc_training_labels": 0,
         "bootstrap_used": False,

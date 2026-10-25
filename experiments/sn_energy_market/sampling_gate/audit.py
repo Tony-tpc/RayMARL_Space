@@ -38,6 +38,12 @@ class ExperimentAudit:
         self.collecting = False
         self.write_trajectory = write_trajectory
         self.load(getattr(algorithm, "restored_audit", {}))
+        self.start_round = getattr(algorithm, "outer_round", 0)
+        self.start_steps = self.steps.copy()
+        self.start_batches = len(self.batches)
+        self.start_sampled = getattr(algorithm, "sampled_periods", 0)
+        self.start_physical = algorithm.env_runner.trajectory_periods
+        self.start_lanes = sum(algorithm.env_runner.lane_steps)
 
     def state(self):
         return {"steps": dict(self.steps), "batches": copy.deepcopy(self.batches)}
@@ -50,7 +56,7 @@ class ExperimentAudit:
         algorithm, runner = self.algorithm, self.algorithm.env_runner
         original_adapt, original_collect, original_period = (
             algorithm._adapt,
-            runner.collect,
+            runner.collect_phase,
             runner._period,
         )
 
@@ -83,7 +89,6 @@ class ExperimentAudit:
             return samples, result
 
         def collect(steps, **kwargs):
-            assert steps == 384, "The experimental learning cut must remain 384"
             start = runner.trajectory_periods
             self.physical = []
             self.collecting = True
@@ -91,7 +96,7 @@ class ExperimentAudit:
                 batch = original_collect(steps, **kwargs)
             finally:
                 self.collecting = False
-            assert batch.count == 384 and runner.trajectory_periods - start == 384
+            assert batch.count == steps and runner.trajectory_periods - start == steps
             row = {
                 "batch": len(self.batches) + 1,
                 "round": algorithm.outer_round + 1,
@@ -101,13 +106,15 @@ class ExperimentAudit:
                 "samples": batch.count,
             }
             uc = batch["uc"]
-            horizons, zero_tails = np.empty(384, dtype=int), np.empty(384, dtype=bool)
-            length, closed = 0, False
-            for t in range(383, -1, -1):
-                if uc["terminateds"][t]:
-                    length, closed = 0, True
+            horizons, zero_tails = np.empty(steps, dtype=int), np.empty(steps, dtype=bool)
+            ends = np.empty(steps, dtype=int)
+            length, closed, end = 0, False, steps - 1
+            for t in range(steps - 1, -1, -1):
+                if uc["segment_end"][t] or uc["terminateds"][t]:
+                    length, closed, end = 0, bool(uc["terminateds"][t]), t
                 length += 1
                 horizons[t], zero_tails[t] = length, closed
+                ends[t] = end
             row.update(
                 horizon_counts={
                     str(k): int(v)
@@ -118,20 +125,22 @@ class ExperimentAudit:
                 scenario_seeds=list(dict.fromkeys(map(int, uc["scenario_seed"]))),
                 first_period=int(uc["period_id"][0]),
                 last_period=int(uc["period_id"][-1]),
+                stream_samples={str(k): int(v) for k, v in zip(*np.unique(uc["stream_id"], return_counts=True))},
+                segment_ends=int(uc["segment_end"].sum()),
             )
             for data in batch.policy_batches.values():
-                assert len(data["rewards"]) == 384
+                assert len(data["rewards"]) == steps
                 assert all(np.isfinite(x).all() for x in data.values())
                 assert (data["next_vf_preds"][data["terminateds"]] == 0).all()
                 expected_tail = np.where(
                     zero_tails,
                     0,
-                    algorithm.config.gamma**horizons * data["next_vf_preds"][-1],
+                    algorithm.config.gamma**horizons * data["next_vf_preds"][ends],
                 )
                 np.testing.assert_allclose(
                     data["value_bootstrap"], expected_tail, atol=1e-9, rtol=1e-10
                 )
-                for t in (0, 31, 96, 383):
+                for t in sorted({0, steps // 2, steps - 1, *np.flatnonzero(uc["segment_end"])}):
                     h = horizons[t]
                     realized = np.dot(
                         algorithm.config.gamma ** np.arange(h),
@@ -163,7 +172,7 @@ class ExperimentAudit:
                             "round": row["round"],
                             "phase": self.phase,
                             "candidate": self.candidate,
-                            "lane": runner.active_lane,
+                            "lane": int(lane),
                             **physical,
                             **{
                                 f"prob_{name}": float(p[j])
@@ -172,7 +181,7 @@ class ExperimentAudit:
                                 )
                             },
                         }
-                        for physical, p in zip(self.physical, probs, strict=True)
+                        for physical, p, lane in zip(self.physical, probs, uc["stream_id"], strict=True)
                     ]
                     writer = csv.DictWriter(handle, fieldnames=list(records[0]))
                     if not exists:
@@ -181,7 +190,7 @@ class ExperimentAudit:
             return batch
 
         self.stack.enter_context(patch.object(algorithm, "_adapt", adapt))
-        self.stack.enter_context(patch.object(runner, "collect", collect))
+        self.stack.enter_context(patch.object(runner, "collect_phase", collect))
         self.stack.enter_context(patch.object(runner, "_period", period))
         learner = algorithm.learner_group._learner
         for name, optimizer in learner._named_optimizers.items():
@@ -199,15 +208,22 @@ class ExperimentAudit:
         return self
 
     def assert_budget(self, rounds):
-        assert len(self.batches) == rounds * 4
+        cfg = self.algorithm.config
+        elapsed = rounds - self.start_round
+        sizes = [cfg.rollout_length * units for units in (
+            cfg.inner_updates, *([cfg.uc_updates_per_candidate] * cfg.uc_candidates),
+            *([cfg.response_updates] * (cfg.uc_candidates + 1)),
+        )]
+        mini = lambda size: (size + cfg.minibatch_size - 1) // cfg.minibatch_size
+        assert len(self.batches) - self.start_batches == elapsed * len(sizes)
         for agent in self.algorithm.config.agent_order:
-            assert self.steps[f"{agent}:value"] == rounds * 192
-            assert self.steps[f"{agent}:actor"] == rounds * (
-                24 if agent == "uc" else 72
-            )
-        assert self.algorithm.sampled_periods == rounds * 1536
-        assert self.algorithm.env_runner.trajectory_periods == rounds * 768
-        assert sum(self.algorithm.env_runner.lane_steps) == rounds * 768
+            assert self.steps[f"{agent}:value"] - self.start_steps[f"{agent}:value"] == elapsed * cfg.critic_epochs * sum(map(mini, sizes))
+            actor_batches = sizes[1:1 + cfg.uc_candidates] if agent == "uc" else [sizes[0], *sizes[1 + cfg.uc_candidates:]]
+            assert self.steps[f"{agent}:actor"] - self.start_steps[f"{agent}:actor"] == elapsed * cfg.num_epochs * sum(map(mini, actor_batches))
+        physical = elapsed * cfg.rollout_length * (cfg.inner_updates + cfg.response_updates)
+        assert self.algorithm.sampled_periods - self.start_sampled == elapsed * sum(sizes)
+        assert self.algorithm.env_runner.trajectory_periods - self.start_physical == physical
+        assert sum(self.algorithm.env_runner.lane_steps) - self.start_lanes == physical
 
     def close(self):
         self.stack.close()

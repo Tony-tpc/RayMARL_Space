@@ -1889,7 +1889,7 @@ U→C 阶段使用折扣 1，C→下一 U 使用物理折扣 $\gamma$。UC 与�
 
 ### 14.2 内层：固定 UC，学习消费者响应
 
-固定外层第 $k$ 轮的 UC Actor 参数 $\theta_U^k$，全体参与者采集同一批新轨迹，先更新全部 Critic，再用更新后的 Critic 重算 GAE，最后更新消费者 Actor。每个 Critic 使用自己的奖励；UC Actor 在此阶段冻结。一次 `adapt` 内联合行为策略保持固定，当前 Ausgrid 将同阶段两个 192 步采样单位连续采齐，组成一个 384 步学习批。
+固定外层第 $k$ 轮的 UC Actor 参数 $\theta_U^k$，全体参与者采集同一批新轨迹，先更新全部 Critic，再用更新后的 Critic 重算 GAE，最后更新消费者 Actor。每个 Critic 使用自己的奖励；UC Actor 在此阶段冻结。一次 `adapt` 内联合行为策略保持固定。Ausgrid 默认将同阶段两个 192 步单位连续采齐，组成单流 384 步学习批；V9 always 实验使用四条流各 192 步的 768 步混合批，所有流采完后才更新网络。
 
 对任一参与者，物理期 TD 与优势递推可写为：
 
@@ -1910,7 +1910,7 @@ r_{i,t}^{\pi}\widehat A_{i,t},
 \right)\right].
 $$
 
-这里 $\omega_j$ 表示本批 Critic 拟合后的参数。重算只评估已保存状态的价值，不产生新的动作或环境推进。第 192 步只是采样计量单位的边界，不截断递推；真实终止切断 GAE，第 384 步非终止批末使用新 Critic 的下一状态价值并结束递推。重算后的优势在整个学习批上归一化一次，随后固定用于全部 Actor epoch。
+这里 $\omega_j$ 表示本批 Critic 拟合后的参数。重算只评估已保存状态的价值，不产生新的动作或环境推进。默认单流协议的第 192 步只是计量单位边界；混合协议的每流末尾则标记 `segment_end`，切断跨流递推。非终止段末使用该流自身保存的下一决策输入和新 Critic 自举；真实终止关闭自举。重算后的优势在整个学习批上归一化一次，随后固定用于全部 Actor epoch。
 
 每次更新使用当前行为策略采集的 on-policy 数据。Critic 目标在采样后固定，Actor 优势在 Critic 拟合后固定。UC 的内部控制值、物理映射、消费者条件边界和原始行为概率随样本保存；Critic 更新不改变 PPO 比率分母，也不重新抽取模式、功率或下一 UC 公告。
 
@@ -1922,7 +1922,7 @@ y_{j,t}^{V}=\sum_{k=0}^{n-1}\gamma^k\widehat R_{j,t+k}
 \operatorname{stopgrad}\!\left(V_{j,old}(x_{t+n}^{j})\right).
 $$
 
-$n$ 截至完整学习批末尾或第一个真实终止；跨月的批次在真实终止处分段。Critic 回归目标仅在批末截断时保留采样时旧 Value 的尾值，真实月末尾值为零。拟合过程中不重算该目标，避免目标跟着当前预测移动；Actor 则使用拟合后的 Value 重算上述 GAE。`critic_lambda<1` 时使用独立的 λ-return 递推，当前小规模协议固定为 1。
+$n$ 截至当前连续片段末尾或第一个真实终止；跨月的批次在真实终止处分段。非终止段末保留采样时旧 Value 的尾值，真实月末尾值为零。混合批的尾值来自各自流，不能使用下一条流的首状态。拟合过程中不重算目标，Actor 则使用拟合后的 Value 重算上述 GAE。`critic_lambda<1` 时，递推中的后续目标权重在 `segment_end` 处归零，仍保留该行合法的下一状态价值；当前实验固定为 1。
 
 Value 输出乘固定尺度后还原奖励单位，UC 尺度为 20、消费者为 10。拟合损失为 $L_j^V=\tfrac12\operatorname{mean}(((V_j-y_j^V)/s_j)^2)$，RMSE 按原奖励单位报告。这是数值尺度，不是训练后的预测校准。多步目标减少对批内中间旧预测的依赖，但目标方差可能增大。
 
@@ -1974,7 +1974,7 @@ $$
 ```python
 runner.initialize_streams(training_seed_groups)  # 每组首月月初初始化
 for outer_round in range(outer_budget):
-    runner.begin_round(outer_round)  # 整轮轮转；恢复该季度暂停位置
+    runner.begin_round(outer_round)  # 默认整轮轮转；混合实验由 collect_phase 访问全部流
     adapt(selected_actors=consumers, update_all_critics=True)
     search_deviations_and_restore()  # 小规模协议预算为零
     common = snapshot_networks_adam_environment_rng()
@@ -1996,11 +1996,11 @@ for outer_round in range(outer_budget):
 `adapt` 的执行顺序为：
 
 ```python
-batch = collect(rollout_length * updates)  # 同阶段连续 384 步；期间不更新网络
-fit_all_critics(batch.value_targets)      # 采样时固定的多步目标，4 epoch
-advantage = recompute_gae(batch, fitted_critics)  # 保存的当前／下一价值输入
+batch = collect_phase(rollout_length * updates)  # 默认384；混合768，期间不更新网络
+fit_all_critics(batch.value_targets)      # 固定多步目标；默认4、混合2 epoch
+advantage = recompute_gae(batch, fitted_critics)  # 保存的下一输入、终止及片段边界
 advantage = normalize_once(advantage)     # 每个参与者的整个学习批
-fit_selected_actors(batch, advantage)    # 原动作、原 logp，2 epoch
+fit_selected_actors(batch, advantage)    # 原动作、原 logp；默认2、混合1 epoch
 ```
 
 `updates` 沿用现有阶段采样预算单位；同阶段不再执行两次交替采样与学习。训练集更新参数，验证集比较候选；当前实验不加载、不评估保留测试集。
@@ -2053,6 +2053,34 @@ Critic 保留 $\lambda_V=1$，使用折扣多步回报。固定目标从 384 步
 历史六维高斯策略的 3 轮基线只推进到训练月第 17 日；当时完成的 72 轮主轨迹覆盖完整训练年、12 次真实月末及下一循环的 19 天。这些结果对应旧动作分布、折扣和评价协议，不能作为当前混合动作的已训练结果。验证分别统计 1—10 日、11—20 日和 21 日至月末的原单位 RMSE；供电率与 UC 现金分别报告 48 小时窗口和完整月口径。结果见[保留结果索引](../../../../experiments/sn_energy_market/RESULTS.md)和[72 轮中长期验证](../../../../experiments/sn_energy_market/YEAR_STUDY.md)。逐批 loss 下降不等于验证 RMSE 下降，也不能证明供电保障或均衡收敛。
 
 完整 checkpoint 保存网络、优化器、采集环境、随机状态、进度及停止计数，同时绑定模型、折扣、学习与响应预算、数据切分和场景生成规则。恢复前核对这一训练契约；本次更新 `update_protocol` 版本，旧的逐段学习 checkpoint 不直接恢复到合批／重算 GAE 协议。设备和输出位置属于运行配置。独立 Actor 导出仅包含策略参数与输入规格，可通过同一策略输出接口执行。场景、市场适配和入口位于 `experiments/sn_energy_market/`，算法通过结构化接口调用它们，现有算法和公共训练框架保持独立。运行命令、参数及产物见[训练与评价说明](../../../../experiments/sn_energy_market/TRAINING.md)。
+
+---
+
+### 14.9 V9 批量价值与阶段混合采样（2026-10-26）
+
+采集阶段保存当前价值输入和合法尾部输入，全部采齐后，由尚未更新的旧 Critic 按时间维度批量推理。17 个参与者仍拥有独立价值网络。消费者输入取实际 UC 公告后的集中状态，并复制到样本；非终止尾部通过临时公告构造，随后恢复环境和动作 RNG。真实月末不生成尾值。该计算组织同时用于单流和混合流。
+
+`phase_sampling="single_stream"` 保持整轮轮转默认。实验显式设为 `"all_streams"`，由 `collect_phase(total_steps)` 顺序采集每条暂停流，再拼成学习批；`total_steps` 是总量，不再乘流数。每条流各 192 步，包含 `stream_id`、`segment_end` 和各自的 `next_value_obs`。季度由实验工厂定义，通用算法不硬编码能源月份。整批四季度均衡不等于每个随机 minibatch 都均衡，也不保证 SOC 均衡。
+
+| 每阶段 / 新增八轮 | 历史 always32 | V9 always32 |
+| --- | ---: | ---: |
+| 阶段样本 | 单季度 384 | 四季度各 192，共 768 |
+| Critic / Actor epoch | 4 / 2 | 2 / 1 |
+| minibatch | 32 | 32 |
+| 每阶段 Critic / 被选 Actor 优化步 | 48 / 24 | 48 / 24 |
+| 八轮全部学习分支时段 | 12,288 | 24,576 |
+| 八轮提交轨迹时段 | 6,144 | 12,288 |
+| 每个 Critic 执行步数 | 1,536 | 1,536 |
+| UC Actor 执行及保留步数 | 192 / 192 | 192 / 192 |
+| 每个消费者 Actor 执行步数 | 576 | 576 |
+
+两组从同一 D24 参数、Adam 和四流状态开始，均执行基准与新候选的响应训练和完整月评分，最终保留候选 1。提案分支的物理推进丢弃；两个响应从同一公共消费者状态、四流物理状态和 RNG 开始。快照将活动流的最新状态写入 bank，恢复选中分支后才继续下一轮。执行量包括未提交分支；每个消费者实际保留的 Actor 步数为八轮两阶段共 384 次。
+
+新字段、阶段预算与协议进入 `learning_contract`。D24 的一次性导入只允许列明的采样协议及预算变化，并核对参数、Adam、环境和数据合同。通用 checkpoint 恢复仍严格比较合同。实验不会自动改变生产默认值。
+
+本次四流混合使用 `deviation_updates=0`；多流混合的偏离搜索尚未定义重启语义，因此配置检查拒绝开启。默认单流偏离搜索继续支持，显式重启训练种子前先切换到其所属流，保证跨月续接仍在同一分组内；搜索结束恢复原分支及活动流。
+
+验证先比较旧逐状态与新批量路径，再冻结 Actor，以同一 768 条训练样本、固定旧价值目标和初始 Adam 比较四种顺序偏移与整批混合。拟合种子 11、29、47 仅衡量优化随机性；共享的完整月份 MC 验证缓存不进入训练。在线仅新增 D24→V9 always32，历史 always32 为主要对照，D24 是起点，gate32 与 ABCD24 为背景。新方案环境交互翻倍、每样本复用减半，不能把在线差异归结为单独的季度顺序效应。详细验证、结果和运行命令见 [V9 always 实验](../../../../experiments/sn_energy_market/V9_ALWAYS.md)。
 
 ---
 

@@ -7,15 +7,14 @@ import pytest
 
 @pytest.fixture(scope="session")
 def ray_runtime(tmp_path_factory):
-    import ray
-
     root = Path(__file__).resolve().parents[2]
-    secret_path = root / ".ray" / "auth_token"
-    secret_path.parent.mkdir(exist_ok=True)
+    secret_path = Path(os.environ.get("RAY_AUTH_TOKEN_PATH", root / ".ray" / "auth_token"))
+    secret_path.parent.mkdir(parents=True, exist_ok=True)
     if not secret_path.exists():
         secret_path.write_text(secrets.token_hex(32))
     os.environ["RAY_AUTH_TOKEN_PATH"] = str(secret_path)
     os.environ["RAY_USAGE_STATS_ENABLED"] = "0"
+    import ray
     ray.init(
         num_cpus=2,
         include_dashboard=False,

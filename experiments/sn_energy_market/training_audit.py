@@ -47,7 +47,7 @@ def reference_advantages(rows, gamma, lambda_gae):
         factor = 1.0
         for stop in range(start, len(deltas)):
             result[start] += factor * deltas[stop]
-            if rows["terminateds"][stop]:
+            if rows["terminateds"][stop] or rows.get("segment_end", rows["terminateds"])[stop]:
                 break
             factor *= gamma * lambda_gae
     return result

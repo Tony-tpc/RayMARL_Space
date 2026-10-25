@@ -1,6 +1,14 @@
 # 当前状态与交接
 
-更新：2026-10-25。
+更新：2026-10-26。
+
+V9 always 的批量价值推理、四流阶段混合、片段边界及拟合后 GAE 重算已经实现，默认仍为单流整轮轮转。368 项唯一测试和 15 组冻结 Actor 诊断通过；正式 D24→32 的八轮训练、完整 MC 和 384 次模式续接全部完成，checkpoint 精确回放及评价状态恢复通过。UC RMSE 为 25.0906（历史 always32 为 48.8746，D24 为 15.1401），Consumer 合并 RMSE 为 6.6121；模式概率加权遗憾为 0.166724，较历史 always32 的 0.145516 增加约 14.57%。收益、供能和模式选择未同时改善，联合判据未通过。完成状态见 [status.json](D:/Codex/2026-10-26/raymarl-v9-critic/outputs/v9-always/status.json)，详细证据与对照见 [V9_ALWAYS.md](V9_ALWAYS.md)。118 个训练／环境／实验源码文件已冻结，正式运行期间仅更新文档和独立后处理文件。
+
+发布前另修复了显式偏离搜索重启种子与活动流不一致的跨月错误，并对多流混合要求 `deviation_updates=0`；本次正式训练未执行这两条路径。冻结源码保持不变，当前学习合同仍与 checkpoint 相同，精确差异见 [源码溯源核对](D:/Codex/2026-10-26/raymarl-v9-critic/verification/release-source-provenance.json)。
+
+## 历史接入与实验记录
+
+以下为此前阶段的记录，测试数量及范围与本次 V9 验证分别计算。
 
 季度轮转已接入原生主流程。`DatasetEnvFactory` 按实际日历给出训练种子分组；`Stackelberg.training_step()` 每轮选择一组，`StackelbergEnvRunner` 保存四条独立物理流与动作 RNG。`train.py` 和固定预算入口共用该实现；合成场景不传分组时仍为一条流。
 

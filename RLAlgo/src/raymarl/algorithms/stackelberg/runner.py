@@ -35,27 +35,30 @@ def restore_random_state(state):
         torch.cuda.set_rng_state_all(state["cuda"])
 
 
-def generalized_advantages(rewards, values, next_values, terminated, gamma, lambda_gae):
+def generalized_advantages(rewards, values, next_values, terminated, gamma, lambda_gae, segment_end=None):
     """One discount per physical period; segment ends bootstrap but stop recursion."""
     rewards, values, next_values = [np.asarray(x, dtype=np.float64) for x in (rewards, values, next_values)]
     terminated = np.asarray(terminated, dtype=bool)
+    boundaries = np.zeros(len(rewards), dtype=bool) if segment_end is None else np.asarray(segment_end, dtype=bool)
     advantages = np.empty_like(rewards)
     carry = 0.0
     for index in range(len(rewards) - 1, -1, -1):
         continuation = float(not terminated[index])
         delta = rewards[index] + gamma * continuation * next_values[index] - values[index]
-        carry = delta + gamma * lambda_gae * continuation * carry
+        carry = delta + gamma * lambda_gae * continuation * (not boundaries[index]) * carry
         advantages[index] = carry
     return advantages, advantages + values
 
 
-def bootstrapped_returns(rewards, next_values, terminated, gamma, critic_lambda):
+def bootstrapped_returns(rewards, next_values, terminated, gamma, critic_lambda, segment_end=None):
     """Fixed batch lambda-returns, with no recursion across real episode ends."""
     targets = np.empty(len(rewards), dtype=np.float64)
     carry = float(next_values[-1])
+    boundaries = np.zeros(len(rewards), dtype=bool) if segment_end is None else np.asarray(segment_end, dtype=bool)
     for index in range(len(rewards) - 1, -1, -1):
+        weight = critic_lambda * (not boundaries[index])
         tail = 0.0 if terminated[index] else (
-            (1 - critic_lambda) * next_values[index] + critic_lambda * carry
+            (1 - weight) * next_values[index] + weight * carry
         )
         carry = rewards[index] + gamma * tail
         targets[index] = carry
@@ -147,13 +150,16 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
 
     def begin_round(self, outer_round):
         """Switch only between complete outer rounds; each stream resumes in place."""
+        target = 0 if self.config.phase_sampling == "all_streams" else outer_round % len(self._bank)
+        self._switch_lane(target)
+        return self.active_lane
+
+    def _switch_lane(self, target):
         self._bank[self.active_lane] = self._single_state()
-        target = outer_round % len(self._bank)
         if target != self.active_lane:
             total = self.trajectory_periods
             self.active_lane = target
             self._load_single(dict(self._bank[target], sampled_periods=total), preserve_learner_rng=True)
-        return self.active_lane
 
     def append_profiles(self, profiles):
         self._observation = self.env.append_profiles(profiles)
@@ -182,6 +188,13 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             )
         return float(value.item())
 
+    @torch.no_grad()
+    def _values(self, key, inputs):
+        """Each module owns its value network; batch only its saved time samples."""
+        device = next(self.module[key].parameters()).device
+        inputs = torch.as_tensor(np.asarray(inputs), device=device, dtype=torch.float32)
+        return self.module[key].compute_values({"obs": inputs, "critic_obs": inputs}).cpu().numpy().astype(np.float64)
+
     def _announce(self, deterministic):
         bounds = self.env.uc_bounds()
         sample = self._draw("uc", self._observation, bounds, deterministic=deterministic)
@@ -189,10 +202,9 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         sample["actions"] = decision.uc_action
         sample["mapping_context"] = np.asarray(list(decision.mapping_context.values()), dtype=np.float64)
         sample.update(
-            obs=decision.uc_observation,
-            critic_obs=decision.uc_observation,
+            obs=decision.uc_observation.copy(),
+            critic_obs=decision.uc_observation.copy(),
             bounds=bounds,
-            vf_preds=self._value("uc", decision.uc_observation, decision.uc_observation),
         )
         return sample, decision
 
@@ -243,13 +255,13 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             }
         return {}, self.env.step(actions)
 
-    def _period(self, *, deterministic=False, actions_only=False):
+    def _period(self, *, deterministic=False, actions_only=False, with_values=True):
         with self.action_stream():
-            result = self._sample_period(deterministic=deterministic, actions_only=actions_only)
+            result = self._sample_period(deterministic=deterministic, actions_only=actions_only, with_values=with_values)
         self.lane_steps[self.active_lane] += 1
         return result
 
-    def _sample_period(self, *, deterministic=False, actions_only=False):
+    def _sample_period(self, *, deterministic=False, actions_only=False, with_values=True):
         if self._data_exhausted:
             raise RuntimeError("Continuous data exhausted: append profiles before collecting another period")
         if actions_only:
@@ -267,10 +279,9 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             bounds = decision.consumer_bounds[key]
             sample = self._draw(key, observation, bounds, deterministic)
             sample.update(
-                obs=observation,
-                critic_obs=decision.consumer_value_state,
+                obs=observation.copy(),
+                critic_obs=decision.consumer_value_state.copy(),
                 bounds=bounds,
-                vf_preds=self._value(key, observation, decision.consumer_value_state),
             )
             samples[key] = sample
             actions[key] = sample["actions"]
@@ -280,6 +291,8 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         self.num_env_steps_sampled_lifetime += 1
         self.trajectory_periods += 1
         for key, sample in samples.items():
+            if with_values:
+                sample["vf_preds"] = self._value(key, sample["obs"], sample["critic_obs"])
             sample.update(
                 rewards=result.rewards[key],
                 terminateds=result.terminated,
@@ -295,12 +308,12 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         for _ in range(steps):
             if self._terminated:
                 self._start_next_episode()
-            samples, result = self._period(deterministic=deterministic)
+            samples, result = self._period(deterministic=deterministic, with_values=False)
             for key, sample in samples.items():
                 if rows[key] and not rows[key][-1]["terminateds"]:
-                    rows[key][-1]["next_vf_preds"] = sample["vf_preds"]
                     rows[key][-1]["next_value_obs"] = sample["critic_obs"].copy()
-                sample["next_vf_preds"] = 0.0
+                sample["stream_id"] = self.active_lane
+                sample["segment_end"] = bool(sample["terminateds"])
                 # UC uses its local observation; consumers use the centralized
                 # value input after the sampled UC announcement. Terminals stay zero.
                 sample["next_value_obs"] = np.zeros_like(sample["critic_obs"])
@@ -312,9 +325,16 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         for key, samples in rows.items():
             if key in next_inputs:
                 samples[-1]["next_value_obs"] = next_inputs[key]
-                samples[-1]["next_vf_preds"] = self._value(key, next_inputs[key], next_inputs[key])
             samples[-1]["truncateds"] = not samples[-1]["terminateds"]
+            samples[-1]["segment_end"] = True
             data = {name: np.asarray([sample[name] for sample in samples]) for name in samples[0]}
+            inputs = data["critic_obs"]
+            if key in next_inputs:
+                inputs = np.concatenate((inputs, next_inputs[key][None]), axis=0)
+            predictions = self._values(key, inputs)
+            data["vf_preds"] = predictions[:steps]
+            data["next_vf_preds"] = np.r_[predictions[1:steps], predictions[-1] if key in next_inputs else 0.0]
+            data["next_vf_preds"][data["terminateds"]] = 0.0
             data["advantages"], _ = generalized_advantages(
                 data["rewards"],
                 data["vf_preds"],
@@ -322,20 +342,42 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                 data["terminateds"],
                 self.config.gamma,
                 self.config.lambda_gae,
+                data["segment_end"],
             )
             # Separate fixed targets: lambda=1 uses realized rewards until the
             # batch cut (old-value bootstrap) or true termination (zero tail).
             data["value_targets"] = bootstrapped_returns(
                 data["rewards"], data["next_vf_preds"], data["terminateds"],
                 self.config.gamma, self.config.critic_lambda,
+                data["segment_end"],
             )
             data["value_bootstrap"] = bootstrapped_returns(
                 np.zeros_like(data["rewards"]), data["next_vf_preds"], data["terminateds"],
                 self.config.gamma, self.config.critic_lambda,
+                data["segment_end"],
             )
             batches[key] = SampleBatch(data)
         self.last_metrics = totals
         return MultiAgentBatch(batches, steps)
+
+    def collect_phase(self, total_steps, *, deterministic=False):
+        """Collect a fixed-policy phase; total_steps is never multiplied by stream count."""
+        if self.config.phase_sampling == "single_stream":
+            return self.collect(total_steps, deterministic=deterministic)
+        count = len(self._bank)
+        if total_steps < count or total_steps % count:
+            raise ValueError("Phase samples must divide evenly across nonempty streams")
+        parts, totals = [], {}
+        for lane in range(count):
+            self._switch_lane(lane)
+            parts.append(self.collect(total_steps // count, deterministic=deterministic))
+            for name, value in self.last_metrics.items():
+                totals[name] = totals.get(name, 0.0) + value
+        self.last_metrics = totals
+        return MultiAgentBatch({
+            key: SampleBatch({name: np.concatenate([part[key][name] for part in parts])
+                              for name in parts[0][key]}) for key in self.agent_ids
+        }, total_steps)
 
     def sample(self, *, num_timesteps=None, **kwargs):
         return self.collect(num_timesteps or self.config.rollout_length)
@@ -424,11 +466,13 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             state["weights_seq_no"] = self._weights_seq_no
         if self._check_component("sampling", components, not_components):
             state["sampling"] = self._single_state()
+            bank = copy.deepcopy(self._bank)
+            bank[self.active_lane] = copy.deepcopy(state["sampling"])
             state["sampling"]["streams"] = {
                 "seed_groups": self.config.train_seed_groups,
                 "active_lane": self.active_lane,
                 "lane_steps": self.lane_steps.copy(),
-                "bank": copy.deepcopy(self._bank),
+                "bank": bank,
             }
         return state
 

@@ -1,5 +1,7 @@
 # 第 24 轮 checkpoint 后的执行优化
 
+本文保留 2026-10-23 的历史实施与验证记录。该运行已完成累计 72 轮；文中两个一次性脚本于 2026-10-26 校验后归档至 [historical-entrypoints.zip](D:/Codex/2026-10-26/raymarl-v9-critic/cleanup/historical-entrypoints.zip)，当前复现入口见 [TRAINING.md](TRAINING.md)。
+
 2026-10-23，按用户要求等待当前第 24 轮完成并保存完整 checkpoint，停止对应进程树，保存 Git 基线 `58d8cd8a667c686245c6c58dde98e34992036e09` 后实施。原运行目录为 `outputs/ausgrid-hybrid-storage/20261023-soc-mode-72rounds`，停止证据为其中的 `optimization-stop.json`。
 
 新运行目录为 `outputs/ausgrid-hybrid-storage/20261023-soc-mode-72rounds-optimized`，恢复第 24 轮全部状态，继续第 25–72 轮。实时状态以该目录的 `status.json` 为准。每轮 checkpoint 保存，候选仍分别评估两个完整月，完整验证仍在第 30、72 轮执行。优化只改变执行路径，没有改变学习契约、Actor/Critic 结构、损失、奖励、环境物理、随机采样次序或训练预算。

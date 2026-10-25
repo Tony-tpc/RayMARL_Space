@@ -12,10 +12,17 @@ from pathlib import Path
 
 import numpy as np
 
-from experiments.sn_energy_market.sampling_gate.audit import ExperimentAudit
 from experiments.sn_energy_market.sampling_gate import ROOT
-from experiments.sn_energy_market.sampling_gate.evaluate import common_state_modes, complete_mc
-from experiments.sn_energy_market.sampling_gate.io import source_manifest, verify_sources, write_json
+from experiments.sn_energy_market.sampling_gate.audit import ExperimentAudit
+from experiments.sn_energy_market.sampling_gate.evaluate import (
+    common_state_modes,
+    complete_mc,
+)
+from experiments.sn_energy_market.sampling_gate.io import (
+    source_manifest,
+    verify_sources,
+    write_json,
+)
 from experiments.sn_energy_market.sampling_gate.runtime import (
     ExperimentStackelberg,
     configuration,
@@ -46,7 +53,7 @@ def study_config(group):
     return cfg
 
 
-def import_d_state(algorithm):
+def import_d_state(algorithm, *, budget_changes=None):
     """Explicit one-time schema transfer; all scientific and optimizer settings must match."""
     with (SOURCE / "D-state.pkl").open("rb") as stream:
         state = pickle.load(stream)
@@ -58,7 +65,11 @@ def import_d_state(algorithm):
     old_factory = old_scenario["source_sha256"].pop("profile_dataset.py")
     new_factory = new_scenario["source_sha256"].pop("profile_dataset.py")
     assert old_scenario == new_scenario, "Environment/data contract changed"
-    assert set(changed) <= {"train_seed_groups", "sampling_protocol", "experiment", "scenario"}, changed
+    permitted = {"phase_sampling": "single_stream", **(budget_changes or {})}
+    assert set(permitted) <= {"phase_sampling", "inner_updates", "response_updates", "uc_updates_per_candidate",
+                              "critic_epochs", "num_epochs"}
+    assert all(new[key] == value for key, value in permitted.items())
+    assert set(changed) <= {"train_seed_groups", "sampling_protocol", "experiment", "scenario", *permitted}, changed
     sampling = state["env_runner"]["sampling"]
     streams = sampling.pop("experiment_streams")
     assert streams.pop("order") == "rotation"
@@ -66,11 +77,18 @@ def import_d_state(algorithm):
     state["learning_contract"] = new
     assert state["raymarl_algorithm"] == "ExperimentStackelberg"
     state["raymarl_algorithm"] = type(algorithm).__name__
+    sampling_before = copy.deepcopy(sampling)
     algorithm.set_state(state)
     assert algorithm.outer_round == START
     source = json.loads((SOURCE / "D-export.json").read_text(encoding="utf-8"))
     learner_sha256 = digest_tree(algorithm.learner_group.get_state())
     assert learner_sha256 == source["learner_sha256"], "D parameters or Adam state changed"
+    restored = algorithm.env_runner.get_state(components="sampling")["sampling"]
+    assert digest_tree({k: v for k, v in restored.items() if k != "streams"}) == digest_tree(
+        {k: v for k, v in sampling_before.items() if k != "streams"})
+    for lane, saved in enumerate(sampling_before["streams"]["bank"]):
+        if lane != restored["streams"]["active_lane"]:
+            assert digest_tree(saved) == digest_tree(restored["streams"]["bank"][lane])
     return {"changed_contract_fields": changed, "learner_sha256": learner_sha256,
             "factory_source_sha256": {"before": old_factory, "after": new_factory},
             "environment_data_contract_equal": True, "source": source}

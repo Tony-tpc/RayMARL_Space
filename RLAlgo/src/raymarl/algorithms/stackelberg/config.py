@@ -29,6 +29,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.scenario_factory = None
         self.train_seeds = tuple(range(32))
         self.train_seed_groups = (self.train_seeds,)
+        self.phase_sampling = "single_stream"
         self.validation_seeds = tuple(range(1000, 1016))
         self.test_seeds = tuple(range(2000, 2032))
         self.gamma, self.lambda_gae = 0.99, 0.95
@@ -82,6 +83,7 @@ class StackelbergConfig(AlgorithmConfig):
             "vf_loss_coeff",
             "entropy_coeff",
             "rollout_length",
+            "phase_sampling",
             "inner_updates",
             "response_updates",
             "uc_candidates",
@@ -156,6 +158,7 @@ class StackelbergConfig(AlgorithmConfig):
             "grad_clip",
             "normalize_advantages",
             "rollout_length",
+            "phase_sampling",
             "num_epochs",
             "critic_epochs",
             "minibatch_size",
@@ -188,7 +191,9 @@ class StackelbergConfig(AlgorithmConfig):
             uc_probability="masked_categorical_conditional_active_gaussian",
             consumer_probability="conditional_beta_physical_density",
             evaluation_return="complete_finite_episode_with_terminal_inventory",
-            sampling_protocol="round_robin_continuous_streams_private_rng_selected_branch_v2",
+            sampling_protocol=("phase_all_streams_private_rng_segment_boundaries_v1"
+                               if self.phase_sampling == "all_streams" else
+                               "round_robin_continuous_streams_private_rng_selected_branch_v2"),
             update_protocol="phase_batch_fixed_targets_refreshed_gae_common_consumer_state_v2",
             value_architecture="layernorm_tanh",
         )
@@ -228,6 +233,15 @@ class StackelbergConfig(AlgorithmConfig):
             raise ValueError("Sampling, update, candidate and retention budgets must be positive integers")
         if self.deviation_updates < 0 or self.checkpoint_interval < 0:
             raise ValueError("Deviation and checkpoint intervals must be nonnegative")
+        if self.phase_sampling not in {"single_stream", "all_streams"}:
+            raise ValueError("phase_sampling must be single_stream or all_streams")
+        if self.phase_sampling == "all_streams":
+            count = len(self.train_seed_groups)
+            if count > 1 and self.deviation_updates:
+                raise ValueError("Mixed multi-stream phases require deviation_updates=0")
+            for units in (self.inner_updates, self.response_updates, self.uc_updates_per_candidate):
+                if units and self.rollout_length * units % count:
+                    raise ValueError("Phase samples must divide evenly across streams")
         if (
             not math.isfinite(self.acceptance_z)
             or self.acceptance_z <= 0
@@ -244,10 +258,6 @@ class StackelbergConfig(AlgorithmConfig):
         for key in ("gamma", "lambda_gae", "critic_lambda"):
             if not 0 <= getattr(self, key) <= 1:
                 raise ValueError(f"{key} must lie in [0, 1]")
-        if self.evaluation_steps is not None and (
-            not isinstance(self.evaluation_steps, int) or self.evaluation_steps < 1
-        ):
-            raise ValueError("evaluation_steps must be a positive integer or None")
         env = self.scenario_factory(self.train_seeds[0])
         if env.episode_mode != "finite":
             raise ValueError("Candidate selection requires finite scenarios; continuous runners support sampling and diagnostics")

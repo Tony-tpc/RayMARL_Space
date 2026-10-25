@@ -15,8 +15,10 @@ learner_group.update(...)          进入 Learner 的 minibatch 更新
 
 import copy
 import json
+import time
 from pathlib import Path
 
+import numpy as np
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.core import COMPONENT_LEARNER, COMPONENT_OPTIMIZER, COMPONENT_RL_MODULE
 from ray.rllib.policy.sample_batch import MultiAgentBatch
@@ -88,14 +90,19 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
 
     def _adapt(self, module_ids, updates, *, seed=None, phase="adapt", candidate_index=None):
         if seed is not None:
+            lane = next(i for i, seeds in enumerate(self.config.train_seed_groups) if seed in seeds)
+            self.env_runner._switch_lane(lane)
             self.env_runner.restart(seed)
         if updates == 0:
             return
+        phase_started = time.perf_counter()
         # Keep the joint policy fixed across all sampling units in this phase.
-        batch = self.env_runner.collect(self.config.rollout_length * updates)
+        batch = self.env_runner.collect_phase(self.config.rollout_length * updates)
+        collection_seconds = time.perf_counter() - phase_started
         before = self._batch_diagnostics(batch)
         # Critic targets and behavior logp stay fixed at collection.
         # All values track this joint policy, even when their actor is frozen.
+        update_started = time.perf_counter()
         critic_result = self.learner_group.update(
             batch=batch,
             update_phase="critic",
@@ -106,6 +113,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         )
         self._sync()
         selected = MultiAgentBatch({key: batch.policy_batches[key] for key in module_ids}, batch.count)
+        critic_and_sync_seconds = time.perf_counter() - update_started
+        gae_started = time.perf_counter()
         refreshed = self.learner_group.foreach_learner(
             lambda learner: learner.recompute_advantages(selected)
         )
@@ -118,6 +127,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
                 advantage = data["advantages"]
                 data["advantages"] = (advantage - advantage.mean()) / max(advantage.std(), 1e-8)
         actor_before = self._batch_diagnostics(selected, module_ids)
+        gae_and_diagnostics_seconds = time.perf_counter() - gae_started
+        update_started = time.perf_counter()
         result = self.learner_group.update(
             batch=selected,
             update_phase="actor",
@@ -126,6 +137,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             shuffle_batch_per_epoch=True,
             timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
         )
+        actor_seconds = time.perf_counter() - update_started
         shared_metrics = {"total_loss", "grad_norm"}
         critic_metrics = shared_metrics | {
             "value_loss", "value_rmse", "value_explained_variance", "value_learning_rate",
@@ -156,11 +168,17 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "completed_updates": self.completed_updates,
             "phase": phase, "candidate_index": candidate_index,
             "actor_ids": list(module_ids), "samples": batch.count,
+            "timing_seconds": {"collection": collection_seconds, "critic_and_sync": critic_and_sync_seconds,
+                               "gae_and_diagnostics": gae_and_diagnostics_seconds, "actor": actor_seconds,
+                               "phase": time.perf_counter() - phase_started},
             "sampled_periods_lifetime": self.sampled_periods,
             "scenario_seeds": list(dict.fromkeys(first["scenario_seed"].tolist())),
             "first_period": int(first["period_id"][0]),
             "last_period": int(first["period_id"][-1]),
             "true_terminals": int(first["terminateds"].sum()),
+            "stream_samples": {str(i): int((first["stream_id"] == i).sum())
+                               for i in np.unique(first["stream_id"])},
+            "segment_ends": int(first["segment_end"].sum()),
             "metrics": copy.deepcopy(self.env_runner.last_metrics),
             "gamma": self.config.gamma, "lambda_gae": self.config.lambda_gae,
             "critic_lambda": self.config.critic_lambda,

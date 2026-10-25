@@ -105,6 +105,7 @@ class StackelbergTorchLearner(TorchLearner):
             advantages[key], _ = generalized_advantages(
                 original["rewards"], values, next_values, original["terminateds"],
                 self.config.gamma, self.config.lambda_gae,
+                original.get("segment_end"),
             )
         return advantages
 

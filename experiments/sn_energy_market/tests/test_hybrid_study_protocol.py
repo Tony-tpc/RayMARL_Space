@@ -70,7 +70,9 @@ def test_long_study_keeps_learning_contract_and_scales_only_round_budget(tmp_pat
 
     previous = ROOT / "outputs/ausgrid-hybrid-storage/20261022-phase-batch-10rounds"
     protocol = check_protocol(tmp_path, outer_rounds=72, previous=previous)
-    assert protocol["changes_from_previous_ten_rounds"] == ["input_transform"]
+    assert protocol["changes_from_previous_ten_rounds"] == [
+        "input_transform", "phase_sampling", "sampling_protocol", "train_seed_groups",
+    ]
     assert protocol["outer_rounds"] == 72
     assert protocol["validation_rounds"] == [0, 3, 12, 24, 48, 72]
     assert protocol["ppo_periods"] == 110592
@@ -85,9 +87,9 @@ def test_observer_records_phase_batch_without_changing_actions_or_rng(tmp_path, 
 
     import numpy as np
     import torch
-    from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 
     from experiments.sn_energy_market.hybrid_storage_study import StudyObserver
+    from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
     from RLAlgo.tests.test_stackelberg_algorithm import configuration
     from RLAlgo.tests.test_stackelberg_sampling import assert_batches_equal
 

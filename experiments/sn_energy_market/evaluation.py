@@ -55,6 +55,9 @@ def error_statistics(predictions, targets):
         "bias": float(np.mean(error)),
         "prediction_mean": float(np.mean(predictions)),
         "return_mean": float(np.mean(targets)),
+        "prediction_std": float(np.std(predictions)),
+        "target_std": float(np.std(targets)),
+        "constant_mean_rmse": float(np.std(targets)),
         "explained_variance": float(1 - np.var(error) / variance)
         if variance > 0
         else 0.0,

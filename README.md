@@ -25,6 +25,8 @@ RayMARL/
 
 虚拟环境及运行状态沿用主目录下的 `.venv*`、`.runtimes`、`.ray`、`.tmp`，避免已有运行环境的路径失效。数据集、输出、机器运行脚本和归档仍按原有规则排除在 Git 提交之外。
 
+2026-10-26 起，本次 V9 always 的新增运行时、测试临时文件和实验产物统一写入 `D:/Codex/2026-10-26/raymarl-v9-critic/`。历史目录只保留恢复和比较所需材料；实际清理及新结果见[结果索引](experiments/sn_energy_market/RESULTS.md)。
+
 ## 安装与运行
 
 在 `D:\Yang\RayMARL` 执行：

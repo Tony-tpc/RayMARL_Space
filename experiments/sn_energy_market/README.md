@@ -10,6 +10,7 @@
 | [TRAINING.md](TRAINING.md)、[BATCH_CRITIC_TARGETS.md](BATCH_CRITIC_TARGETS.md) | 运行协议、恢复、目标与日志 |
 | `train.py` | 合成 / 数据场景训练、冻结评价、恢复和导出 |
 | `rollback_comparison.py` | D24 同起点、两组各 8 轮候选保留对照及冻结评价 |
+| `critic_sampling_study.py`、[V9_ALWAYS.md](V9_ALWAYS.md) | 批量价值等价、固定数据顺序诊断及 D24→V9 always32 混合采样实验 |
 | `batch_critic_pilot.py` | 固定预算，默认 3 轮、12 批 |
 | `hybrid_storage_study.py`、`study_recovery.py` | 储能训练、逐时段记录、预算内恢复 |
 | `evaluation.py`、`training_audit.py` | 冻结完整月评价、独立目标和账本审计 |

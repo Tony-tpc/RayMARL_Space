@@ -124,6 +124,7 @@ class ToyConfig(AlgorithmConfig):
         self.scenario_factory = ToyFactory(terminal_at, data_until)
         self.lambda_gae, self.gamma, self.rollout_length = 0.8, 0.9, 4
         self.critic_lambda = 1.0
+        self.phase_sampling = "single_stream"
 
     def get_multi_rl_module_spec(self, **kwargs):
         return ToySpec()

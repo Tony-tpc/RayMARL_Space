@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 from contextlib import ExitStack
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,7 +35,7 @@ ROUNDS = 10
 
 
 def utc_now():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
@@ -70,7 +70,8 @@ def check_protocol(output, *, outer_rounds=ROUNDS, previous=PREVIOUS):
             k: v for k, v in prior_contract["scenario"].items() if k != "source_sha256"
         }
         changed.discard("scenario")
-    assert changed <= {"update_protocol", "input_transform", "train_seed_groups", "sampling_protocol"}, changed
+    assert new["phase_sampling"] == "single_stream"
+    assert changed <= {"update_protocol", "input_transform", "train_seed_groups", "sampling_protocol", "phase_sampling"}, changed
     current_budget = round_budget(cfg)
     for name, key in (("ppo_periods", "ppo_sampled_periods"), ("main_periods", "main_advanced_periods"),
                       ("critic_steps_per_module", "critic_optimizer_steps_executed_per_module")):
@@ -253,15 +254,15 @@ class StudyObserver:
                                recovery_ledger=str(self.recovery.folder / "ledger.json"))
         runner = algorithm.env_runner
         original_period, original_collect = runner._period, runner.collect
+        pending_rows = []
 
         def period(**kwargs):
             before = runner.env.engine.state
             samples, result = original_period(**kwargs)
             if self.active_batch is not None:
                 row = physical_row(runner.env, before, samples, result)
-                row.update(uc_value=float(samples["uc"]["vf_preds"]),
-                           **mode_diagnostics(runner.module["uc"], samples["uc"]))
-                self.append("training-all-branches.csv", {"batch_id": self.active_batch, **row})
+                row.update(**mode_diagnostics(runner.module["uc"], samples["uc"]))
+                pending_rows.append({"batch_id": self.active_batch, **row})
             elif self.validation_round is not None:
                 # The no-keyword call is full_value_validation's stochastic MC.
                 # Its trajectory is the same as evaluate_pair(sampled); only save once.
@@ -288,8 +289,14 @@ class StudyObserver:
                 )}
                 self.batch_id += 1
                 self.active_batch = self.batch_id
+                pending_rows.clear()
             try:
-                return original_collect(steps, **kwargs)
+                batch = original_collect(steps, **kwargs)
+                if active:
+                    for row, value in zip(pending_rows, batch["uc"]["vf_preds"], strict=True):
+                        row["uc_value"] = float(value)
+                        self.append("training-all-branches.csv", row)
+                return batch
             finally:
                 self.active_batch = None
 

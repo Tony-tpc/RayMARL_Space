@@ -13,11 +13,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from raymarl.algorithms.stackelberg.algorithm import Stackelberg
-from raymarl.algorithms.stackelberg.config import StackelbergConfig
-from raymarl.algorithms.stackelberg.runner import (
-    StackelbergEnvRunner,
-)
 
 from experiments.sn_energy_market.profile_dataset import (
     DatasetEnvFactory,
@@ -25,6 +20,11 @@ from experiments.sn_energy_market.profile_dataset import (
 )
 from experiments.sn_energy_market.sampling_gate import ROOT
 from experiments.sn_energy_market.train import inventory_valued_config, model_settings
+from raymarl.algorithms.stackelberg.algorithm import Stackelberg
+from raymarl.algorithms.stackelberg.config import StackelbergConfig
+from raymarl.algorithms.stackelberg.runner import (
+    StackelbergEnvRunner,
+)
 
 GROUPS = {
     "A": {"order": "sequential", "z": 1.96},
@@ -156,7 +156,8 @@ class ExperimentConfig(StackelbergConfig):
             "experiment": {
                 "sampling_order": self.experiment_order,
                 "action_rng": "private_month_seed_1000003_trial_plus_scenario_v1",
-                "rotation": "whole_outer_round_four_quarter_streams_v1",
+                "rotation": ("equal_segments_all_streams_per_phase_v1" if self.phase_sampling == "all_streams"
+                             else "whole_outer_round_four_quarter_streams_v1"),
                 "initialization": self.initialization,
                 "candidate_retention": "always" if self.always_keep_candidate else "paired_gain",
             },
