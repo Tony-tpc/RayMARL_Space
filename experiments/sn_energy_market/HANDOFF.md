@@ -1,19 +1,17 @@
 # 当前状态与交接
 
-更新：2026-10-23。
+更新：2026-10-25。
 
-执行优化续跑：已在第 24 轮完整 checkpoint 后停机并保存 Git 基线 `58d8cd8`，完成重复快照复制、候选动作评估及轻量审计优化。真实 checkpoint 的两批更新和两个完整验证月结果逐项一致。新入口 `resume_optimized_study.py` 从第 24 轮继续至 72 轮，输出 `20261023-soc-mode-72rounds-optimized`；实际完成轮次以其 `status.json` 为准。完整证据、计时和审计范围见 [EXECUTION_OPTIMIZATION.md](EXECUTION_OPTIMIZATION.md)。
+季度轮转已接入原生主流程。`DatasetEnvFactory` 按实际日历给出训练种子分组；`Stackelberg.training_step()` 每轮选择一组，`StackelbergEnvRunner` 保存四条独立物理流与动作 RNG。`train.py` 和固定预算入口共用该实现；合成场景不传分组时仍为一条流。
 
-当前为三模式 UC 混合策略、独立两路充电和六维物理行动。每阶段连续采样 384 步，γ=0.99、Actor λ=0.97、Critic λ=1；全部 Critic 拟合后重算固定 GAE，再更新本阶段 Actor。Value 使用 LayerNorm，UC / 消费者输出单位为 20 / 10。
+已验证 D24 参数与 Adam 哈希不变，四季度各 8 步与修改前逐字段回放一致；38 项单元与 6 项真实 RLlib 集成检查通过。生产候选门槛保持默认 z=1.96。
 
-2026-10-23 增加 UC Actor 中心化 SOC 输入及三个零初始化模式直连权重，补齐逐 minibatch 模式概率比、PPO 截断、分支梯度与实际 Adam 变化诊断。Critic、奖励、采样起点和训练预算保持；未采用高 SOC 初态或重采样。原始电量观察仍为 kWh；新输入契约拒绝直接恢复旧训练 checkpoint，旧导出 Actor 按原配置仍可读取。实现及检查入口见 `test_stackelberg_mode_diagnostics.py`、阶段合批集成测试和 [TRAINING.md](TRAINING.md)。用户已授权提交后从 seed 42 新开 10 轮，输出 `20261023-soc-mode-10rounds`，对照此前 `20261022-phase-batch-10rounds`；实际进度以新目录 status.json 为准。
+D24 两组各 8 轮及全部冻结评价已完成，均达到累计第 32 轮，checkpoint 回放一致。gate（z=1）保留 4 轮、96 次 UC Actor 优化；always 保留 8 轮、192 次。始终保留的模式遗憾仅小幅改善，模式概率随 SOC 的差异仍弱；两组完整月 UC Critic RMSE 均较 D24 恶化。最终报告位于 `D:/Codex/2026-10-25/critic-actor-d-576-uc-actor/outputs/rotation-rollback-8rounds/comparison.md`。这是单训练种子的机制对照，不能视为收敛。
 
-月初开始采样，批间保留 SOC、FIFO、月累计和历史反馈，真实月末结算一次。候选从相同消费者网络、Adam、环境及 RNG 分支，只保留选定响应。新候选未通过配对 UC 收益规则时选择候选 0。完整协议见 [TRAINING.md](TRAINING.md)。
+首次运行在 always 启动时发生 Ray 令牌缓存冲突；剩余阶段以独立 Python 进程恢复，认证保持开启，未重跑 gate。119 个冻结源码与 78 个 gate 保护文件哈希一致。后续多阶段执行应在导入 Ray 前设置令牌路径，并隔离驱动进程，避免冻结的 all 入口同进程切换令牌问题。
 
-最新完整实验为 `20261022-phase-batch-10rounds`，已完成 10 轮、40 批。计划 72 轮的 `20261022-phase-batch-72rounds` 已按用户要求停止，只完成 1 轮，内存训练状态未保存。本次整理没有恢复或新开真实训练。历史最长完整实验为旧 72 轮、576 批。结果统一由 [RESULTS.md](RESULTS.md) 导航。
+最近完成的原 2×2 为四组各 24 轮；SOC 版本优化续跑已完成总计 72 轮，其前 24 轮证据在原目录，后 48 轮在 optimized 目录。此前文档中“最新仅完成 10 轮”的说明已过期。完整导航见 [RESULTS.md](RESULTS.md)。
 
-本次删除 5 份早期 / 过期实验说明、旧三轮专用汇总脚本、重复结果及无依赖的早期原始输出。旧基线报告引用链和冻结 Critic 来源 checkpoint 留作依赖；保留主实验的原始结果维持原样。删除清单和保留文件哈希见 [retained_runs.json](results/retained_runs.json)。
+模式头停滞仍需区分信号、覆盖与保留机制：季度轮转不保证 SOC 均衡；拒绝 UC 提案后，消费者适应和响应阶段仍可更新 Critic。完整 MC 只用于冻结评价，不能从 Critic RMSE 推出模式改进。当前无额外 SOC 奖励、固定充放电规则或模式单独训练。
 
-环境审核见 [implementation_audit_zh.md](../../environments/sn_energy_market/docs/v9/implementation_audit_zh.md)。式（1）—（29）的动作、出清、物理、DR、账本与终端计算一致；公共日历尚未编码到观测，文档中的“不折扣有限目标”已改正为实际 γ=0.99。按简洁要求移除异常诊断包装和重复检查，阶段、物理约束、守恒及快照完整性检查保留。
-
-后续建模事项：若要满足 v9 第 3.2 节完整公共日历输入，需要定义字段、维度及网络 / checkpoint 契约；若要优化不折扣有限期目标，应显式记录新的 γ 和训练协议。现有经济性质 U02、A01—A03 仍按建模文档解释。离线公共时间 Critic 的 RMSE 改善属于已保存历史对照，在线收益仍需对应实验。
+环境规则与奖励保持。公开日历观测缺口、经济性质 U02/A01—A03 等原有建模边界见 v9 及实现审核。旧输出清理保留最新实验、最长完整实验、原 2×2 和评价所需快照；删除和归档的精确清单见本次清理记录。
