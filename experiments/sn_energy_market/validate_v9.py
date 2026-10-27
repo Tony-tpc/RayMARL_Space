@@ -17,7 +17,7 @@ import time
 import traceback
 from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -186,7 +186,7 @@ def main():
             raise ValueError("Resume refused: implementation, oracle, runner, or specification changed")
         tasks = manifest["tasks"]
     else:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         output = (args.output or ROOT / "outputs/snmarket-validation" / f"v9-{stamp}").resolve()
         output.mkdir(parents=True, exist_ok=False)
         (output / "batches").mkdir()

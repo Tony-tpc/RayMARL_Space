@@ -11,7 +11,7 @@ import argparse
 import hashlib
 import json
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -109,7 +109,7 @@ def download_sources(raw_dir: Path) -> dict:
                 {
                     "file": name,
                     "url": url,
-                    "downloaded_utc": datetime.now(timezone.utc).isoformat(),
+                    "downloaded_utc": datetime.now(UTC).isoformat(),
                 }
             )
         sources[name] = {

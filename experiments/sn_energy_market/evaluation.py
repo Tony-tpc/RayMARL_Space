@@ -1,16 +1,9 @@
 """Frozen complete-episode evaluation and true-terminal Critic diagnostics."""
 
-import copy
-import hashlib
 import json
-from pathlib import Path
 
 import numpy as np
 
-from experiments.sn_energy_market.training_audit import assert_same_state
-
-ROOT = Path(__file__).resolve().parents[2]
-GAMMA = 0.99
 VALIDATION_SEEDS = (10042, 10045, 10048, 10051)
 
 
@@ -23,27 +16,6 @@ def terminal_returns(rewards, terminated, gamma):
         carry = float(rewards[index]) + gamma * carry * (not terminated[index])
         result[index] = carry
     return result
-
-
-def source_hashes(directory):
-    return {
-        path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted((ROOT / directory).rglob("*.py"))
-    }
-
-
-def cursor(runner):
-    state = runner.env.engine.state
-    return {
-        "seed": runner._scenario_seed,
-        "period": state.period_id,
-        "timestamp": state.timestamp.isoformat(),
-        "terminated": runner._terminated,
-        "main_periods": runner.trajectory_periods,
-        "soc_kwh": state.ess_energy_kwh,
-        "monthly_uc_kwh": sum(c.monthly_uc_energy_kwh for c in state.consumers),
-        "tasks": sum(len(c.tasks) for c in state.consumers),
-    }
 
 
 def error_statistics(predictions, targets):
@@ -82,6 +54,8 @@ def full_value_validation(algorithm):
     """One frozen trajectory per validation month, every state's true-terminal MC."""
     runner = algorithm.env_runner
     saved = runner.get_state(components="sampling")
+    # Direct stepping must not leave a second, stale copy in resident workers.
+    runner._serial_sampling()
     predictions = {key: [] for key in runner.agent_ids}
     targets = {key: [] for key in runner.agent_ids}
     period_ids, matched, episodes = [], [], []
@@ -158,15 +132,3 @@ def retained_optimizer_steps(learner):
     }
 
 
-def frozen_evaluation(algorithm):
-    before = copy.deepcopy(algorithm.learner_group.get_state())
-    result = {
-        "performance": {
-            "sampled": algorithm.evaluate_pair(VALIDATION_SEEDS),
-            "mean": algorithm.evaluate_pair(VALIDATION_SEEDS, deterministic=True),
-        },
-        "critic": full_value_validation(algorithm),
-    }
-    # Includes every optimizer, not only policy weights.
-    assert_same_state(before, algorithm.learner_group.get_state())
-    return result

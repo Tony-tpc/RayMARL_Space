@@ -72,7 +72,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         # again duplicates the entire execution history for every candidate.
         return {
             "learner": copy.deepcopy(self.learner_group.get_state()),
-            "runner": self.env_runner.get_state(),
+            "runner": self.env_runner.branch_state(),
             "rng": random_state(),
         }
 
@@ -245,9 +245,17 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         }
 
     def _select_candidate(self, evaluated):
-        return select_candidate(evaluated, z=self.config.acceptance_z, min_gain=self.config.min_uc_gain)
+        selected, gains = select_candidate(evaluated, z=self.config.acceptance_z, min_gain=self.config.min_uc_gain)
+        self.gate_selected = selected
+        return (1 if self.config.always_keep_candidate else selected), gains
 
     def training_step(self):
+        try:
+            return self._training_step()
+        finally:
+            self.env_runner.release_branches()
+
+    def _training_step(self):
         """
         训练一轮 Stackelberg 迭代。每轮迭代包括：
         1. 适应消费者策略（inner loop）。
@@ -274,7 +282,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             self._adapt(("uc",), cfg.uc_updates_per_candidate, phase="uc_proposal", candidate_index=index)
             candidates.append(self._snapshot())
 
-        evaluated, pairs = [], []
+        pairs = []
         for index, candidate in enumerate(candidates):
             self._restore(candidate)
             # Proposals now train all critics. Discard their consumer value/Adam
@@ -295,8 +303,12 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             # Every response starts at the same physical state AND random stream.
             self.env_runner.set_state({"sampling": reference["runner"]["sampling"]})
             self._adapt(self.consumer_ids, cfg.response_updates, phase="response", candidate_index=index)
-            evaluated.append(self._evaluate(cfg.validation_seeds))
             pairs.append(self._snapshot())
+        evaluated = self.env_runner.evaluate_candidates(
+            [pair["runner"][COMPONENT_RL_MODULE] for pair in pairs],
+            cfg.validation_seeds, steps=cfg.evaluation_steps,
+        )
+        self.evaluated_periods += sum(row["physical_periods"] for rows in evaluated for row in rows)
         selected, gains = self._select_candidate(evaluated)
         self._restore(pairs[selected])
         self.batch_loss_log.resolve(selected)
@@ -308,6 +320,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.last_round = {
             "outer_round": self.outer_round,
             "selected_candidate": selected,
+            "gate_selected_candidate": self.gate_selected,
             "candidate_accepted": selected != 0,
             "candidates": [
                 {

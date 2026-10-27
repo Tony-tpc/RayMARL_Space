@@ -1,256 +1,74 @@
-# 能源市场双层训练与评价
+# V9 always 训练协议
 
-训练直接执行当前建模文档第 12—14 节：UC 先发布六维物理调度，消费者根据公告生成四维行动；市场完成一个物理时段后，各参与者按自己的奖励学习。UC 更新较慢，每个候选都经过消费者重新适应和匹配场景评价。
+## 参数与起点
 
-## 1. 目录与调用
+正式入口为 `run.py`，配置由 `runtime.configuration()` 唯一定义。训练使用现有Ausgrid数据、16个消费者和v9环境；市场、奖励、终端库存估值及数据切分保持既有定义。
 
-| 路径 | 职责 |
+| 项目 | 设置 |
 |---|---|
-| `RLAlgo/src/raymarl/algorithms/stackelberg/` | 策略网络、条件分布、PPO Learner、两阶段采样、双层更新、快照及策略导出 |
-| `experiments/sn_energy_market/training_env.py` | 将当前环境的公告和物理时段接口连接到采样器；构造训练侧消费者价值状态 |
-| `experiments/sn_energy_market/train.py` | 场景切分、预算、运行目录、训练入口及最终评价 |
-| `experiments/sn_energy_market/ausgrid.py` | 原始数据下载、计量质量审查、固定住户及年度数据转换 |
-| `experiments/sn_energy_market/profile_dataset.py` | 通用数据清单、完整月窗口、训练集资源标定及场景工厂 |
-| `environments/sn_energy_market/src/snmarket/` | 动作校验、出清、调度执行、任务队列、账本和奖励 |
+| 初始化 | 训练种子11；随机网络、空Adam、零PopArt历史；四季度各自月初 |
+| 训练轮数 | 固定72轮，无早停，无旧checkpoint导入 |
+| 阶段样本 | 四季度各384个物理时段，同批共1536步 |
+| 折扣及目标 | γ=0.997；Actor λ=0.97；Critic λ=1 |
+| 网络 | 每个UC/Consumer的Actor与Critic均为两层128维；独立参数与Adam |
+| 优化 | minibatch 32；Critic 2 epoch；选定Actor 1 epoch |
+| 价值尺度 | 在线PopArt；初始UC尺度20、Consumer尺度10 |
+| 候选 | 一个新UC候选和一个现有UC候选，始终提交新候选 |
+| 评价 | 每候选两个完整验证月，种子10042、10048 |
+| 执行 | 四个常驻CPU采样进程；一个本地CUDA Learner；每进程一个计算线程 |
 
-最小完整运行：
+γ每个物理半小时时段作用一次。384步为8天，γ^384约0.315，说明批首目标仍包含明显的旧尾值影响。PopArt调整价值拟合尺度，不改变奖励、折扣、真实终止或bootstrap定义，也不保证消除价值偏差或策略收敛。
 
-```powershell
-.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --smoke --output outputs/snmarket-training/smoke
-```
+## 每轮顺序与候选隔离
 
-标准运行：
+1. 固定当前联合策略，四条流各采384步，更新全部Critic，再更新全部Consumer Actor。
+2. 保存公共消费者网络、两套Adam、PopArt统计、四条物理流及随机状态。
+3. 以1536步提出一个新UC策略：更新全部Critic后，只更新UC Actor。
+4. 分别恢复旧／新UC候选，配上相同公共Consumer状态和相同四流物理起点，各采1536步响应；每个响应更新全部Critic和Consumer Actor。
+5. 两个候选各运行两个完整验证月。配对门槛选择仅作为诊断记录，always始终提交新候选及其响应分支。
 
-```powershell
-.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --outer-rounds 20 --output outputs/snmarket-training/main
-```
+提案推进及未选响应的物理状态不接续下一轮。Consumer在提案中的Critic、Adam和PopArt进度随公共状态恢复；选中UC保留适应、提案和选中响应三次统计更新，Consumer保留适应和选中响应两次。分支快照只在所属常驻worker存活期间有效；磁盘checkpoint保存完整可重建状态。
 
-恢复同一配置的运行：
+## 四条连续季度流
 
-```powershell
-.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --smoke --resume outputs/snmarket-training/smoke/final-checkpoint --output outputs/snmarket-training/continued
-```
+季度由数据工厂按日历分组。每条流保留SOC、队列、月累计、历史反馈、日期及独立动作RNG。只在真实月末结算并转入同季度下一训练月。流边界和阶段末尾切断GAE/多步目标递推，但非终止边界保留合法下一价值；真实终止尾值为零。
 
-冻结策略评价使用 `--evaluate-only --resume <checkpoint>`，跳过参数更新和偏离训练。`--device cuda` 选择 GPU Learner；默认 CPU 和单个 Torch 计算线程，适合小网络与接口验证。Ray 生命周期由入口启动和关闭。
+所有1536个样本使用采样时固定的联合策略。批内不更新网络。四季度数量严格相等，但随机minibatch不强制季度配额，也不进行SOC分层重采样。Learner shuffle的RNG与暂停流动作RNG独立。
 
-恢复时，模型、折扣目标、PPO 与候选响应设置、训练/验证/测试种子及场景规则必须匹配 checkpoint。设备和输出目录可调整，追加的外层轮数通过 `--outer-rounds` 指定。`MarketEnvFactory.get_contract()` 自动提供市场配置、种子归属、时序长度和合成曲线生成函数的源码 SHA-256；场景生成规则改变后会形成新的实验契约。
+## 在线PopArt与梯度
 
-## 2. 默认场景与数据切分
+每个Critic分别保存均值、二阶矩、有效质量、平移、尺度及更新次数。均值和二阶矩采用去偏EMA，每个阶段完整目标批只更新一次，β=0.99999，标准差下限0.1；所有epoch/minibatch共用该尺度。
 
-标准场景沿用环境的设备、费率和成本配置，将有限期长度设为 288 个 15 分钟时段，移峰期限保留 96 期。这样前 192 期具有新移出空间，末段按文档关闭不能在终止前到期的新任务。`--config-dir` 使用指定环境配置；`--consumers`、`--horizon`、`--deadline` 可显式覆盖相应维度。
+统计更新后补偿价值输出层，使原奖励单位V保持不变：权重乘旧尺度/新尺度，偏置变为(旧尺度×旧偏置+旧均值−新均值)/新尺度。补偿不增加Adam步数、不更换Parameter对象，保留已有Adam动量。统计缓冲进入权重广播、分支快照和checkpoint；float64 EMA恢复不经过精度降级。
 
-合成场景以日内负荷、DER 和 PG 价格曲线为基准，加入有界随机扰动。每个 seed 唯一确定一整条外生轨迹，候选之间使用相同轨迹。场景不改变各户成本系数、费率规则和设备额定参数，因此固定设置保持策略所需条件一致。这些合成轨迹用于实现验证和可复现实验，外生数据来源写入 `experiment.json`。
+Critic目标由旧值构造并固定。Critic拟合之后，使用保存的当前/下一价值输入和原片段边界重算Actor GAE，再对每个参与者整批归一化一次。重算在no_grad下进行，不采新动作。PPO使用原动作、原行为logp与条件边界；Actor更新不改变Critic或PopArt。
 
-默认种子 `42` 的标准切分为：
+## 固定预算
 
-| 集合 | 种子 | 用途 |
-|---|---|---|
-| 训练 | 42—49 | 消费者更新及 UC 候选生成 |
-| 验证 | 10042—10049 | 匹配候选选择和偏离评价 |
-| 测试 | 20042—20049 | 最终冻结策略的保留集评价 |
-
-`--seed` 整体平移三组种子。测试集不参与参数更新和候选选择。最小运行每组使用两个种子、两位消费者、8 个时段、2 期移峰期限，从 17:00 开始以覆盖 DR 事件。
-
-以上默认设置用于合成场景。选择 `--dataset datasets/ausgrid/processed/manifest.json` 后，使用固定 16 户的 Ausgrid 三年数据，按年度划分训练／验证／测试，各含 12 个完整月份。当前训练建立四条季度流，按 7—9 月、10—12 月、1—3 月、4—6 月整轮轮转；每条流从本组首月月初启动，真实月末才进入同组下一月；验证和测试仍各有 12 个月初场景。步长为 30 分钟、期限为 48 步；默认 `gamma=0.99`、`lambda_gae=0.97`、采样长度为 192。PG、ESS、DR 和队列容量默认按训练年标定；显式提供 `--config-dir` 时保留所给容量。实测数据场景不接受截短月份的 `--horizon`，住户数量与清单保持一致。
-
-数据场景每月月初采用既有明确初态。当前 UC／Consumer 策略从月初生成月内历史；更新网络后保留 SOC、任务、月累计 UC 用电、历史反馈和日历，普通批末保留 bootstrap，真实月末执行一次终端结算。`DatasetEnvFactory` 每个 seed 只对应一个完整月，不再提供月中规则暖启动。工厂合同绑定数据哈希、住户顺序、月窗口、配置、费率假设和相关代码，不依赖数据目录绝对路径。获取、清洗及时间口径详见 [Ausgrid 实验说明](AUSGRID.md)。以下命令仅验证数据与接口，不启动 Ray 或训练：
-
-```powershell
-.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --dataset datasets/ausgrid/processed/manifest.json --validate-data --output outputs/ausgrid-validation/interface
-```
-
-## 3. 动作概率与信息输入
-
-UC Actor 使用 RLlib `TorchCategorical`、`TorchDiagGaussian`、`TorchMultiDistribution`：先生成 PG、主动弃电和 DR 额度，再按资源掩码选择闲置／充电／放电，最后生成模式内功率。闲置三项储能功率均为零；充电分别生成 DER 和 PG 功率；放电只生成额度。DER 充电先取自身可行区间，PG 再取剩余充电空间，消除共同符号／强度门控，同时满足两路共享的物理上限。空电屏蔽放电，满电屏蔽充电。
-
-采集器保存模式、六维原始控制、边界、掩码和联合行为概率。`ActiveDiagGaussian` 只为官方高斯增加未激活坐标的点质量处理，这些坐标不计入 logp 或梯度。PPO 使用存储的模式和前缀重算概率，不重新采样。`map_uc_controls([mode, *raw_latents], ...)` 映射到原 v9 六维物理动作，Consumer 分布保持原实现。详见[建模第 13.2 节](../../environments/sn_energy_market/docs/v9/modeling_complete_zh.md)。
-
-实验入口通过 `model_settings()` 设置六个连续坐标初始均值 `[0.95, 0.02, 0.2, 0.2, 0.5, 0.5]`、标准差 `[0.08, 0.05, 0.2, 0.2, 0.2, 0.2]`、输出头权重尺度 `0.01`，模式偏置初始化为零。有效模式初始概率接近均匀，后续由 PPO 学习。第 5 个连续坐标只控制非负放电额度。
-
-Value 使用固定输出单位：UC 为 20、Consumer 为 10。网络输出乘该尺度后还原为环境奖励单位，价值损失按 `0.5 × mean(((V−target)/scale)²)` 拟合；GAE、bootstrap、实际奖励和候选评分继续使用原单位。报告中的 `value_rmse` 为原单位误差，`value_loss` 为缩放后的损失。
-
-Critic 的两层隐藏网络使用 `Linear → LayerNorm → Tanh`，UC Actor 改为三模式条件头。LayerNorm 按单个状态的隐藏维归一化，无跨批运行统计；已完全移除 UC 时间特征支路。逐批诊断保留预测／目标／实际多步奖励／bootstrap 分布、Tanh 饱和比例、裁剪前梯度范数及环境指标。
-
-正常训练每批先更新全部 Value，再更新当前阶段选中的 Actor。`--critic-epochs` 独立控制 Value 轮数，普通训练默认为 4，`--smoke` 默认为 1；`--epochs` 控制 Actor 轮数。Actor 使用 `lambda_gae=0.97`，训练与全部评价共用 `gamma=0.99`；独立的 `--critic-lambda` 默认为 1.0，Critic 使用本批实际多步回报，批末以采样时的旧 Value bootstrap，真实终止尾值为零。Critic 目标及行为概率在采样后固定；Critic 拟合后，在保存的当前与下一决策输入上重算 GAE，对整个学习批归一化一次，随后在 Actor epoch 间固定。消费者下一价值输入保留原 UC 公告，重算不重新抽取公告，也不改变 RNG、采样位置或价值回归目标。
-
-`critic_lambda` 写入学习契约，避免恢复时静默改变目标定义。每批全量固定目标的更新前后 loss、原单位 RMSE、实际参与更新的 Actor loss，以及候选回滚结果，实时写入运行目录下 `batch_losses.jsonl`。逐批绘图与字段定义见[目标分离与逐批日志](BATCH_CRITIC_TARGETS.md)。
-
-当前训练只使用已采集批次进行在线更新。额外 MC 预拟合接口和历史脚本已删除；完整月 MC 仅在 `evaluation.py` 中用于冻结验证，验证数据不进入梯度更新。
-
-消费者以自己的公告后观测生成削减、条件移峰、DER 来源比例和报价。采样记录保存本地 13 字段边界、条件区间和零宽掩码。条件区间使用本户队列、到期预留和柔性能力；零宽坐标执行确定值。
-
-| 网络 | 输入 |
-|---|---|
-| UC Actor、UC Value | 文档固定顺序的 `H+20` 聚合观测 |
-| 各消费者 Actor | 本户 `H+24` 公告后观测 |
-| 各消费者集中 Value | UC 聚合观测与固定消费者顺序的全部公告后观测拼接 |
-
-消费者集中价值输入仅由受信训练端构造。其中包含本期已发布的 UC 公告、逐户任务桶和月累计量；本期消费者行动与成交结果尚未发生。UC 网络接收的仍是聚合观测。UC Actor 将电量坐标转换为 `2*(E-Emin)/(Emax-Emin)-1`（零容量为 0），并用三个零初始化权重直接连接模式 logits；其他 Actor 输入与所有 Value 输入仍使用 `signed_log1p`。原始观测保留 kWh，采集、概率重算和导出推理使用同一转换，坐标与容量范围写入学习契约。
-
-UC 轨迹另存基础连续、模式、储能连续三个 `logp_parts`，优化仍对联合概率比裁剪。逐批日志 `modules.uc.mode_diagnostics` 保存实际 Actor minibatch 的分项比率、越界/平坦截断比例、模式头与 SOC 直连的解析策略梯度对照、各分支全局范数裁剪前后梯度、Adam 步数和参数变化。假设分支裁剪只作诊断，不改变优化损失。拟合后原始 GAE 保存为 `advantages_raw`，按 SOC/模式的样本覆盖在每批仅统计一次，epoch 重复访问另记；诊断随批次接受/回滚标记解释。诊断不采样、不优化、不进入 checkpoint 的可回滚状态。
-
-当前保留 SOC 初值、奖励和每轮学习预算，季度轮转改变跨轮访问顺序；不增加高 SOC 重采样。γ=0.99、Actor λ=0.97、384 步阶段合批及 Critic 后重算 GAE 均保留。已完成的历史实验与新八轮对照分别见 RESULTS.md。
-
-## 4. 一个物理时段与采样边界
-
-`MarketTrainingEnv.reset(seed)` 返回 UC 决策前观测。`uc_bounds()` 提供决策前资源边界，`publish([mode, *z])` 冻结公告并返回消费者观测、本地边界、集中价值输入及映射记录，时间保持不变。`step(consumer_actions)` 执行出清和结算，时间推进一次。
-
-UC 到消费者之间没有物理折扣；连续两个同类决策之间使用一次 `gamma`。下一消费者价值必须在下一次 UC 公告形成后计算。真正终止时追加环境定义的终端奖励并将 bootstrap 置零；采样切片保留合法下一状态的价值。
-
-候选与偏离评价必须完成有限回合，`evaluation_steps=None`，只有 `score_complete=True` 的结果可参与配对选优。当前能源实验使用 `gamma=0.99`，Ausgrid 按完整月份比较；短窗口与 Critic 尾值只用于诊断。连续 Runner 保留采样、追加及诊断功能，双层候选选择入口要求有限场景。
-
-`inventory_valued_config()` 启用固定终端库存估值 `v_E=eta_d * max(0, 0.35-throughput_cost)`，默认 0.3135 AUD/存储 kWh，显式正配置值保留。真实终点奖励追加一次 `v_E*(E_T-E_0)`，采样批末不结算。评分包含全部实际奖励及终端项；现金、初末电量、库存价值、两路充电与实际放电另列，库存价值不混入现金。该估值允许经济上合理的净放电，并非强制首末 SOC 相等。
-
-快照包含当前阶段、公告、SOC、消费者队列、月累计量、完整环境记录和随机状态。`get_state()` / `set_state()` 支持在已发布公告的阶段恢复。连续适配器在数据耗尽时返回明确标志，可调用 `append_profiles()` 追加连续时序；不会循环旧数据。当前命令行实验仍采用有限月回合，采样切片和外层训练轮次之间连续保留状态。Runner 的 `trajectory_periods` 随选定分支恢复，不受 RLlib 聚合计数广播影响；Algorithm 的 `sampled_periods` 统计所有实际 PPO 分支预算。
-
-季度分组由 `DatasetEnvFactory.training_seed_groups` 提供，`train.py`、`batch_critic_pilot.py` 共用原生 `StackelbergEnvRunner`。未提供 `train_seed_groups` 时，全部训练种子形成单组。分组必须恰好划分训练种子集合。每轮只选择一组，四轮后恢复同一流的暂停点；批内及四个学习阶段不切流。真实月末在本组内换月，组末循环。季度轮转不生成终止信号，不改变 bootstrap。
-
-每条流保存环境、观测和私有动作 RNG，Learner shuffle 使用独立 RNG。候选快照与 checkpoint 保存全部流、当前编号及各流提交步数。轮转均衡提案轮次，SOC 覆盖和最终保留轮次仍须实测。旧采样契约 checkpoint 不自动迁移；本次 D24 的一次性迁移只存在于独立对照脚本。
-
-## 5. 内外层更新与候选评价
-
-每轮先冻结 UC Actor，更新消费者 Actor；随后冻结消费者 Actor，更新 UC Actor 产生候选。两类阶段都使用新采集的全体轨迹更新 UC 和所有消费者的 Critic。Actor 冻结时其梯度为 `None`，参数、Adam 动量和步数保持不变；Actor 阶段所有 Value 也同样冻结。实现通过原生 Learner 的 `critic`／`actor` 更新阶段选择损失，不改变六维 UC 动作、观测、物理模型或各自奖励。
-
-消费者前置适应推进主轨迹，结束后保存公共快照。UC 提案从该快照开始，多个提案沿用逐次 UC 更新；提案采样位置不直接提交。候选集合包含现有 UC。每个响应分支恢复公共环境、观测、随机状态，以及相同的消费者 Actor、Value 和两套 Adam，明确丢弃提案期间消费者 Value／Adam 的进展；保留对应候选 UC 的 Actor、Value 和 Adam。响应期间继续更新所有 Critic，各候选获得相同响应预算。候选接受使用同 seed 验证场景的配对 UC 回报差正态近似区间（默认 `z=1.96`）：下界超过最小改善量才进入可接受集合，再选择平均改善最大的候选。选定策略组合及其响应分支终点一起提交；未选分支只计入计算预算。
-
-验证与偏离搜索均在退出时恢复主轨迹；冻结评价还核对全部 Learner 和 Adam 状态。算法保留当前学习契约核对，源码或数据协议变化后不自动迁移旧 checkpoint。
-
-当前固定小规模入口为 `batch_critic_pilot.py`，从 seed 42 的混合策略初值配置 3 轮：4,608 个全部分支 PPO 时段、2,304 个主轨迹时段、零额外 MC 训练采样。同阶段两个 192 步单位连续采样后合成 384 步学习批，三轮共 12 批；Actor 2 epoch、全部 Critic 4 epoch、minibatch 32。每个 Critic 每批执行 48 次、3 轮共 576 次优化，参与阶段的 Actor 每批执行 24 次，分支回滚后保留的步数另计。候选评分和冻结表现均运行四个完整验证月，测试集继续保留；新结果目录为 `outputs/ausgrid-hybrid-storage/20261022-phase-batch-pilot/`。历史来源模型和早期基线摘要作为依赖保留，清单见[结果索引](RESULTS.md)，其动作、折扣和窗口协议不同。新入口不再要求与旧 Actor 初值、旧评分完全相同。
-
-已完成的中长期验证使用不加 LayerNorm 的旧结构及相同候选选择规则，显式传入 `run_pilot(..., outer_rounds=72)`：576 批、36,864 个全部分支 PPO 时段、18,432 个主轨迹时段；每批更新设置保持不变。第 0、3、12、24、48、72 轮冻结评价，第 3 轮与已保存的小规模结果精确核对。完整月 Critic 轨迹同时累计供电和现金指标，整月现金按真实天数折算为 AUD/日，月初 48 小时窗口仍单列。验证不参与额外梯度更新，测试集不加载。每个验证节点保存 checkpoint，自动保留最近两个，最终另行保存完整状态和执行 Actor。详见[中长期实验](YEAR_STUDY.md)。
-
-当前入口只依赖 `train.py` 的通用设置与序列化、`evaluation.py` 的冻结评价、`training_audit.py` 的采样／梯度／Adam 审计。上一轮报告及原始输出作为对照保留，其运行源码由提交 `ea3d322` 定位；3 轮小规模结果绑定 `ed56de0` 的运行来源。每次新运行在开始时记录代码哈希，不改写历史结果。
-
-消费者偏离搜索固定 UC 和其他消费者的 Actor，仅更新被检查消费者的 Actor，同时全部 Critic 继续跟踪当前联合策略；结束后恢复完整参考快照。候选与偏离报告记录实际搜索预算和已发现的收益改善。微型合成测试用于验收训练、回退、恢复和评价链路；结果报告明确搜索预算与区间近似，不据此宣称均衡。
-
-每轮在候选生成前及最终选定策略组上分别搜索消费者偏离。最终策略组用于联合停止检查：消费者已发现改进、UC 候选改进、Actor 参数 RMS 变化和配对区间半宽同时达到阈值，并连续维持指定轮数，入口才提前停止。默认阈值为 `consumer_gain=0.1`、`uc_gain=0.1`、`policy_change=0.001`、`confidence_half_width=0.1`，连续轮数为 3；两类改进和区间半宽以元等值计，参数 RMS 无量纲。通过 `StackelbergConfig.training(stopping_tolerances=..., stopping_patience=...)` 配置，`stopping_patience=0` 使用固定外层预算。未搜索偏离或缺少区间时，联合停止条件不会通过。
-
-算法通过 `ScenarioFactory`、`TrainingEnvironment` 结构接口连接场景，只要求公告、物理推进、状态恢复和固定输入规格。`paired_gain`、`select_candidate`、`generalized_advantages` 与 `stopping_status` 是独立函数。专用算法代码不导入 `snmarket` 或 `experiments`；现有六算法和 `common` 无需加入能源场景分支。
-
-主要预算参数如下：
-
-| 参数 | 含义 |
-|---|---|
-| `--outer-rounds` | 上层候选选择轮数 |
-| `--inner-updates` | 每轮初始消费者适应的采样单位数，合并为一批学习 |
-| `--response-updates` | 每个候选响应的采样单位数，合并为一批学习 |
-| `--candidates` | 新 UC 候选数量，现有策略另行参与比较 |
-| `--proposal-updates` | 每个新候选的 UC 采样单位数，合并为一批学习 |
-| `--deviation-updates` | 每个消费者偏离搜索的采样单位数，合并为一批学习 |
-| `--rollout-steps` | 采样单位长度；实际学习批长 = 它 × 该阶段采样单位数 |
-| `--epochs`、`--critic-epochs`、`--minibatch-size` | Actor / Critic 轮数与批内切分 |
-| `--critic-lambda` | 独立 Critic 目标参数，默认 1.0 |
-
-## 6. 输出与可复现性
-
-每次运行写入独立目录：
-
-| 文件或目录 | 内容 |
-|---|---|
-| `experiment.json` | 市场配置、完整学习契约（含折扣、PPO、响应预算和候选选择参数）、种子切分、代码及建模文档 SHA-256、外生轨迹元信息 |
-| `round-XXXX.json` | 每轮训练和候选选择结果 |
-| `held_out_evaluation.json` | 保留测试集上的冻结策略表现 |
-| `deviation_search.json` | 消费者单边偏离搜索结果 |
-| `final-checkpoint/` | 可恢复完整训练状态 |
-| `actors/` | 执行侧策略导出 |
-| `result.json` | 最终输出路径和评价结果 |
-
-金额与元等值奖励由环境统一结算。实验汇总现金不再乘 `delta_t`；功率指标转换成累计电量时乘一次时段小时数。折扣回报、实际现金和各户成本分别记录。
-
-## 7. 验证入口
-
-```powershell
-.\.venv\Scripts\python.exe -B -m pytest experiments/sn_energy_market/tests -q
-.\.venv\Scripts\python.exe -B -m pytest RLAlgo/tests -q
-```
-
-适配器测试覆盖公告时刻、下一公告的消费者价值状态、待执行公告快照、终端与连续数据耗尽、追加数据、种子匹配、信息边界、原始潜变量留存及账目单位。算法测试检查概率重算、GAE、独立参数更新、候选公平比较、快照恢复和导出执行。
-
-独立推理复用相同输出接口：
-
-```python
-from raymarl.algorithms.stackelberg.inference import ActorBundle
-
-actors = ActorBundle("outputs/snmarket-training/smoke/actors")
-env = factory(seed)  # 同一市场设置下的实验适配器
-observation = env.reset(seed)
-decision = env.publish(actors.uc_controls(observation, env.uc_bounds()))
-actions = {
-    key: actors.consumer_action(key, decision.consumer_observations[key], decision.consumer_bounds[key])
-    for key in env.consumer_ids
-}
-transition = env.step(actions)
-```
-
-`ActorBundle` 不创建 Value、优化器或模拟器；UC 返回 `[mode, *raw_latents]`，显式输出层生成六维物理动作；消费者输出四维物理动作。旧六维高斯 checkpoint 不能直接恢复到新网络，旧实验由当时源码复现。
-
-## 8. 三模式储能修改的核验（2026-10-21）
-
-此前接入阶段的 319 项相关检查通过：310 项单元检查、4 项原生两阶段环境检查、5 项本地 Ray CPU 训练集成检查。覆盖空电／满电和来源边界、采集与 PPO 联合概率一致、未激活坐标零梯度、候选分支恢复、checkpoint 精确重放及 Actor 导出。该阶段未测 CUDA；本次 V9 验证已覆盖 CUDA，见第 13 节。
-
-固定电价算例验证了库存结算：只看第一个时段时，消耗初始电量带来 0.33 的奖励优势；真实终点扣减 0.33 库存价值后，完整回合与同价 PG 供电的奖励一致，终端项只记一次。
-
-冻结初始化策略另运行一个完整 Ausgrid 验证月（seed 10042，1,488 个半小时）：闲置 487 次、充电 502 次、放电 499 次，DER 充电 90.7314 kWh、PG 充电 253.4044 kWh、实际放电 315.4900 kWh。逐期重算 logp 无差异，未发生空电放电或满电充电的非法模式，真实终止一次且 bootstrap 为零。该核验没有更新策略，也没有加载测试集，数值用于核对新接口和完整月结算。原始记录见 [full-month.json](../../outputs/snmarket-training/hybrid-storage-verification-20261021/full-month.json)。
-
-新策略的训练曲线由 `plot_batch_losses.py` 读取实际日志生成；完整月和版本间对比使用 `plot_hybrid_storage.py`、`plot_storage_round_comparison.py`。旧三轮专用汇总工具已删除。
-
-此前已按用户要求完整撤销供电／现金可行性回调、轮初评价缓存和全拒绝恢复路径。默认门槛流程中，新 UC 候选不满足原有配对回报规则时直接选择候选 0，前置消费者适应及选中响应分支接续。供电和现金仍报告，但不参与新增硬筛选；未实施此前讨论的首批 Critic 保留方案。
-
-
-## 9. 延长学习范围（2026-10-22，已完成的前一版实验）
-
-现有 γ 改为 0.99、Actor λ 改为 0.97、数据批长改为 192；不增加超参数、网络参数或奖励项。候选、偏离评价和完整月 MC 使用 Runner 的同一 γ，现金和物理量继续未折扣汇总。24 小时后 TD 残差对优势的权重约 0.1431，旧 10 轮为 0.00727；192 步批首的 Critic 尾值系数约 0.1452。完整月折扣评分偏重前几天，月末库存项的月初权重很小，因此全月现金、失供和初末 SOC 仍须并列审查。
-
-前一版 10 轮已完成，目录为 `outputs/ausgrid-hybrid-storage/20261022-long-horizon-10rounds/`：80 批、15,360 个 PPO 分支时段、7,680 个主轨迹时段、每个 Critic 1,920 次实际更新。样本和优化步数为 `20261021-10rounds` 的三倍。两版结果及冻结源码保留原样。当前新的阶段合批协议见下节。
-
-无额外奖励的 SOC 方法及文献依据见 v9 第 26.5 节：先落实长轨迹和 GAE 信用分配；2026-10-23 接入 SOC 容量归一化与模式直连，单调动作头仍未采用。
-
-
-## 10. 同阶段合批与更新后 GAE（2026-10-22，10 轮已完成）
-
-保留 γ=0.99、Actor λ=0.97、三模式、六维物理动作、网络和奖励。同阶段固定联合行为策略，`collect(192 * 2)` 连续采集 384 步，使用 RLlib shuffle/minibatch 完成 Critic 拟合，再重算并归一化 GAE，最后更新选定 Actor。第 192 步没有额外截断或更新；真实月末分段，384 步批末使用合法下一状态 bootstrap。
-
-Critic 拟合目标保留采样时的旧尾值，拟合期间固定。Actor GAE 使用拟合后的 Critic，但始终使用原动作、行为 logp、条件边界及保存的下一 UC／消费者价值输入。重算使用 `no_grad`，不采样动作、不推进环境。整批优势仅归一化一次，Actor 的两个 epoch 共用同一份优势。该改动减少每次仅追逐一个短批均值的问题，并让当前 Actor 用到本批拟合结果；对应 10 轮实测结果由 [RESULTS.md](RESULTS.md) 汇总。
-
-| 每 10 轮预算 | 前一版 | 本次实现 |
+| 指标 | 每轮 | 72轮 |
 |---|---:|---:|
-| 学习批数 × 每批时段 | 80 × 192 | 40 × 384 |
-| PPO 全部分支时段 | 15,360 | 15,360 |
-| 主轨迹时段 | 7,680 | 7,680 |
-| 每个 Critic 实际 Adam 步数 | 1,920 | 1,920 |
-| UC Actor 提案实际 Adam 步数 | 240 | 240 |
+| 学习批数 | 4 | 288 |
+| 所有学习分支物理时段 | 6144 | 442368 |
+| 提交轨迹物理时段 | 3072 | 221184 |
+| 每个Critic实际Adam步数 | 384 | 27648 |
+| UC Actor实际及保留步数 | 48 | 3456 |
+| 每个Consumer Actor实际步数 | 144 | 10368 |
+| 每个Consumer Actor保留步数 | 96 | 6912 |
 
-每轮四批分别为消费者适应、UC 提案、旧 UC 响应、新 UC 响应。每批 12 个 minibatch，Critic 4 epoch、Actor 2 epoch，回滚后保留步数另列。合并前后在 minibatch 32 可整除当前批长的条件下优化步数一致；其他自定义预算按实际整批切分计算。
+回滚后每个UC Critic保留288×72步，每个Consumer Critic保留192×72步。实际执行和最终保留是不同计数。候选评价与最终冻结评价不算入PPO采样量，均不更新参数。本配置不做消费者偏离搜索，也不启用联合停止准则。
 
-候选恢复规则不变：相同公共消费者网络及两套 Adam、环境和 RNG，配上各候选 UC 状态；只提交选中响应分支。学习契约的 `update_protocol` 升级，旧逐段学习 checkpoint 不直接续训。新的固定输出目录为 `20261022-phase-batch-10rounds`，程序在目录已存在时拒绝覆盖。该目录已完成 10 轮；第 8 轮中断及预算内恢复的额外实际采样 / 优化量保留在原始报告中。计划 72 轮的新运行只完成 1 轮后按用户要求停止，见[结果索引](RESULTS.md)。
+## 运行与产物
 
-## 11. SOC 表达的 10 轮对照（2026-10-23，提交后启动）
+全部运行产物位于 `D:/Codex/2026-10-27/raymarl-v9-always128-72/`，包括验证、运行时、临时文件和历史归档。正式运行子目录为 `training/`。
 
-输出 `outputs/ausgrid-hybrid-storage/20261023-soc-mode-10rounds`，参照 `20261022-phase-batch-10rounds`。从 seed 42 重新初始化，月初、初始电量及空队列规则不变；保留 40×384 步、15,360 个 PPO 时段、7,680 个主轨迹时段、每个 Critic 1,920 次优化和 UC 提案 Actor 240 次优化。输入表达变化可能改变初始动作，两版初始策略分别汇总。上一版故障恢复的额外开销不计入有效路径预算，也不隐去。
+`protocol.json`保存Git提交、源码哈希、完整学习契约及预算；`initialization.json`记录零起点；逐轮JSON和逐批JSONL记录实际损失、PopArt、季度游标和优化步；`training-all-branches.csv`保留真实分支轨迹；`status.json`原子更新状态。每轮保存完整checkpoint并保留最近两个，最后导出独立Actor。
 
-`audit_soc_mode.py` 读取保存的权重和固定 5,904 状态，复核原概率后，仅扫描 5%–95% 的内部 SOC；其他观测、基础额度与可行掩码保持，统计模式概率变化和 argmax 切换。该条件响应探针不推进环境，不算物理反事实收益，也不把空电/满电强制切换算成学会调度。后处理增加四张 SOC 响应、模式梯度、裁剪和 SOC 分组优势图，连同完整 SOC、UC/Consumer loss、每日收益与失供形成 17 张核心对照图；逐 minibatch 和优势数据另存 CSV。旧版缺失的逐次模式诊断不补造。完成通知由本聊天的低频自动跟进负责。
+第72轮后验证checkpoint逐字段回放，再运行四个完整验证月×三个动作种子的冻结MC评价。汇总原奖励单位Critic误差、现金、供能与消费者成本。MC标签不进入训练，测试集不加载。只有72轮、最终checkpoint、Actor导出、回放及冻结评价全部完成后，状态才写为completed。
 
+运行锁与已有status检查防止重复启动。失败写明已完成轮数和异常，不自动重启、不扩展预算。定时任务检查同一运行，状态未变时保持静默，完成或异常时通知。恢复只接受完全一致的当前学习契约；不保留历史版本迁移或放宽检查逻辑。
 
-## 12. D24 八轮回退对照
+## 验证与性能
 
-本节记录已完成的历史运行入口。原始源码冻结在该实验的 sources 目录；当前源码包含 V9 新学习合同，复现历史结果应使用其冻结源码，不能覆盖旧结果目录。
+检查四流样本及真实终止、独立GAE/多步目标、行为logp、梯度边界、PopArt输出补偿、Consumer公共状态、权重/Adam/RNG恢复、串并行一致性和完整月评分。长跑前还须完成128维真实配置的隔离整轮与磁盘checkpoint回放。
 
-入口为 `python -B -m experiments.sn_energy_market.rollback_comparison preflight`，通过后运行 `python -B -m experiments.sn_energy_market.rollback_comparison all`。按 gate → always 串行各 8 轮，然后冻结评价；目标是继续同一 D24 状态，不能作为通用新训练命令。输出固定为 `D:/Codex/2026-10-25/critic-actor-d-576-uc-actor/outputs/rotation-rollback-8rounds`；已有运行不会被覆盖或自动续加预算。
-
-两组统一季度轮转、全部 UC Actor 更新和完整候选响应评价，只改变候选保留规则：gate 使用 D 的 z=1，always 始终选候选 1并记录原门槛会选谁。每组 32 批、12,288 个分支时段、6,144 个提交轨迹时段，UC Actor 执行 192 次、每个 Critic 1,536 次优化。生产默认门槛 z=1.96 保持。
-
-预检查比较原实现导出的四季度轨迹，核对参数与 Adam 哈希；运行冻结源码并逐轮核对，最后检查原生 checkpoint 精确回放。模式评价使用 24 个相同状态、每模式 4 次配对续接和普通策略控制，首步采用各自条件功率均值；另有四个完整验证月各 3 个动作种子的 MC。报告概率加权遗憾和均匀策略参照、SOC 条件概率、季度保留次数及现金/服务/消费者成本。完整 MC 不进入训练。
-
-## 13. V9 always 混合采样实验
-
-本节记录已完成实验的调用顺序。此固定入口不用于覆盖原结果；重新验证时应从输出目录中的冻结源码建立隔离副本，保持数据布局并配置独立输出目录。
-
-专用入口为 `python -B -m experiments.sn_energy_market.critic_sampling_study <stage>`，按 `preflight`、`frozen`、`train`、`evaluate`、`modes` 顺序分别启动独立 Python 进程。入口在导入 Ray 前配置各阶段独立令牌及运行目录，所有新增产物固定保存在 `D:/Codex/2026-10-26/raymarl-v9-critic/`。从项目根目录运行，`PYTHONPATH` 包含项目根、`RLAlgo/src` 和 `environments/sn_energy_market/src`。正式训练目录已有状态时拒绝覆盖或自动重跑。
-
-新协议仅在此实验显式启用：`phase_sampling="all_streams"`、`rollout_length=192`、三种阶段的 updates 均为 4、Critic 2 epoch、Actor 1 epoch、minibatch 32。阶段总量为 768，四流各 192；默认入口仍用单流 384。流边界切断 GAE/target 递推但保留合法尾部自举；真实终止尾值为零。Critic 更新后按原片段边界重算 Actor GAE，并在整批归一化。
-
-本次 `deviation_updates=0`。多于一条流的混合配置要求该值为零；单流偏离搜索保留，显式重启月份前会先切换到种子所属流，完成搜索后恢复原状态。
-
-固定 D24 起点续训八轮至 32，always 保留新候选，完整执行两次响应和两候选评分。新增全部 PPO 时段 24,576、提交轨迹 12,288；每个 Critic 执行 1,536 次、UC Actor 执行及保留 192 次、每个 Consumer Actor 执行 576 次。历史 always32 优化步数相同、环境采样只有一半，作为主要对照；ABCD24 和 gate32 分别提供起点与历史背景。
-
-`preflight` 检查真实轨迹、参数/Adam、浮点等价和三次计时；`frozen` 比较固定数据的 12 个顺序拟合与 3 个混合拟合；后两阶段分别执行完整月 MC 和 24 个共同状态模式续接。只在冻结评价使用 MC 标签，不加载测试集。结果与限制见 [V9_ALWAYS.md](V9_ALWAYS.md)。
+128维热态多次测速验收：1536步采样不超过40秒，分支保存/恢复各不超过0.2秒，两候选×两个完整月评价不超过80秒。worker首次启动、GPU学习及完整磁盘checkpoint单独计时。结果保存在D盘验证目录，不把历史32维的单次成绩当作当前结果。

@@ -110,6 +110,7 @@ def validate_episode(factory, seed, split):
 def validate_sampling(factory, budget, splits):
     """Exercise the actual RLModule/EnvRunner path; weights remain untouched."""
     import torch
+
     from raymarl.algorithms.stackelberg import StackelbergConfig
     from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 

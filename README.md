@@ -25,7 +25,6 @@ RayMARL/
 
 虚拟环境及运行状态沿用主目录下的 `.venv*`、`.runtimes`、`.ray`、`.tmp`，避免已有运行环境的路径失效。数据集、输出、机器运行脚本和归档仍按原有规则排除在 Git 提交之外。
 
-2026-10-26 起，本次 V9 always 的新增运行时、测试临时文件和实验产物统一写入 `D:/Codex/2026-10-26/raymarl-v9-critic/`。历史目录只保留恢复和比较所需材料；实际清理及新结果见[结果索引](experiments/sn_energy_market/RESULTS.md)。
 
 ## 安装与运行
 
@@ -63,9 +62,7 @@ RayMARL/
 .\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/train.py --smoke
 ```
 
-该命令完成消费者适应、UC 候选、重新响应、偏离搜索、冻结测试和保存导出。正式实验、恢复及推理接口见[训练说明](experiments/sn_energy_market/TRAINING.md)，实验结果见[保留结果索引](experiments/sn_energy_market/RESULTS.md)。
 
-当前双层算法每批更新全部 Critic，再更新选定 Actor；Critic 保留 LayerNorm 和逐批诊断。UC 时间支路与供电／现金硬筛选已完全回退，新候选不合格时选择候选 0。月初连续采样、真实月末重置、动作和环境保持。最近三次完整储能训练、历史最长 72 轮及最新离线对照见[结果索引](experiments/sn_energy_market/RESULTS.md)。环境一致项、公共日历差异和异常处理精简见[实现审核](environments/sn_energy_market/docs/v9/implementation_audit_zh.md)。
 
 ## 本地版本管理
 
@@ -79,3 +76,5 @@ git diff
 git log --oneline --decorate -5
 git show 环境建模基线-20261018 --stat
 ```
+
+当前正式训练采用四季度各384步、γ=0.997、在线PopArt、minibatch32、两层128维网络，从零运行72轮。入口与预算见[训练协议](experiments/sn_energy_market/TRAINING.md)。运行、测试及归档产物统一写入D:/Codex/2026-10-27/raymarl-v9-always128-72/。当前只提交算法实现分支，不合并main。

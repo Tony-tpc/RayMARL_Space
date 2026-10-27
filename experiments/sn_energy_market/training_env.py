@@ -184,6 +184,17 @@ class MarketTrainingEnv:
     def get_state(self) -> MarketSnapshot:
         return MarketSnapshot(self.engine.profiles, self.engine.get_state())
 
+    def temporary_announcement(self):
+        return self.engine.temporary_announcement()
+
+    def branch_state(self):
+        return MarketSnapshot(self.engine.profiles, self.engine._branch_state())
+
+    def restore_branch(self, snapshot):
+        engine = EnergyMarketEngine(self.config, snapshot.profiles)
+        engine._restore_branch(snapshot.engine)
+        self.engine = engine
+
     def set_state(self, snapshot: MarketSnapshot) -> None:
         engine = EnergyMarketEngine(self.config, snapshot.profiles)
         engine.set_state(snapshot.engine)

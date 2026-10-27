@@ -16,6 +16,8 @@ from torch import nn
 from torch.distributions import Beta
 from torch.nn import functional as F
 
+from .popart import register_popart
+
 BOUNDS_FIELDS = (
     "cut_max_kw",
     "due_kw",
@@ -158,6 +160,29 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         if not self.inference_only:
             critic_dim = obs_dim if self.role == "uc" else self.model_config["critic_dim"]
             self.value = ValueNetwork(critic_dim, hidden)
+            if self.model_config.get("online_popart", False):
+                register_popart(self.value, self._initial_value_scale)
+
+    @property
+    def value_scale(self):
+        if hasattr(self, "value") and hasattr(self.value, "popart_scale"):
+            return float(self.value.popart_scale)
+        return self._initial_value_scale
+
+    @value_scale.setter
+    def value_scale(self, scale):
+        self._initial_value_scale = float(scale)
+
+    @torch.no_grad()
+    def set_state(self, state):
+        super().set_state(state)
+        # RLlib's generic conversion downcasts float64; keep exact EMA recovery.
+        if hasattr(self, "value") and hasattr(self.value, "popart_scale"):
+            for name in ("mean_ema", "second_ema", "mass"):
+                key = "value.popart_" + name
+                if key in state:
+                    buffer = getattr(self.value, "popart_" + name)
+                    buffer.copy_(torch.as_tensor(state[key], device=buffer.device, dtype=buffer.dtype))
 
     def get_non_inference_attributes(self):
         # Native runner broadcasts also serve GAE sampling and need fresh values.
@@ -390,6 +415,8 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
     def compute_values(self, batch, embeddings=None):
         """Return original reward units; only the network's output unit is scaled."""
         inputs = batch[Columns.OBS] if self.role == "uc" else batch["critic_obs"]
+        if hasattr(self.value, "popart_scale"):
+            return self.value(inputs.float()) * self.value.popart_scale + self.value.popart_shift
         return self.value(inputs.float()) * self.value_scale
 
     def _forward(self, batch, **kwargs):

@@ -349,16 +349,15 @@ def main(argv=None):
         return report
     output = (
         args.output
-        or ROOT
-        / "outputs/snmarket-training"
+        or Path("D:/Codex/snmarket-training")
         / datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     ).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    temporary = ROOT / ".tmp" / "market-training"
+    temporary = output / "runtime"
     temporary.mkdir(parents=True, exist_ok=True)
     os.environ["TMP"] = os.environ["TEMP"] = str(temporary)
     os.environ["RAY_USAGE_STATS_ENABLED"] = "0"
-    secret = ROOT / ".ray" / "auth_token"
+    secret = temporary / "auth_token"
     secret.parent.mkdir(exist_ok=True)
     if not secret.exists():
         secret.write_text(secrets.token_hex(32), encoding="utf-8")
@@ -366,6 +365,7 @@ def main(argv=None):
 
     import ray
     import torch
+
     from raymarl.algorithms.stackelberg import StackelbergConfig
 
     torch.set_num_threads(args.torch_threads)
@@ -392,6 +392,7 @@ def main(argv=None):
             .rl_module(model_config=model_settings(budget["hidden_dim"]))
             .learners(num_learners=0, num_gpus_per_learner=int(args.device == "cuda"))
             .training(
+                execution_workers=4 if args.dataset and len(factory.training_seed_groups) == 4 else 0,
                 gamma=budget["gamma"],
                 lambda_gae=budget["lambda_gae"],
                 critic_lambda=budget["critic_lambda"],

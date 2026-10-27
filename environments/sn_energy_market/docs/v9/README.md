@@ -1,14 +1,8 @@
-# 六维 UC 调度模型
+# 六维UC调度模型
 
-[完整建模文档](modeling_complete_zh.md)是当前规格：环境式（1）—（29）保持，训练第 14 节已同步月初连续采样、全部 Critic 更新、独立多步目标、候选快照和逐批 loss。
+- [完整建模](modeling_complete_zh.md)与[离线HTML](modeling_complete_zh.html)：物理、市场、奖励和当前学习接口。
+- [公式与实现映射](formula_implementation_map_zh.md)：维护中的数学定义、实现和测试。
+- [实现边界](implementation_audit_zh.md)：建模与程序接口的对应及经济性质边界。
+- [训练协议](../../../../experiments/sn_energy_market/TRAINING.md)：当前V9 always、四流384步、在线PopArt、128维网络与72轮预算。
 
-[打开已渲染 HTML](modeling_complete_zh.html)：含目录和公式 SVG，可离线阅读。Markdown 是内容源文件，HTML 随它重新生成。
-
-- [公式—实现—测试映射](formula_implementation_map_zh.md)：物理、结算、输入边界与维护中的测试。
-- [环境验证基线](full_validation_current_commit_zh.md)及[机器汇总](full_validation_current_commit.json)：提交 `33f27b7` 的完整规模验证，保留原始哈希。
-- [训练协议](../../../../experiments/sn_energy_market/TRAINING.md)：当前接口、预算与运行方式。
-- [中长期实验](../../../../experiments/sn_energy_market/YEAR_STUDY.md)：同一算法的 72 轮训练与固定节点验证。
-- [保留结果索引](../../../../experiments/sn_energy_market/RESULTS.md)：最近三次完整训练、最长 72 轮、最新冻结 Critic 对照及已停止运行。
-- [实现审核](implementation_audit_zh.md)：当前公式核对、公共日历差异与异常处理精简。
-
-旧版本模型、过时 HTML、文档修改过程记录及历史 verifier 已移出当前目录，历史内容由 Git 查阅。当前 HTML 保留为阅读交付物。
+历史实验过程和结果存放于D:/Codex；代码树只维护当前规格与必要测试。

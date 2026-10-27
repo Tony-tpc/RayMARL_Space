@@ -1,20 +1,6 @@
-"""Read saved UC weights and measure SOC response, without sampling or learning."""
-
-from __future__ import annotations
-
-import hashlib
-import json
-import sys
-from pathlib import Path
-
-import gymnasium as gym
+"""Frozen SOC response diagnostic, independent of historical experiments."""
 import numpy as np
 import torch
-from ray.rllib.core.rl_module.rl_module import RLModuleSpec
-
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "RLAlgo/src"))
-from raymarl.algorithms.stackelberg.rl_module import StackelbergRLModule
 
 
 @torch.no_grad()
@@ -50,51 +36,3 @@ def probe(module, obs, bounds, base, soc_input):
     }
 
 
-def main(output, previous):
-    output, previous = Path(output), Path(previous)
-    protocol = json.loads((output / "protocol.json").read_text(encoding="utf-8"))
-    source = Path(protocol["fixed_state_probe_source"])
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == protocol["fixed_state_probe_sha256"]
-    paths, results = [source, output / "protocol.json"], {}
-    final_round = json.loads((output / "report.json").read_text(encoding="utf-8"))["outer_rounds"]
-    system = protocol["physical_config"]["system"]
-    torch.set_num_threads(1)
-    with np.load(source) as data, torch.random.fork_rng(devices=[]):
-        obs, bounds = torch.tensor(data["obs"]), torch.tensor(data["bounds"])
-        base = torch.tensor(data["controls"][:, [0, 1, 5]])
-        for label, directory, number in (("previous_initial", previous, 0), ("previous", previous, 10),
-                                         ("initial", output, 0), ("round3", output, 3), ("current", output, final_round)):
-            report_path = directory / "report.json"
-            contract = json.loads(report_path.read_text(encoding="utf-8"))["learning_contract"]
-            transform = contract["input_transform"]
-            metadata = transform.get("uc_actor_soc") if isinstance(transform, dict) else None
-            config = {**contract["model"], "role": "uc"}
-            if metadata is not None:
-                config["soc_input"] = metadata
-            module = RLModuleSpec(
-                module_class=StackelbergRLModule,
-                observation_space=gym.spaces.Box(-np.inf, np.inf, (obs.shape[1],), np.float32),
-                action_space=gym.spaces.Box(-np.inf, np.inf, (6,), np.float64), model_config=config,
-            ).build()
-            state_path = directory / f"data/uc-state-{number:04d}.npz"
-            with np.load(state_path) as state:
-                module.load_state_dict({key: torch.tensor(state[key]) for key in state.files}, strict=True)
-            soc_input = metadata or {"index": 2, "min": system["ess_energy_min_kwh"],
-                                     "max": system["ess_energy_capacity_kwh"]}
-            actual, result = probe(module, obs, bounds, base, soc_input)
-            fixed_path = directory / f"data/fixed-state-probe-{number:04d}.npz"
-            with np.load(fixed_path) as fixed:
-                np.testing.assert_allclose(actual, fixed["probs"], atol=1e-7, rtol=0)
-                result["fixed_probability_replay_max_error"] = float(np.abs(actual - fixed["probs"]).max())
-            results[label] = result
-            paths.extend((report_path, state_path, fixed_path))
-    target = output / "soc-mode-audit.json"
-    target.write_text(json.dumps({"policies": results, "outer_rounds": final_round, "no_sampling_or_learning": True,
-        "scope": "interior SOC partial response; fixed other observations, base controls and feasibility",
-        "input_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}},
-        ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
-    print(json.dumps({"soc_mode_audit": str(target)}), flush=True)
-
-
-if __name__ == "__main__":
-    main(*sys.argv[1:])

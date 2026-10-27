@@ -8,6 +8,7 @@ from ray.rllib.core.columns import Columns
 from ray.rllib.core.learner.torch.torch_learner import TorchLearner
 
 from .mode_diagnostics import gradient_norms, mode_statistics, soc_advantages, summarize_minibatches
+from .popart import update_popart
 from .runner import generalized_advantages
 
 
@@ -45,7 +46,16 @@ class StackelbergTorchLearner(TorchLearner):
             self._pending_mode_diagnostics = {}
             if update_phase == "critic":
                 self._critic_gradient_norms = {}
-            elif update_phase == "actor":
+            if update_phase in {"critic", "joint"}:
+                batch = kwargs.get("batch", args[0] if args else None)
+                if batch is None:
+                    batch = getattr(kwargs.get("training_data"), "batch", None)
+                if batch is not None:
+                    for key, data in batch.policy_batches.items():
+                        value = self.module[key].unwrapped().value
+                        if hasattr(value, "popart_scale"):
+                            update_popart(value, data["value_targets"])
+            if update_phase == "actor":
                 batch = kwargs.get("batch", args[0] if args else None)
                 # LearnerGroup wraps local batches in RLlib TrainingData before forwarding.
                 if batch is None:
@@ -126,6 +136,11 @@ class StackelbergTorchLearner(TorchLearner):
             )
             inputs = data[Columns.OBS] if module.role == "uc" else data["critic_obs"]
             diagnostics = {"tanh_saturation": module.value.saturation(inputs.float())}
+            if hasattr(module.value, "popart_scale"):
+                diagnostics["popart"] = {
+                    name: float(getattr(module.value, "popart_" + name))
+                    for name in ("shift", "scale", "mass", "updates")
+                }
             series = {"prediction": predictions, "target": data["value_targets"]}
             if "value_bootstrap" in data:
                 series.update(

@@ -27,10 +27,9 @@ def test_frozen_month_validation_restores_sampling_and_rng(tmp_path, monkeypatch
     from dataclasses import replace
     from types import SimpleNamespace
 
-    from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
-
     from experiments.sn_energy_market import evaluation
     from experiments.sn_energy_market.training_env import MarketEnvFactory
+    from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
     from RLAlgo.tests.test_stackelberg_algorithm import configuration
     from RLAlgo.tests.test_stackelberg_sampling import assert_batches_equal
 

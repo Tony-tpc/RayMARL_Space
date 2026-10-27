@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import threading
+from contextlib import contextmanager
 from dataclasses import asdict, replace
 from datetime import datetime
 from uuid import uuid4
@@ -60,6 +61,7 @@ class EnergyMarketEngine:
         self._phase = Phase.UC_TURN
         self._pending_plan = self._pending_offer = self._pending_raw_uc = None
         self._candidate_signature = None
+        self._temporary_announcement_active = False
         self._records = {}
         self._payment_keys = set()
         self._rng = np.random.default_rng()
@@ -192,6 +194,27 @@ class EnergyMarketEngine:
             self._require_reset()
             return build_uc_observation(self._state, self.profiles, self.config)
 
+    @contextmanager
+    def temporary_announcement(self):
+        """Permit a read-only UC announcement without copying committed history."""
+        with self._lock:
+            self._require_phase(Phase.UC_TURN)
+            state, records, payments = self._state, len(self._records), len(self._payment_keys)
+            pending = (self._phase, self._pending_plan, self._pending_offer,
+                       self._pending_raw_uc, self._candidate_signature)
+            rng = copy.deepcopy(self._rng.bit_generator.state)
+            self._temporary_announcement_active = True
+            try:
+                yield
+            finally:
+                self._temporary_announcement_active = False
+                # Publishing may change only pending decision fields, never commit a period.
+                if self._state is not state or len(self._records) != records or len(self._payment_keys) != payments:
+                    raise StageError("A temporary announcement must not execute a physical period")
+                (self._phase, self._pending_plan, self._pending_offer,
+                 self._pending_raw_uc, self._candidate_signature) = pending
+                self._rng.bit_generator.state = rng
+
     def _consumer_observations(self, offer, state):
         index = min(state.period_id, len(self.profiles) - 1)
         p = self.profiles
@@ -319,6 +342,8 @@ class EnergyMarketEngine:
 
     def commit(self, delta):
         with self._lock:
+            if self._temporary_announcement_active:
+                raise StageError("A temporary announcement cannot commit a physical period")
             if not isinstance(delta, StateDelta):
                 raise ValueError("Expected a StateDelta")
             identity = delta.record.transition_id
@@ -366,6 +391,31 @@ class EnergyMarketEngine:
             return copy.deepcopy(EngineSnapshot(self.compatibility_signature, self._state, self._phase,
                 self._pending_plan, self._pending_offer, self._pending_raw_uc, self._records,
                 frozenset(self._payment_keys), self._rng.bit_generator.state))
+
+    def _branch_state(self):
+        """Trusted in-process branch: committed records are never modified internally.
+
+        The public get_state()/set_state() continue to deep-copy and validate all
+        history. This private path copies the index, sharing only stored records;
+        commit() inserts new records and every public record accessor returns a copy.
+        """
+        with self._lock:
+            self._require_reset()
+            if self._phase == Phase.CONSUMER_TURN:
+                raise StageError("Branch snapshots require a completed physical period")
+            return EngineSnapshot(self.compatibility_signature, self._state, self._phase,
+                None, None, None, self._records.copy(), frozenset(self._payment_keys),
+                copy.deepcopy(self._rng.bit_generator.state))
+
+    def _restore_branch(self, snapshot):
+        with self._lock:
+            if snapshot.compatibility_signature != self.compatibility_signature:
+                raise ValueError("Branch snapshot belongs to a different scenario")
+            self._state, self._phase = snapshot.state, snapshot.phase
+            self._pending_plan = self._pending_offer = self._pending_raw_uc = self._candidate_signature = None
+            self._records = snapshot.records.copy()
+            self._payment_keys = set(snapshot.payment_keys)
+            self._rng.bit_generator.state = copy.deepcopy(snapshot.rng_state)
 
     def set_state(self, snapshot):
         with self._lock:

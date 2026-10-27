@@ -30,6 +30,8 @@ class StackelbergConfig(AlgorithmConfig):
         self.train_seeds = tuple(range(32))
         self.train_seed_groups = (self.train_seeds,)
         self.phase_sampling = "single_stream"
+        # Execution only: zero is the serial reference; one to four CPU workers.
+        self.execution_workers = 0
         self.validation_seeds = tuple(range(1000, 1016))
         self.test_seeds = tuple(range(2000, 2032))
         self.gamma, self.lambda_gae = 0.99, 0.95
@@ -42,6 +44,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.inner_updates, self.response_updates = 5, 5
         self.uc_candidates, self.uc_updates_per_candidate, self.deviation_updates = 2, 1, 2
         self.acceptance_z, self.min_uc_gain = 1.96, 0.0
+        self.always_keep_candidate = False
         self.stopping_patience = 3
         self.stopping_tolerances = {
             "consumer_gain": 0.1,
@@ -84,12 +87,14 @@ class StackelbergConfig(AlgorithmConfig):
             "entropy_coeff",
             "rollout_length",
             "phase_sampling",
+            "execution_workers",
             "inner_updates",
             "response_updates",
             "uc_candidates",
             "uc_updates_per_candidate",
             "deviation_updates",
             "acceptance_z",
+            "always_keep_candidate",
             "min_uc_gain",
             "stopping_patience",
             "stopping_tolerances",
@@ -168,6 +173,7 @@ class StackelbergConfig(AlgorithmConfig):
             "uc_updates_per_candidate",
             "deviation_updates",
             "acceptance_z",
+            "always_keep_candidate",
             "min_uc_gain",
             "stopping_patience",
             "stopping_tolerances",
@@ -197,10 +203,16 @@ class StackelbergConfig(AlgorithmConfig):
             update_protocol="phase_batch_fixed_targets_refreshed_gae_common_consumer_state_v2",
             value_architecture="layernorm_tanh",
         )
+        if self.model_config.get("online_popart", False):
+            from .popart import POPART
+
+            contract["value_normalization"] = dict(POPART)
         return json.loads(json.dumps(contract, sort_keys=True))
 
     def validate(self):
         super().validate()
+        if self.always_keep_candidate and self.uc_candidates != 1:
+            raise ValueError("Always retention requires exactly one new UC candidate")
         if self.scenario_factory is None:
             raise ValueError("Configure a scenario factory and separate train/validation/test seeds")
         splits = (self.train_seeds, self.validation_seeds, self.test_seeds)
@@ -235,6 +247,10 @@ class StackelbergConfig(AlgorithmConfig):
             raise ValueError("Deviation and checkpoint intervals must be nonnegative")
         if self.phase_sampling not in {"single_stream", "all_streams"}:
             raise ValueError("phase_sampling must be single_stream or all_streams")
+        if type(self.execution_workers) is not int or not 0 <= self.execution_workers <= 4:
+            raise ValueError("execution_workers must be an integer from zero to four")
+        if self.execution_workers and len(self.train_seed_groups) > self.execution_workers:
+            raise ValueError("Resident sampling requires one worker per training stream")
         if self.phase_sampling == "all_streams":
             count = len(self.train_seed_groups)
             if count > 1 and self.deviation_updates:

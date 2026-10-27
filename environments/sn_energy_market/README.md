@@ -75,6 +75,6 @@ assert engine.state.period_id == 1
 
 当前逐项审核见[实现审核](docs/v9/implementation_audit_zh.md)：物理及结算公式一致，公共日历尚未完整编码到观测；训练实际使用 γ=0.99。
 
-`tests/v9_oracle.py` 独立实现数学参考，`tests/v9_checks.py` 将生产结果逐字段对照。当前完整环境验证基线见[报告](docs/v9/full_validation_current_commit_zh.md)。
+`tests/v9_oracle.py` 独立实现数学参考，`tests/v9_checks.py` 将生产结果逐字段对照。验证结果写入D:/Codex，按来源哈希对应实际执行版本。
 
-当前模型保留 U02 来源替代、A01 已有减载付费认领、A02 到期回补额外容量责任、A03 公告容量平坦区。测试分别验证其数值结果；这些经济性质与程序守恒、实现一致性分开报告。双层 RL 已实现并完成一次固定预算训练与验证，见[结果索引](../../experiments/sn_energy_market/RESULTS.md)；尚未建立动态均衡结论。
+当前模型保留 U02 来源替代、A01 已有减载付费认领、A02 到期回补额外容量责任、A03 公告容量平坦区。测试分别验证其数值结果；这些经济性质与程序守恒、实现一致性分开报告。双层RL的当前配置见[训练协议](../../experiments/sn_energy_market/TRAINING.md)，训练结果与均衡结论分别验证。

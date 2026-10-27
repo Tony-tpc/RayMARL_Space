@@ -78,6 +78,10 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
 
     def __init__(self, *, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self._execution = None
+        self._remote_dirty = False
+        self.sample_observer = None
+        self.last_sample_trace = []
         self._train_seed_index = 0
         self._scenario_seed = int(self.config.train_seed_groups[0][0])
         self._weights_seq_no = 0
@@ -113,7 +117,81 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
 
     @property
     def agent_ids(self):
-        return ("uc", *self.env.consumer_ids)
+        return tuple(self.module.keys())
+
+    @property
+    def env(self):
+        # Direct environment inspection is supported, but normal resident sampling
+        # and cursor diagnostics never materialize the history in the controller.
+        if self._remote_dirty:
+            self._remote_dirty = False
+            metadata = self._sampling_metadata()
+            saved = self._execution.export()
+            self._bank = saved["streams"]["bank"]
+            self._load_single(saved, preserve_learner_rng=True)
+            self._apply_sampling_metadata(metadata)
+        return self._env
+
+    @env.setter
+    def env(self, value):
+        self._env = value
+
+    def _sampling_metadata(self):
+        return copy.deepcopy({
+            "observation": self._observation, "terminated": self._terminated,
+            "data_exhausted": self._data_exhausted, "scenario_seed": self._scenario_seed,
+            "train_seed_index": self._train_seed_index, "last_metrics": self.last_metrics,
+            "sampled_periods": self.trajectory_periods, "active_lane": self.active_lane,
+            "lane_steps": self.lane_steps,
+        })
+
+    def _apply_sampling_metadata(self, metadata):
+        for key in ("observation", "terminated", "data_exhausted", "scenario_seed", "train_seed_index"):
+            setattr(self, "_" + key, copy.deepcopy(metadata[key]))
+        self.last_metrics = copy.deepcopy(metadata["last_metrics"])
+        self.num_env_steps_sampled_lifetime = self.trajectory_periods = metadata["sampled_periods"]
+        self.active_lane = metadata["active_lane"]
+        self.lane_steps = metadata["lane_steps"].copy()
+
+    def lane_summary(self):
+        return {"lane": self.active_lane, "seed": self._scenario_seed,
+                "steps": self.lane_steps[self.active_lane]}
+
+    def _start_execution(self):
+        if self._execution is None and getattr(self.config, "execution_workers", 0):
+            from .resident import ResidentExecution
+
+            self._execution = ResidentExecution(self, self.get_state(components="sampling")["sampling"])
+            self._discard_local_history()
+        return self._execution
+
+    def _discard_local_history(self):
+        self._bank = [None] * len(self.config.train_seed_groups)
+        self._env = None
+        self._remote_dirty = True
+
+    def branch_state(self):
+        if self._execution is None:
+            return self.get_state()
+        return {COMPONENT_RL_MODULE: copy.deepcopy(self.module.get_state()),
+                "weights_seq_no": self._weights_seq_no, "sampling": self._execution.snapshot()}
+
+    def release_branches(self):
+        if self._execution is not None:
+            self._execution.release()
+
+    def sampling_fingerprint(self, function):
+        if self._execution is None:
+            return function(self.get_state(components="sampling"))
+        return function(self._sampling_metadata()), self._execution.fingerprint(function)
+
+    def _serial_sampling(self):
+        if self._execution is not None:
+            saved = self._execution.export()
+            self._execution.close()
+            self._execution = None
+            self._remote_dirty = False
+            self.set_state({"sampling": saved})
 
     def restart(self, seed):
         """Start an explicit scenario while retaining lifetime sampling counters."""
@@ -151,10 +229,13 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
     def begin_round(self, outer_round):
         """Switch only between complete outer rounds; each stream resumes in place."""
         target = 0 if self.config.phase_sampling == "all_streams" else outer_round % len(self._bank)
+        if self._execution is not None and self.config.phase_sampling == "all_streams":
+            return self.active_lane
         self._switch_lane(target)
         return self.active_lane
 
     def _switch_lane(self, target):
+        self._serial_sampling()
         self._bank[self.active_lane] = self._single_state()
         if target != self.active_lane:
             total = self.trajectory_periods
@@ -162,6 +243,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             self._load_single(dict(self._bank[target], sampled_periods=total), preserve_learner_rng=True)
 
     def append_profiles(self, profiles):
+        self._serial_sampling()
         self._observation = self.env.append_profiles(profiles)
         self._data_exhausted = False
 
@@ -218,19 +300,29 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             return {}
         if self._data_exhausted:
             raise RuntimeError("Continuous data exhausted: append profiles before value bootstrapping")
-        snapshot, rng = self.env.get_state(), random_state()
+        rng = random_state()
         try:
-            _, decision = self._announce(deterministic)
-            return {
-                "uc": decision.uc_observation.copy(),
-                **{
-                    key: decision.consumer_value_state.copy()
-                    for key in self.env.consumer_ids
-                },
-            }
+            with self._temporary_announcement():
+                _, decision = self._announce(deterministic)
+                return {
+                    "uc": decision.uc_observation.copy(),
+                    **{key: decision.consumer_value_state.copy() for key in self.env.consumer_ids},
+                }
         finally:
-            self.env.set_state(snapshot)
             restore_random_state(rng)
+
+    @contextmanager
+    def _temporary_announcement(self):
+        temporary = getattr(self.env, "temporary_announcement", None)
+        if temporary is not None:
+            with temporary():
+                yield
+        else:
+            snapshot = self.env.get_state()
+            try:
+                yield
+            finally:
+                self.env.set_state(snapshot)
 
     def bootstrap_values(self, *, deterministic=False):
         """Estimate both next decision values without consuming an action or RNG draw."""
@@ -303,6 +395,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return samples, result
 
     def collect(self, steps, *, deterministic=False):
+        self._serial_sampling()
         rows = {key: [] for key in self.agent_ids}
         totals = {}
         for _ in range(steps):
@@ -364,6 +457,9 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         """Collect a fixed-policy phase; total_steps is never multiplied by stream count."""
         if self.config.phase_sampling == "single_stream":
             return self.collect(total_steps, deterministic=deterministic)
+        execution = self._start_execution()
+        if execution is not None:
+            return execution.collect(total_steps, deterministic)
         count = len(self._bank)
         if total_steps < count or total_steps % count:
             raise ValueError("Phase samples must divide evenly across nonempty streams")
@@ -384,6 +480,9 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
 
     def evaluate(self, seeds, *, steps=None, deterministic=False, actions_only=False):
         """Realized finite-episode scores; optional windows are diagnostics only."""
+        execution = self._start_execution()
+        if execution is not None:
+            return execution.evaluate([self.module.get_state()], tuple(seeds), steps, deterministic, actions_only)[0]
         state = self.get_state()
         rows = []
         try:
@@ -429,13 +528,29 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             self.set_state(state)
         return rows
 
+    def evaluate_candidates(self, policies, seeds, *, steps=None):
+        """All candidate/month jobs share the same bounded CPU worker set."""
+        execution = self._start_execution()
+        if execution is not None:
+            return execution.evaluate(policies, tuple(seeds), steps, False, True)
+        weights = copy.deepcopy(self.module.get_state())
+        try:
+            results = []
+            for policy in policies:
+                self.module.set_state(policy)
+                results.append(self.evaluate(seeds, steps=steps, actions_only=True))
+            return results
+        finally:
+            self.module.set_state(weights)
+
     def get_metrics(self):
         self.metrics.log_value(NUM_ENV_STEPS_SAMPLED_LIFETIME, self.num_env_steps_sampled_lifetime, window=1)
         return self.metrics.reduce()
 
-    def _single_state(self):
+    def _single_state(self, *, branch=False):
+        environment_state = getattr(self.env, "branch_state", self.env.get_state) if branch else self.env.get_state
         return {
-            "environment": self.env.get_state(),
+            "environment": environment_state(),
             "observation": copy.deepcopy(self._observation),
             "terminated": self._terminated,
             "data_exhausted": self._data_exhausted,
@@ -447,10 +562,11 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             "sampled_periods": self.trajectory_periods,
         }
 
-    def _load_single(self, saved, *, preserve_learner_rng=False):
+    def _load_single(self, saved, *, preserve_learner_rng=False, branch=False):
         outside = random_state()
         self.restart(saved["scenario_seed"])
-        self.env.set_state(saved["environment"])
+        restore = getattr(self.env, "restore_branch", self.env.set_state) if branch else self.env.set_state
+        restore(saved["environment"])
         self._observation = copy.deepcopy(saved["observation"])
         self._terminated, self._data_exhausted = saved["terminated"], saved["data_exhausted"]
         self._train_seed_index = saved["train_seed_index"]
@@ -465,6 +581,9 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             state[COMPONENT_RL_MODULE] = copy.deepcopy(self.module.get_state())
             state["weights_seq_no"] = self._weights_seq_no
         if self._check_component("sampling", components, not_components):
+            if self._execution is not None:
+                state["sampling"] = self._execution.export()
+                return state
             state["sampling"] = self._single_state()
             bank = copy.deepcopy(self._bank)
             bank[self.active_lane] = copy.deepcopy(state["sampling"])
@@ -484,16 +603,30 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             self.num_env_steps_sampled_lifetime = state[NUM_ENV_STEPS_SAMPLED_LIFETIME]
         if "sampling" in state:
             saved = state["sampling"]
+            from .resident import BranchState
+
+            if isinstance(saved, BranchState):
+                if self._execution is None:
+                    raise ValueError("Resident branch requires its original live workers")
+                self._execution.restore(saved)
+                return
             streams = saved["streams"]
             if tuple(map(tuple, streams["seed_groups"])) != self.config.train_seed_groups:
                 raise ValueError("Sampling stream groups differ from the configured training groups")
             self.active_lane = streams["active_lane"]
             self.lane_steps = streams["lane_steps"].copy()
             self._bank = copy.deepcopy(streams["bank"])
+            if self._execution is not None:
+                self._execution.load(saved)
+            self._remote_dirty = False
             self._load_single(saved)
 
     def get_ctor_args_and_kwargs(self):
         return (), {"config": self.config, "worker_index": self.worker_index}
 
     def stop(self):
+        if self._execution is not None:
+            self._execution.close()
+            self._execution = None
+        self._remote_dirty = False
         self.env = None

@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 import torch
 
-from experiments.sn_energy_market.sampling_gate.audit import ExperimentAudit
 from experiments.sn_energy_market.training_audit import assert_same_state, reference_advantages
+from experiments.sn_energy_market.training_trace import TrainingTrace
 from raymarl.algorithms.stackelberg.algorithm import Stackelberg
 from raymarl.algorithms.stackelberg.runner import (
     StackelbergEnvRunner,
@@ -156,11 +156,12 @@ def test_deviation_restart_crosses_month_and_restores_original_stream():
 @pytest.mark.integration
 def test_native_mixed_always_branch_budget_gae_and_checkpoint(ray_runtime, tmp_path):
     torch.set_num_threads(1)
-    cfg = configuration(tmp_path).training(phase_sampling="all_streams", deviation_updates=0)
+    cfg = configuration(tmp_path).training(
+        phase_sampling="all_streams", deviation_updates=0, always_keep_candidate=True
+    )
     cfg.train_seed_groups = ((2,), (3,))
     algo = cfg.build_algo()
-    algo._select_candidate = lambda evaluated: (1, [{"mean": 0., "lower": 0., "half_width": 0.}] * 2)
-    audit = ExperimentAudit(algo, tmp_path, write_trajectory=False).install()
+    audit = TrainingTrace(algo, tmp_path, write_trajectory=False).install()
     try:
         algo.train()
         audit.assert_budget(1)

@@ -1,7 +1,4 @@
-"""Experiment-only orchestration; production sampling and losses are inherited."""
-
-from __future__ import annotations
-
+"""Current training configuration and native lifecycle helpers."""
 import copy
 import hashlib
 import os
@@ -14,24 +11,13 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from experiments.sn_energy_market.profile_dataset import (
-    DatasetEnvFactory,
-    ProfileDataset,
-)
-from experiments.sn_energy_market.sampling_gate import ROOT
+from experiments.sn_energy_market.profile_dataset import DatasetEnvFactory, ProfileDataset
 from experiments.sn_energy_market.train import inventory_valued_config, model_settings
 from raymarl.algorithms.stackelberg.algorithm import Stackelberg
 from raymarl.algorithms.stackelberg.config import StackelbergConfig
-from raymarl.algorithms.stackelberg.runner import (
-    StackelbergEnvRunner,
-)
+from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 
-GROUPS = {
-    "A": {"order": "sequential", "z": 1.96},
-    "B": {"order": "sequential", "z": 1.0},
-    "C": {"order": "rotation", "z": 1.96},
-    "D": {"order": "rotation", "z": 1.0},
-}
+ROOT = Path(__file__).resolve().parents[2]
 TRIAL_SEED = 11
 SCREEN_SEEDS = (10042, 10048)
 MONTH_SEEDS = (10042, 10045, 10048, 10051)
@@ -50,6 +36,7 @@ def ray_session(directory):
     token = directory / "auth_token"
     if not token.exists():
         token.write_text(secrets.token_hex(32), encoding="utf-8")
+    os.environ["RAY_AUTH_MODE"] = "token"
     os.environ["RAY_AUTH_TOKEN_PATH"] = str(token)
     torch.set_num_threads(1)
     if not torch.cuda.is_available():
@@ -99,10 +86,12 @@ def digest_tree(value):
     return h.hexdigest()
 
 
-class ExperimentRunner(StackelbergEnvRunner):
+class TrainingRunner(StackelbergEnvRunner):
     """Energy cursor diagnostics; sampling and checkpoint logic live in the native runner."""
 
     def lane_cursors(self):
+        if self._execution is not None:
+            return copy.deepcopy(self._execution.cursors)
         rows = []
         for i, saved in enumerate(self._bank):
             state = (
@@ -125,8 +114,14 @@ class ExperimentRunner(StackelbergEnvRunner):
             )
         return rows
 
+    def lane_summary(self):
+        state = self.env.engine.state
+        return {"lane": self.active_lane, "seed": self._scenario_seed,
+                "period": state.period_id, "timestamp": state.timestamp.isoformat(),
+                "steps": self.lane_steps[self.active_lane], "soc_kwh": state.ess_energy_kwh}
 
-class ExperimentStackelberg(Stackelberg):
+
+class TrainingAlgorithm(Stackelberg):
     def get_state(self, *args, **kwargs):
         state = super().get_state(*args, **kwargs)
         audit = getattr(self, "experiment_audit", None)
@@ -142,71 +137,31 @@ class ExperimentStackelberg(Stackelberg):
             self.experiment_audit.load(self.restored_audit)
 
 
-class ExperimentConfig(StackelbergConfig):
+class TrainingConfig(StackelbergConfig):
     def __init__(self, algo_class=None):
-        super().__init__(algo_class=algo_class or ExperimentStackelberg)
-        self.env_runner_cls = ExperimentRunner
-        self.experiment_order = "sequential"
-        self.initialization = "fresh_module_seed_11_no_checkpoint"
-        self.always_keep_candidate = False
-
-    def learning_contract(self):
-        return {
-            **super().learning_contract(),
-            "experiment": {
-                "sampling_order": self.experiment_order,
-                "action_rng": "private_month_seed_1000003_trial_plus_scenario_v1",
-                "rotation": ("equal_segments_all_streams_per_phase_v1" if self.phase_sampling == "all_streams"
-                             else "whole_outer_round_four_quarter_streams_v1"),
-                "initialization": self.initialization,
-                "candidate_retention": "always" if self.always_keep_candidate else "paired_gain",
-            },
-        }
+        super().__init__(algo_class=algo_class or TrainingAlgorithm)
+        self.env_runner_cls = TrainingRunner
 
 
-def configuration(output, group):
-    settings = GROUPS[group]
-    dataset = ProfileDataset(
-        ROOT / "datasets/ausgrid/processed/manifest.json",
-        splits=("train", "validation"),
-    )
-    factory = DatasetEnvFactory(
-        dataset, inventory_valued_config(dataset.environment_config()), seed=42
-    )
-    cfg = (
-        ExperimentConfig()
-        .scenarios(
-            factory,
-            train_seeds=factory.seed_splits["train"],
-            train_seed_groups=factory.training_seed_groups if settings["order"] == "rotation" else None,
-            validation_seeds=SCREEN_SEEDS,
-            test_seeds=(),
-        )
+def configuration(output):
+    dataset = ProfileDataset(ROOT / "datasets/ausgrid/processed/manifest.json",
+                             splits=("train", "validation"))
+    factory = DatasetEnvFactory(dataset, inventory_valued_config(dataset.environment_config()), seed=42)
+    return (TrainingConfig()
+        .scenarios(factory, train_seeds=factory.seed_splits["train"],
+                   train_seed_groups=factory.training_seed_groups,
+                   validation_seeds=SCREEN_SEEDS, test_seeds=())
         .debugging(seed=TRIAL_SEED)
-        .rl_module(model_config=model_settings(32))
+        .rl_module(model_config={**model_settings(128), "online_popart": True})
         .learners(num_learners=0, num_gpus_per_learner=1)
-        .training(
-            gamma=0.99,
-            lambda_gae=0.97,
-            critic_lambda=1.0,
-            critic_epochs=4,
-            rollout_length=192,
-            inner_updates=2,
-            response_updates=2,
-            uc_candidates=1,
-            uc_updates_per_candidate=2,
-            deviation_updates=0,
-            num_epochs=2,
-            minibatch_size=32,
-            acceptance_z=settings["z"],
-            evaluation_steps=None,
-            stopping_patience=0,
-            storage_path=str(output),
-            checkpoint_interval=0,
-        )
-    )
-    cfg.experiment_order = settings["order"]
-    return cfg
+        .training(execution_workers=4, phase_sampling="all_streams",
+                  gamma=0.997, lambda_gae=0.97, critic_lambda=1.0,
+                  rollout_length=384, inner_updates=4, response_updates=4,
+                  uc_candidates=1, uc_updates_per_candidate=4, deviation_updates=0,
+                  critic_epochs=2, num_epochs=1, minibatch_size=32,
+                  always_keep_candidate=True, acceptance_z=1.0,
+                  evaluation_steps=None, stopping_patience=0,
+                  storage_path=str(output), checkpoint_interval=0, keep_checkpoints=2))
 
 
 def initialize_fresh(algorithm):
