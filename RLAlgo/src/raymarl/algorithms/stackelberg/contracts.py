@@ -8,6 +8,7 @@ import numpy as np
 
 class Announcement(Protocol):
     uc_observation: np.ndarray
+    uc_value_state: np.ndarray
     uc_action: np.ndarray
     mapping_context: Mapping[str, float]
     consumer_observations: Mapping[str, np.ndarray]
@@ -33,6 +34,7 @@ class TrainingEnvironment(Protocol):
 
     consumer_ids: tuple[str, ...]
     uc_observation_dim: int
+    uc_value_dim: int
     uc_soc_input: Mapping[str, float | int]
     consumer_observation_dim: int
     consumer_value_dim: int

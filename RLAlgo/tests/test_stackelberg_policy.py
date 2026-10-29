@@ -153,10 +153,15 @@ def test_physical_jacobian_and_teacher_forcing():
 def test_actor_value_information_and_gradient_boundaries():
     obs, first, second = torch.randn(4, 7), torch.zeros(4, 13), torch.ones(4, 13)
     uc, consumer = module_spec("uc").build(), module_spec("consumer").build()
-    torch.testing.assert_close(
+    assert not torch.allclose(
         uc.compute_values({"obs": obs, "critic_obs": first}),
         uc.compute_values({"obs": obs, "critic_obs": second}),
     )
+    bounds = torch.tensor([[10., 8., 5., 5., 4., 3.]] * 4)
+    before_uc = uc.draw(obs, bounds, deterministic=True)["actions"]
+    uc.compute_values({"obs": obs, "critic_obs": first}).sum().backward()
+    assert all(p.grad is None for p in uc.actor.parameters())
+    torch.testing.assert_close(before_uc, uc.draw(obs, bounds, deterministic=True)["actions"], rtol=0, atol=0)
     assert not torch.allclose(
         consumer.compute_values({"obs": obs, "critic_obs": first}),
         consumer.compute_values({"obs": obs, "critic_obs": second}),

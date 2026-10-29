@@ -25,6 +25,7 @@ BOUND_FIELDS = tuple(field.name for field in fields(LocalBounds))
 @dataclass(frozen=True)
 class Decision:
     uc_observation: np.ndarray
+    uc_value_state: np.ndarray
     raw_controls: np.ndarray
     uc_action: np.ndarray
     mapping_context: dict[str, float]
@@ -70,6 +71,7 @@ class MarketTrainingEnv:
         self.uc_observation_fields = uc_fields(horizon)
         self.consumer_observation_fields = consumer_fields(horizon)
         self.uc_observation_dim = len(self.uc_observation_fields)
+        self.uc_value_dim = self.uc_observation_dim + 12
         self.uc_soc_input = {
             "index": self.uc_observation_fields.index("ess_energy_kwh"),
             "min": config.system.ess_energy_min_kwh,
@@ -97,6 +99,10 @@ class MarketTrainingEnv:
             )
         state, system = self.engine.state, self.config.system
         observation = self.engine.uc_observation()
+        # Public decision-time calendar only; no individual Consumer state.
+        month = np.zeros(12, dtype=observation.dtype)
+        month[state.timestamp.month - 1] = 1.0
+        uc_value_state = np.concatenate([observation, month])
         generation = float(self.engine.profiles.der_kw[state.period_id])
         action = map_uc_controls(raw_controls, state, generation, self.config)
         consumer_observations = self.engine.apply_uc_action(action)
@@ -126,6 +132,7 @@ class MarketTrainingEnv:
         }
         return Decision(
             observation,
+            uc_value_state,
             np.asarray(raw_controls, dtype=np.float64).copy(),
             np.asarray(action_tuple(action)),
             context,

@@ -73,7 +73,7 @@ def test_value_units_preserve_gae_and_normalized_loss_gradients():
     unit = specification("uc").build()
     scaled = specification("uc", value_scale={"uc": 50.0, "consumer": 3.0}).build()
     scaled.set_state(unit.get_state())
-    batch = {"obs": torch.randn(16, 7)}
+    batch = {"critic_obs": torch.randn(16, 13)}
     targets = torch.linspace(-3.0, 0.0, 16)
     prediction = unit.compute_values(batch)
     scaled_prediction = scaled.compute_values(batch)
@@ -107,7 +107,7 @@ def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at
     learner.config.gamma, learner.config.lambda_gae = 0.99, 0.97
     batch = MultiAgentBatch({key: sample_batch(learner.module[key], 384) for key in ("uc", "consumer")}, 384)
     for key, data in batch.policy_batches.items():
-        data["next_value_obs"] = np.roll(data["obs" if key == "uc" else "critic_obs"], -1, axis=0).copy()
+        data["next_value_obs"] = np.roll(data["critic_obs"], -1, axis=0).copy()
         data["rewards"] = np.linspace(-0.2, 0.3, 384, dtype=np.float64)
         data["terminateds"] = np.zeros(384, dtype=bool)
         data["segment_end"] = np.zeros(384, dtype=bool)

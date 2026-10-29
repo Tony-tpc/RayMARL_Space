@@ -31,7 +31,7 @@ class ToyModule(torch.nn.Module):
 
     def compute_values(self, batch):
         if self.leader:
-            return batch["obs"][:, 0] * 10 + self.anchor
+            return batch["critic_obs"][:, 0] * 10 + self.anchor
         return batch["critic_obs"][:, 0] + 100 * batch["critic_obs"][:, 1] + self.anchor
 
 
@@ -52,7 +52,7 @@ class ToySpec:
 
 
 class ToyEnv:
-    uc_observation_dim = consumer_observation_dim = consumer_value_dim = 2
+    uc_observation_dim = uc_value_dim = consumer_observation_dim = consumer_value_dim = 2
     consumer_ids = ("consumer_0",)
 
     def __init__(self, terminal_at=5, data_until=100):
@@ -73,6 +73,7 @@ class ToyEnv:
         obs = np.array([self.t, self.announcement], dtype=np.float32)
         return SimpleNamespace(
             uc_observation=np.array([self.t, 0], dtype=np.float32),
+            uc_value_state=np.array([self.t, 0], dtype=np.float32),
             uc_action=np.asarray(raw).copy(),
             mapping_context={"t": self.t},
             consumer_observations={"consumer_0": obs},

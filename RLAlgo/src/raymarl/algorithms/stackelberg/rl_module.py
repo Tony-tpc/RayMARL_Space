@@ -158,8 +158,8 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             self.actor["shift"] = nn.Linear(hidden + 1, 2)
             self.actor["market"] = nn.Linear(hidden + 2, 4)
         if not self.inference_only:
-            critic_dim = obs_dim if self.role == "uc" else self.model_config["critic_dim"]
-            self.value = ValueNetwork(critic_dim, hidden)
+            self.value = ValueNetwork(
+                self.model_config["critic_dim"], self.model_config.get("value_hidden_dim", hidden))
             if self.model_config.get("online_popart", False):
                 register_popart(self.value, self._initial_value_scale)
 
@@ -414,7 +414,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
 
     def compute_values(self, batch, embeddings=None):
         """Return original reward units; only the network's output unit is scaled."""
-        inputs = batch[Columns.OBS] if self.role == "uc" else batch["critic_obs"]
+        inputs = batch["critic_obs"]
         if hasattr(self.value, "popart_scale"):
             return self.value(inputs.float()) * self.value.popart_scale + self.value.popart_shift
         return self.value(inputs.float()) * self.value_scale

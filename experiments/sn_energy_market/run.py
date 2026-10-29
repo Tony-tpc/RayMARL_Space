@@ -1,14 +1,14 @@
-"""Fixed 72-round V9 always run, gated by validation and a clean Git commit."""
+"""Fresh training, gated by validation and a clean Git commit; never auto-resume."""
 
 import os
 from pathlib import Path
 
-BASE = Path("D:/Codex/2026-10-27/raymarl-v9-always128-72")
-ROUNDS = 72
 
-
-def main():
-    runtime = BASE / "runtime/train"
+def main(base, rounds):
+    base = Path(base).resolve()
+    if rounds < 1:
+        raise ValueError("rounds must be positive")
+    runtime = base / "runtime/train"
     runtime.mkdir(parents=True, exist_ok=True)
     os.environ.update(TMP=str(runtime), TEMP=str(runtime), PYTHONDONTWRITEBYTECODE="1",
                       RAY_AUTH_MODE="token", RAY_AUTH_TOKEN_PATH=str(runtime / "auth_token"),
@@ -29,6 +29,8 @@ def main():
         write_json,
     )
     from experiments.sn_energy_market.runtime import (
+        EVALUATION_SEEDS,
+        MONTH_SEEDS,
         ROOT,
         configuration,
         digest_tree,
@@ -38,17 +40,17 @@ def main():
     from experiments.sn_energy_market.training_trace import TrainingTrace
     from experiments.sn_energy_market.validate_policy import complete_mc
 
-    output = BASE / "training"
+    output = base / "training"
     output.mkdir(parents=True, exist_ok=True)
 
     def status(stage, completed, **extra):
         write_json(output / "status.json", {"status": stage, "completed_rounds": completed,
-                   "target_rounds": ROUNDS, "pid": os.getpid(), "updated_utc": now(), **extra})
+                   "target_rounds": rounds, "pid": os.getpid(), "updated_utc": now(), **extra})
 
-    with exclusive_run(BASE / "run.lock"):
+    with exclusive_run(base / "run.lock"):
         if (output / "status.json").exists():
             raise FileExistsError("This run already exists; do not overwrite or restart it")
-        ready = read_json(BASE / "verification/ready.json")
+        ready = read_json(base / "verification/ready.json")
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
         dirty = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip()
@@ -62,18 +64,23 @@ def main():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
         cfg = configuration(output)
+        windows = cfg.scenario_factory.get_contract()["seed_windows"]
+        validation_periods = sum(
+            windows[str(seed)]["stop"] - windows[str(seed)]["start"] for seed in MONTH_SEEDS
+        ) * len(EVALUATION_SEEDS)
         write_json(output / "protocol.json", {
             "git_commit": commit, "branch": branch, "source_sha256": manifest,
-            "learning_contract": cfg.learning_contract(), "outer_rounds": ROUNDS,
+            "learning_contract": cfg.learning_contract(), "outer_rounds": rounds,
             "initialization": "seed11_random_weights_empty_Adam_zero_PopArt_history_month_start",
             "phase_samples": 1536, "samples_per_quarter": 384, "phases_per_round": 4,
-            "ppo_periods": ROUNDS * 6144, "committed_periods": ROUNDS * 3072,
-            "critic_steps_executed_each": ROUNDS * 384,
-            "uc_actor_steps_executed_and_retained": ROUNDS * 48,
-            "consumer_actor_steps_executed_each": ROUNDS * 144,
-            "consumer_actor_steps_retained_each": ROUNDS * 96,
+            "ppo_periods": rounds * 6144, "committed_periods": rounds * 3072,
+            "critic_steps_executed_each": rounds * 384,
+            "uc_actor_steps_executed_and_retained": rounds * 48,
+            "consumer_actor_steps_executed_each": rounds * 144,
+            "consumer_actor_steps_retained_each": rounds * 96,
             "candidate_evaluation": "two_candidates_times_two_complete_months_every_round",
-            "final_validation": "four_complete_months_times_three_action_seeds",
+            "final_validation": "twelve_complete_months_times_three_action_seeds",
+            "validation_periods": validation_periods,
             "test_loaded": False, "mc_training_labels": 0,
         })
         status("initializing", 0)
@@ -92,7 +99,7 @@ def main():
                         "popart_updates": 0, "outer_round": 0, "lane_steps": [0, 0, 0, 0],
                     })
                     trace = TrainingTrace(algorithm, output).install()
-                    for n in range(1, ROUNDS + 1):
+                    for n in range(1, rounds + 1):
                         verify_sources(manifest)
                         status("training", n - 1, active_round=n)
                         started = time.perf_counter()
@@ -112,7 +119,7 @@ def main():
                         write_json(output / f"round-{n:04d}.json", record)
                         checkpoint = algorithm.save_to_path()
                         write_json(output / "checkpoint.json", {"path": checkpoint, "outer_round": n})
-                        status("training" if n < ROUNDS else "trained", n, checkpoint=checkpoint,
+                        status("training" if n < rounds else "trained", n, checkpoint=checkpoint,
                                last_round_seconds=record["seconds"])
                         print(json.dumps({"completed_rounds": n, "seconds": record["seconds"]}), flush=True)
                     algorithm.export_actors(output / "actors")
@@ -124,18 +131,21 @@ def main():
                     assert digest_tree(first.policy_batches) == digest_tree(second.policy_batches)
                     algorithm.set_state(saved)
                     assert digest_tree(saved) == digest_tree(algorithm.get_state())
-                    status("evaluating", ROUNDS, checkpoint=checkpoint)
-                    evaluation = complete_mc(algorithm, output / "validation")
-                    assert evaluation["periods"] == 17712 and len(evaluation["episodes"]) == 12
+                    status("evaluating", rounds, checkpoint=checkpoint)
+                    evaluation = complete_mc(
+                        algorithm, output / "validation",
+                        progress=lambda **progress: status("evaluating", rounds, checkpoint=checkpoint, **progress),
+                    )
+                    assert evaluation["periods"] == validation_periods and len(evaluation["episodes"]) == 36
                     write_json(output / "result.json", {
-                        "status": "completed", "completed_rounds": ROUNDS, "checkpoint": checkpoint,
+                        "status": "completed", "completed_rounds": rounds, "checkpoint": checkpoint,
                         "checkpoint_replay_exact": True, "evaluation_state_unchanged": True,
                         "ppo_periods": algorithm.sampled_periods,
                         "committed_periods": algorithm.env_runner.trajectory_periods,
                         "optimizer_steps_executed": dict(trace.steps),
                         "validation": str(output / "validation/summary.json"),
                     })
-                    status("completed", ROUNDS, checkpoint=checkpoint)
+                    status("completed", rounds, checkpoint=checkpoint)
                 finally:
                     if trace is not None:
                         trace.close()
@@ -147,4 +157,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--rounds", type=int, required=True)
+    args = parser.parse_args()
+    main(args.output, args.rounds)

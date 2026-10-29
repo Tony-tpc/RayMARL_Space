@@ -20,7 +20,7 @@ from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 ROOT = Path(__file__).resolve().parents[2]
 TRIAL_SEED = 11
 SCREEN_SEEDS = (10042, 10048)
-MONTH_SEEDS = (10042, 10045, 10048, 10051)
+MONTH_SEEDS = tuple(range(10042, 10054))
 EVALUATION_SEEDS = (110001, 110002, 110003)
 
 
@@ -152,10 +152,12 @@ def configuration(output):
                    train_seed_groups=factory.training_seed_groups,
                    validation_seeds=SCREEN_SEEDS, test_seeds=())
         .debugging(seed=TRIAL_SEED)
-        .rl_module(model_config={**model_settings(128), "online_popart": True})
+        .rl_module(model_config={**model_settings(128), "online_popart": True,
+                                 "critic_hidden_dims": {"uc": 192}})
+        .multi_agent(algorithm_config_overrides_per_module={"uc": {"actor_lr": 1e-4}})
         .learners(num_learners=0, num_gpus_per_learner=1)
         .training(execution_workers=4, phase_sampling="all_streams",
-                  gamma=0.997, lambda_gae=0.97, critic_lambda=1.0,
+                  gamma=0.997, lambda_gae=0.97, critic_lambda=1.0, uc_critic_replay_batches=12,
                   rollout_length=384, inner_updates=4, response_updates=4,
                   uc_candidates=1, uc_updates_per_candidate=4, deviation_updates=0,
                   critic_epochs=2, num_epochs=1, minibatch_size=32,
@@ -170,6 +172,9 @@ def initialize_fresh(algorithm):
     np.random.seed(TRIAL_SEED)
     random.seed(TRIAL_SEED)
     module = algorithm.config.get_multi_rl_module_spec().build()
+    # Start with identical value functions with or without the new calendar information.
+    with torch.no_grad():
+        module["uc"].value.encoder[0].weight[:, -12:].zero_()
     weights = module.get_state()
     for result in algorithm.learner_group.foreach_learner(
         lambda learner: learner.module.set_state(weights)

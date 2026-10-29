@@ -4,11 +4,11 @@ import copy
 import numpy as np
 import pytest
 import torch
+
 from experiments.sn_energy_market.training_audit import assert_same_state
+from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner, random_state, restore_random_state
 from RLAlgo.tests.test_stackelberg_algorithm import configuration
 from RLAlgo.tests.test_stackelberg_policy import bounds_tensor, legal_bounds, module_spec
-
-from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner, random_state, restore_random_state
 
 
 @pytest.mark.parametrize("role", ["uc", "consumer"])

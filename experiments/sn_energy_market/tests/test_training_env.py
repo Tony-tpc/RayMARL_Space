@@ -89,6 +89,9 @@ def test_publish_has_two_phase_inputs_and_never_advances_time():
     assert env.phase == Phase.CONSUMER_TURN
     assert env.engine.state.period_id == decision.period_id == 0
     np.testing.assert_array_equal(decision.uc_observation, initial)
+    assert env.uc_value_dim == env.uc_observation_dim + 12
+    np.testing.assert_array_equal(decision.uc_value_state[:-12], initial)
+    np.testing.assert_array_equal(decision.uc_value_state[-12:], np.eye(12)[0])
     assert decision.uc_action.shape == (6,)
     assert set(decision.mapping_context) == {
         "ess_energy_kwh",
@@ -115,6 +118,21 @@ def test_publish_has_two_phase_inputs_and_never_advances_time():
     assert env.phase == Phase.UC_TURN
     assert result.metrics["physical_periods"] == 1
     assert set(result.rewards) == {"uc", *env.consumer_ids}
+
+
+@pytest.mark.parametrize("start,months", [("2026-01-31T23:45:00+08:00", (1, 2)),
+                                        ("2026-12-31T23:45:00+08:00", (12, 1))])
+def test_uc_value_public_calendar_follows_decision_time(start, months):
+    base = config(steps=2)
+    cfg = replace(base, system=replace(base.system, start_datetime=start))
+    env = MarketEnvFactory(cfg)(12)
+    env.reset(12)
+    for month in months:
+        actor_obs = env.engine.uc_observation().copy()
+        decision = env.publish([0, .7, .1, .5, .5, .3, .4])
+        np.testing.assert_array_equal(decision.uc_value_state[:-12], actor_obs)
+        np.testing.assert_array_equal(decision.uc_value_state[-12:], np.eye(12)[month - 1])
+        env.step(consumer_actions(env))
 
 
 def test_consumer_value_state_changes_with_next_announcement():

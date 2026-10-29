@@ -285,7 +285,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         sample["mapping_context"] = np.asarray(list(decision.mapping_context.values()), dtype=np.float64)
         sample.update(
             obs=decision.uc_observation.copy(),
-            critic_obs=decision.uc_observation.copy(),
+            critic_obs=decision.uc_value_state.copy(),
             bounds=bounds,
         )
         return sample, decision
@@ -305,7 +305,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             with self._temporary_announcement():
                 _, decision = self._announce(deterministic)
                 return {
-                    "uc": decision.uc_observation.copy(),
+                    "uc": decision.uc_value_state.copy(),
                     **{key: decision.consumer_value_state.copy() for key in self.env.consumer_ids},
                 }
         finally:

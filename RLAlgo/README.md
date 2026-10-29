@@ -86,6 +86,6 @@ MAAC 是 Ye 2021 的算法实现与明确修订，包含有界 Gaussian/Bernoull
 
 本库不包含能源论文的原始交易环境，不宣称复现论文收益、300 户结果、纳什收敛或正式隐私保证。注意力压缩单个 Critic 的输入；全连接两两注意力的总计算仍随智能体数量呈二次增长。
 
-详见 [架构](docs/architecture.md)、[算法审计](docs/algorithm-audit.md)、[验证记录](docs/validation.md)和[清理记录](docs/cleanup.json)。
+详见 [架构](docs/architecture.md)、[算法审计](docs/algorithm-audit.md)；验证结果和清理清单统一保存在D:/Codex。
 
 从环境定义到训练、评估、保存恢复及推理的完整代码，见 [单智能体与 MARL 运行示例](examples/README.md)。环境实现位于 [environments/energy_env.py](../environments/energy_env.py)。

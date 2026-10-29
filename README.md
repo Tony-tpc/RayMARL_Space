@@ -68,7 +68,7 @@ RayMARL/
 
 整个工作区由根目录的 Git 仓库统一管理，保留既有算法历史。环境基线位于 `版本管理/环境建模基线` 分支，使用 `环境建模基线-20261018` 标签定位。代码、配置、必要测试、当前建模 Markdown 和保留验证摘要纳入版本；虚拟环境、数据集、运行输出、机器专用脚本及旧实验归档按 `.gitignore` 排除。提交说明使用中文。
 
-`.gitattributes` 保持文件当前字节，避免自动换行转换使验证清单中的 SHA256 失效。完整压力测试输出保留在本地 `outputs/snmarket-validation/`，可用已纳入版本的验证入口重新生成。当前仓库仅用于本地版本管理，尚未配置远程仓库。
+`.gitattributes` 保持文件当前字节，避免自动换行转换使验证清单中的 SHA256 失效。验证结果统一保存在D:/Codex，可用已纳入版本的验证入口重新生成。当前仓库仅用于本地版本管理，尚未配置远程仓库。
 
 ```powershell
 git status --short
@@ -77,4 +77,4 @@ git log --oneline --decorate -5
 git show 环境建模基线-20261018 --stat
 ```
 
-当前正式训练采用四季度各384步、γ=0.997、在线PopArt、minibatch32、两层128维网络，从零运行72轮。入口与预算见[训练协议](experiments/sn_energy_market/TRAINING.md)。运行、测试及归档产物统一写入D:/Codex/2026-10-27/raymarl-v9-always128-72/。当前只提交算法实现分支，不合并main。
+当前正式训练采用四季度各384步、γ=0.997、在线PopArt、minibatch32、UC Critic 192×192和12维公开月份独热编码，其他网络128×128。UC Actor学习率1e-4，UC Critic均匀回放最近12个保留阶段批。两组各从零36轮，严格比较月份信息有／无，入口与预算见[训练协议](experiments/sn_energy_market/TRAINING.md)。全部运行产物写入D:/Codex，只提交算法实现分支，不合并main。

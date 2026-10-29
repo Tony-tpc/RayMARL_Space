@@ -27,6 +27,7 @@ from ray.rllib.utils.metrics import LEARNER_RESULTS, NUM_ENV_STEPS_SAMPLED_LIFET
 from raymarl.common.algorithm import NativeAlgorithmMixin
 
 from .batch_log import BatchLossLog
+from .critic_replay import CriticReplay
 from .evaluation import (
     actor_parameter_change,
     paired_gain,
@@ -57,6 +58,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.sampled_periods = self.evaluated_periods = self.completed_updates = self.outer_round = 0
         self.last_round = None
         self.stable_rounds = 0
+        self.uc_critic_replay = CriticReplay(self.config.uc_critic_replay_batches, self.config.seed)
         self.batch_loss_log = BatchLossLog(Path(self.logdir) / "batch_losses.jsonl")
 
     @property
@@ -74,6 +76,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "learner": copy.deepcopy(self.learner_group.get_state()),
             "runner": self.env_runner.branch_state(),
             "rng": random_state(),
+            "uc_critic_replay": self.uc_critic_replay.get_state(),
         }
 
     def _restore(self, snapshot):
@@ -81,6 +84,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.env_runner.set_state(snapshot["runner"])
         self._sync()
         restore_random_state(snapshot["rng"])
+        self.uc_critic_replay.set_state(snapshot["uc_critic_replay"])
 
     def _batch_diagnostics(self, batch, actor_ids=()):
         results = self.learner_group.foreach_learner(
@@ -103,8 +107,15 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         # Critic targets and behavior logp stay fixed at collection.
         # All values track this joint policy, even when their actor is frozen.
         update_started = time.perf_counter()
+        critic_batch = MultiAgentBatch({
+            **batch.policy_batches, "uc": self.uc_critic_replay.mix(batch["uc"]),
+        }, batch.count)
+        replay_view = MultiAgentBatch({"uc": critic_batch["uc"]}, batch.count)
+        replay_before = self._batch_diagnostics(replay_view)["uc"]
         critic_result = self.learner_group.update(
-            batch=batch,
+            batch=critic_batch,
+            # Count fresh experience once; replay must not bias PopArt statistics.
+            popart_targets={"uc": batch["uc"]["value_targets"]},
             update_phase="critic",
             num_epochs=self.config.critic_epochs,
             minibatch_size=self.config.minibatch_size,
@@ -162,6 +173,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.completed_updates += 1
         self._sync()
         after = self._batch_diagnostics(batch, module_ids)
+        replay_after = self._batch_diagnostics(replay_view)["uc"]
         first = batch.policy_batches["uc"]
         self.batch_loss_log.record({
             "outer_round": self.outer_round + 1,
@@ -184,6 +196,13 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "critic_lambda": self.config.critic_lambda,
             "critic_epochs": self.config.critic_epochs, "actor_epochs": self.config.num_epochs,
             "minibatch_size": self.config.minibatch_size,
+            "uc_critic_replay": {
+                "pool_batches": len(self.uc_critic_replay.entries),
+                "sampled_rows": batch.count,
+                "rmse_before": replay_before["critic_rmse"],
+                "rmse_after": replay_after["critic_rmse"],
+                "fresh_batch_metrics": "modules.uc.critic_rmse_before/after",
+            },
             "modules": {
                 key: {
                     "critic_loss_before": before[key]["critic_loss"],
@@ -365,6 +384,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
     def get_state(self, *args, **kwargs):
         state = super().get_state(*args, **kwargs)
         state["learning_contract"] = self.config.learning_contract()
+        state["uc_critic_replay"] = self.uc_critic_replay.get_state()
         state["stackelberg_runtime"] = {
             "sampled_periods": self.sampled_periods,
             "evaluated_periods": self.evaluated_periods,
@@ -379,6 +399,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         if state["learning_contract"] != self.config.learning_contract():
             raise ValueError("Checkpoint learning contract differs from the configured model/scenarios")
         super().set_state(state)
+        self.uc_critic_replay.set_state(state["uc_critic_replay"])
         for key, value in state["stackelberg_runtime"].items():
             setattr(self, key, copy.deepcopy(value))
         self._sync()

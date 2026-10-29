@@ -30,7 +30,7 @@ def value_fit_statistics(predictions, targets, scale):
 class StackelbergTorchLearner(TorchLearner):
     """Actor and value have separate optimizers; absent module batches stay frozen."""
 
-    def update(self, *args, update_phase="joint", **kwargs):
+    def update(self, *args, update_phase="joint", popart_targets=None, **kwargs):
         """Select gradient ownership without changing native minibatching/Adam.
 
         Unused parameters receive no gradient (not zero gradients), so Adam
@@ -54,7 +54,8 @@ class StackelbergTorchLearner(TorchLearner):
                     for key, data in batch.policy_batches.items():
                         value = self.module[key].unwrapped().value
                         if hasattr(value, "popart_scale"):
-                            update_popart(value, data["value_targets"])
+                            targets = (popart_targets or {}).get(key, data["value_targets"])
+                            update_popart(value, targets)
             if update_phase == "actor":
                 batch = kwargs.get("batch", args[0] if args else None)
                 # LearnerGroup wraps local batches in RLlib TrainingData before forwarding.
@@ -134,7 +135,7 @@ class StackelbergTorchLearner(TorchLearner):
             loss, rmse, _ = value_fit_statistics(
                 predictions, data["value_targets"], module.value_scale
             )
-            inputs = data[Columns.OBS] if module.role == "uc" else data["critic_obs"]
+            inputs = data["critic_obs"]
             diagnostics = {"tanh_saturation": module.value.saturation(inputs.float())}
             if hasattr(module.value, "popart_scale"):
                 diagnostics["popart"] = {

@@ -19,8 +19,9 @@ sys.path.insert(0, str(ROOT))
 
 
 def configuration(path, *, device="cpu"):
-    from experiments.sn_energy_market.training_env import MarketEnvFactory
     from snmarket import EnvironmentConfig
+
+    from experiments.sn_energy_market.training_env import MarketEnvFactory
 
     cfg = EnvironmentConfig()
     cfg = replace(

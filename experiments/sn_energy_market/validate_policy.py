@@ -57,6 +57,9 @@ def complete_mc(algorithm, target, progress=None):
                             "mode": int(uc["storage_mode"]),
                             "prediction": 0.0,
                             "reward": float(result.rewards["uc"]),
+                            "grid_charge_kwh": float(result.metrics["grid_charge_kwh"]),
+                            "der_charge_kwh": float(result.metrics["der_charge_kwh"]),
+                            "ess_discharge_kwh": float(result.metrics["ess_discharge_kwh"]),
                         }
                     )
                     for key, value in result.rewards.items():

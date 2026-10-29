@@ -35,7 +35,7 @@ def uc_module():
         module_class=StackelbergRLModule,
         observation_space=gym.spaces.Box(-np.inf, np.inf, (7,), np.float32),
         action_space=gym.spaces.Box(-np.inf, np.inf, (6,), np.float64),
-        model_config={"role": "uc", "hidden_dim": 8, "uc_head_scale": 0.0,
+        model_config={"role": "uc", "hidden_dim": 8, "critic_dim": 7, "uc_head_scale": 0.0,
                       "uc_initial_mean": [0.8, 0.1, 0.4, 0.6, 0.5, 0.5]},
     ).build()
 

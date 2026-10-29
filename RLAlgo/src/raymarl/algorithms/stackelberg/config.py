@@ -36,6 +36,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.test_seeds = tuple(range(2000, 2032))
         self.gamma, self.lambda_gae = 0.99, 0.95
         self.critic_lambda = 1.0
+        self.uc_critic_replay_batches = 0
         self.actor_lr, self.critic_lr = 3e-4, 1e-3
         self.clip_param, self.vf_loss_coeff, self.entropy_coeff = 0.2, 0.5, 0.0
         self.grad_clip = 0.5
@@ -80,6 +81,7 @@ class StackelbergConfig(AlgorithmConfig):
             "actor_lr",
             "critic_lr",
             "critic_epochs",
+            "uc_critic_replay_batches",
             "lambda_gae",
             "critic_lambda",
             "clip_param",
@@ -130,7 +132,9 @@ class StackelbergConfig(AlgorithmConfig):
                 model_config={
                     **self.model_config,
                     "role": "uc" if leader else "consumer",
-                    "critic_dim": obs_dim if leader else env.consumer_value_dim,
+                    "critic_dim": env.uc_value_dim if leader else env.consumer_value_dim,
+                    "value_hidden_dim": self.model_config.get("critic_hidden_dims", {}).get(
+                        key, self.model_config.get("hidden_dim", 64)),
                     **({"soc_input": env.uc_soc_input} if leader else {}),
                 },
             )
@@ -155,6 +159,7 @@ class StackelbergConfig(AlgorithmConfig):
             "gamma",
             "lambda_gae",
             "critic_lambda",
+            "uc_critic_replay_batches",
             "actor_lr",
             "critic_lr",
             "clip_param",
@@ -187,6 +192,7 @@ class StackelbergConfig(AlgorithmConfig):
         contract = {key: getattr(self, key) for key in fields}
         contract.update(
             model=self.model_config,
+            module_overrides=self.algorithm_config_overrides_per_module,
             scenario=self.scenario_factory.get_contract(),
             input_transform={
                 "default": "signed_log1p",
@@ -245,6 +251,8 @@ class StackelbergConfig(AlgorithmConfig):
             raise ValueError("Sampling, update, candidate and retention budgets must be positive integers")
         if self.deviation_updates < 0 or self.checkpoint_interval < 0:
             raise ValueError("Deviation and checkpoint intervals must be nonnegative")
+        if type(self.uc_critic_replay_batches) is not int or self.uc_critic_replay_batches < 0:
+            raise ValueError("uc_critic_replay_batches must be a nonnegative integer")
         if self.phase_sampling not in {"single_stream", "all_streams"}:
             raise ValueError("phase_sampling must be single_stream or all_streams")
         if type(self.execution_workers) is not int or not 0 <= self.execution_workers <= 4:

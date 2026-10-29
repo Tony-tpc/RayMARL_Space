@@ -35,7 +35,9 @@ def test_soc_skip_adds_only_three_weights_preserves_critic_rng_and_raw_observati
     expected = signed_log1p(obs)
     expected[:, 2] = torch.tensor([-1., 0., 1.])
     torch.testing.assert_close(module._features(obs), module.actor["encoder"](expected), atol=0, rtol=0)
-    torch.testing.assert_close(module.compute_values({"obs": obs}), old.compute_values({"obs": obs}), atol=0, rtol=0)
+    critic = torch.ones(3, 13)
+    torch.testing.assert_close(module.compute_values({"critic_obs": critic}),
+                               old.compute_values({"critic_obs": critic}), atol=0, rtol=0)
     torch.testing.assert_close(obs, original, atol=0, rtol=0)
 
 
