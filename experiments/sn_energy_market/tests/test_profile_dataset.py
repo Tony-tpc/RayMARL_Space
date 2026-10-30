@@ -58,6 +58,16 @@ def dataset_path(tmp_path_factory):
     return make_dataset(tmp_path_factory.mktemp("profiles"))
 
 
+def test_aggregate_history_uses_only_contiguous_preceding_loaded_data(dataset_path):
+    data = ProfileDataset(dataset_path, splits=("train", "validation"))
+    assert data.aggregate_history(data.windows("train")[0]).shape == (0, 2)
+    for split, index in (("train", 1), ("validation", 0)):
+        history = data.aggregate_history(data.windows(split)[index])
+        np.testing.assert_array_equal(history, np.tile([3., 1.], (336, 1)))
+    validation_only = ProfileDataset(dataset_path, splits=("validation",))
+    assert validation_only.aggregate_history(validation_only.windows("validation")[0]).shape == (0, 2)
+
+
 def test_all_months_and_fixed_household_order_with_leap_year(dataset_path):
     data = ProfileDataset(dataset_path)
     factory = DatasetEnvFactory(data, seed=80)

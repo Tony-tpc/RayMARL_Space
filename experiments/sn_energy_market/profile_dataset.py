@@ -149,6 +149,27 @@ class ProfileDataset:
     def windows(self, split):
         return self._windows[split]
 
+    def aggregate_history(self, window):
+        """Up to seven contiguous preceding days; never open a later split."""
+        remaining = 7 * 1440 // self.resolution_minutes
+        cursor = datetime.fromisoformat(window.start_datetime)
+        parts = []
+        for split in reversed(self.splits[: self.splits.index(window.split) + 1]):
+            arrays = self._arrays[split]
+            start = datetime.fromisoformat(self.manifest["splits"][split]["start_datetime"])
+            stop = window.start if split == window.split else len(arrays["der_kw"])
+            if start + timedelta(minutes=stop * self.resolution_minutes) != cursor:
+                break
+            take = min(remaining, stop)
+            if take:
+                parts.insert(0, np.column_stack((arrays["loads_kw"][stop-take:stop].sum(axis=1),
+                                                arrays["der_kw"][stop-take:stop])))
+                remaining -= take
+                cursor -= timedelta(minutes=take * self.resolution_minutes)
+            if not remaining:
+                break
+        return np.concatenate(parts) if parts else np.empty((0, 2))
+
     def calibration(self, flex_ratio=0.2):
         """A declared resource scenario fitted only to training gross consumption."""
         loads = self._arrays["train"]["loads_kw"]
@@ -313,7 +334,8 @@ class DatasetEnvFactory:
                 start_datetime=window.start_datetime,
             ),
         )
-        return MarketTrainingEnv(config, self.profiles_for_seed(seed))
+        return MarketTrainingEnv(config, self.profiles_for_seed(seed),
+                                 aggregate_history=self.dataset.aggregate_history(window))
 
     def get_contract(self):
         """Portable data, identity, calendar and assumption hashes for checkpoints."""
@@ -348,11 +370,19 @@ class DatasetEnvFactory:
             "cadence_assumption": "UC overdue assessments preserve hourly strength; energy rates, hourly rates and already specified per-period amounts unchanged",
             "seed_windows": {seed: vars(window) for seed, window in self._by_seed.items()},
             "initial_state": "month start; empty queues; zero monthly UC energy; configured initial ESS",
+            "uc_value_summary": {
+                "horizons_hours": [24, 72],
+                "fields_each": ["load_kwh", "pv_kwh", "positive_rigid_gap_kwh", "max_rigid_gap_kw"],
+                "forecast": "mean of previous day and week; first slot current observed aggregate",
+                "history": "preceding seven contiguous days, including earlier loaded split if contiguous",
+                "cold_start": "missing weekly slot uses past daily slot; missing daily slot uses current aggregate",
+                "actor_extra_features": 0,
+            },
             "source_sha256": {
                 name: hashlib.sha256(
                     Path(__file__).with_name(name).read_bytes()
                 ).hexdigest()
-                for name in ("profile_dataset.py", "training_env.py")
+                for name in ("profile_dataset.py", "training_env.py", "value_summary.py")
             },
             "episode_boundary": "complete month from day one; terminal valuation once at month end",
         }

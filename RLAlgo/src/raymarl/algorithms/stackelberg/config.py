@@ -135,6 +135,7 @@ class StackelbergConfig(AlgorithmConfig):
                     "critic_dim": env.uc_value_dim if leader else env.consumer_value_dim,
                     "value_hidden_dim": self.model_config.get("critic_hidden_dims", {}).get(
                         key, self.model_config.get("hidden_dim", 64)),
+                    "value_input_scales": self.model_config.get("critic_input_scales", {}).get(key, {}),
                     **({"soc_input": env.uc_soc_input} if leader else {}),
                 },
             )
@@ -198,7 +199,8 @@ class StackelbergConfig(AlgorithmConfig):
                 "default": "signed_log1p",
                 "uc_actor_soc": self.scenario_factory(self.train_seeds[0]).uc_soc_input,
                 "uc_actor_soc_transform": "centered_fraction_with_zero_initialized_mode_skip_v1",
-                "critic": "signed_log1p",
+                "critic": {"default": "signed_log1p",
+                           "linear_divisors": self.model_config.get("critic_input_scales", {})},
             },
             uc_probability="masked_categorical_conditional_active_gaussian",
             consumer_probability="conditional_beta_physical_density",

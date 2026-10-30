@@ -36,7 +36,7 @@ def test_critic_layernorm_preserves_actor_initialization(monkeypatch):
     current = [spec.build() for spec in specs]
     rng = torch.get_rng_state().clone()
     with monkeypatch.context() as patch:
-        patch.setattr(implementation, "ValueNetwork", lambda d, h: implementation.mlp(d, h, 1))
+        patch.setattr(implementation, "ValueNetwork", lambda d, h, scales: implementation.mlp(d, h, 1))
         torch.manual_seed(42)
         previous = [spec.build() for spec in specs]
     assert torch.equal(rng, torch.get_rng_state())

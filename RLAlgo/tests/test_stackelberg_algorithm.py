@@ -435,7 +435,7 @@ def test_phase_batch_records_targets_and_budget_do_not_roll_back(ray_runtime, tm
         assert_nested_equal(snapshot["learner"], after["learner"])
         assert_nested_equal(snapshot["rng"], after["rng"])
         assert snapshot["runner"]["sampling"]["environment"].engine == after["runner"]["sampling"]["environment"].engine
-        if not actor_ids:
+        if not actor_ids and set(batch.policy_batches) == set(algo.config.agent_order):
             before.append(result)
         return result
 

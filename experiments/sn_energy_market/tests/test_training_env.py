@@ -89,9 +89,9 @@ def test_publish_has_two_phase_inputs_and_never_advances_time():
     assert env.phase == Phase.CONSUMER_TURN
     assert env.engine.state.period_id == decision.period_id == 0
     np.testing.assert_array_equal(decision.uc_observation, initial)
-    assert env.uc_value_dim == env.uc_observation_dim + 12
-    np.testing.assert_array_equal(decision.uc_value_state[:-12], initial)
-    np.testing.assert_array_equal(decision.uc_value_state[-12:], np.eye(12)[0])
+    assert env.uc_value_dim == env.uc_observation_dim + 8
+    np.testing.assert_array_equal(decision.uc_value_state[:-8], initial)
+    np.testing.assert_array_equal(decision.uc_value_state[-8:], env.value_summaries[0])
     assert decision.uc_action.shape == (6,)
     assert set(decision.mapping_context) == {
         "ess_energy_kwh",
@@ -120,18 +120,17 @@ def test_publish_has_two_phase_inputs_and_never_advances_time():
     assert set(result.rewards) == {"uc", *env.consumer_ids}
 
 
-@pytest.mark.parametrize("start,months", [("2026-01-31T23:45:00+08:00", (1, 2)),
-                                        ("2026-12-31T23:45:00+08:00", (12, 1))])
-def test_uc_value_public_calendar_follows_decision_time(start, months):
+@pytest.mark.parametrize("start", ["2026-01-31T23:45:00+08:00", "2026-12-31T23:45:00+08:00"])
+def test_uc_value_summary_follows_decision_time_across_calendar_boundary(start):
     base = config(steps=2)
     cfg = replace(base, system=replace(base.system, start_datetime=start))
     env = MarketEnvFactory(cfg)(12)
     env.reset(12)
-    for month in months:
+    for period in range(2):
         actor_obs = env.engine.uc_observation().copy()
         decision = env.publish([0, .7, .1, .5, .5, .3, .4])
-        np.testing.assert_array_equal(decision.uc_value_state[:-12], actor_obs)
-        np.testing.assert_array_equal(decision.uc_value_state[-12:], np.eye(12)[month - 1])
+        np.testing.assert_array_equal(decision.uc_value_state[:-8], actor_obs)
+        np.testing.assert_array_equal(decision.uc_value_state[-8:], env.value_summaries[period])
         env.step(consumer_actions(env))
 
 

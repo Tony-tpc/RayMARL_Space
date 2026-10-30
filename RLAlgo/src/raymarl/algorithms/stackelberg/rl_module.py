@@ -50,20 +50,30 @@ def mlp(input_dim, hidden_dim, output_dim=None):
 class ValueNetwork(nn.Module):
     """Normalize each state's hidden features before Tanh."""
 
-    def __init__(self, input_dim, hidden_dim):
+    def __init__(self, input_dim, hidden_dim, linear_scales=None):
         super().__init__()
+        self.linear_scales = tuple((int(index), float(scale)) for index, scale in (linear_scales or {}).items())
+        if any(not 0 <= index < input_dim or not math.isfinite(scale) or scale <= 0
+               for index, scale in self.linear_scales):
+            raise ValueError("Value input scales require valid indices and finite positive divisors")
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.Tanh(),
         )
         self.head = nn.Linear(hidden_dim, 1)
 
+    def transform(self, inputs):
+        transformed = signed_log1p(inputs)
+        for index, scale in self.linear_scales:
+            transformed[..., index] = inputs[..., index] / scale
+        return transformed
+
     def forward(self, inputs):
-        return self.head(self.encoder(signed_log1p(inputs))).squeeze(-1)
+        return self.head(self.encoder(self.transform(inputs))).squeeze(-1)
 
     @torch.no_grad()
     def saturation(self, inputs):
-        hidden, fractions = signed_log1p(inputs), []
+        hidden, fractions = self.transform(inputs), []
         for layer in self.encoder:
             hidden = layer(hidden)
             if isinstance(layer, nn.Tanh):
@@ -159,7 +169,8 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             self.actor["market"] = nn.Linear(hidden + 2, 4)
         if not self.inference_only:
             self.value = ValueNetwork(
-                self.model_config["critic_dim"], self.model_config.get("value_hidden_dim", hidden))
+                self.model_config["critic_dim"], self.model_config.get("value_hidden_dim", hidden),
+                self.model_config.get("value_input_scales"))
             if self.model_config.get("online_popart", False):
                 register_popart(self.value, self._initial_value_scale)
 

@@ -19,6 +19,8 @@ from snmarket.action import action_tuple, map_uc_controls, uc_control_bounds
 from snmarket.contracts import EngineSnapshot, LocalBounds
 from snmarket.observation import consumer_fields, uc_fields
 
+from experiments.sn_energy_market.value_summary import physical_summaries
+
 BOUND_FIELDS = tuple(field.name for field in fields(LocalBounds))
 
 
@@ -48,6 +50,8 @@ class PeriodResult:
 class MarketSnapshot:
     profiles: Profiles
     engine: EngineSnapshot
+    aggregate_history: np.ndarray
+    value_summaries: np.ndarray
 
 
 class MarketTrainingEnv:
@@ -62,6 +66,8 @@ class MarketTrainingEnv:
         self,
         config: EnvironmentConfig,
         profiles: Profiles | None = None,
+        *,
+        aggregate_history=(),
     ):
         self.engine = EnergyMarketEngine(config, profiles)
         self.config = self.engine.config
@@ -71,7 +77,10 @@ class MarketTrainingEnv:
         self.uc_observation_fields = uc_fields(horizon)
         self.consumer_observation_fields = consumer_fields(horizon)
         self.uc_observation_dim = len(self.uc_observation_fields)
-        self.uc_value_dim = self.uc_observation_dim + 12
+        self.uc_value_dim = self.uc_observation_dim + 8
+        history = np.asarray(aggregate_history, dtype=np.float64).reshape(-1, 2)
+        self.aggregate_history = np.frombuffer(history.tobytes(), dtype=np.float64).reshape(-1, 2)
+        self.value_summaries = physical_summaries(self.engine.profiles, config.system, self.aggregate_history)
         self.uc_soc_input = {
             "index": self.uc_observation_fields.index("ess_energy_kwh"),
             "min": config.system.ess_energy_min_kwh,
@@ -99,10 +108,8 @@ class MarketTrainingEnv:
             )
         state, system = self.engine.state, self.config.system
         observation = self.engine.uc_observation()
-        # Public decision-time calendar only; no individual Consumer state.
-        month = np.zeros(12, dtype=observation.dtype)
-        month[state.timestamp.month - 1] = 1.0
-        uc_value_state = np.concatenate([observation, month])
+        # Causal aggregate history only; Actor and Consumer value inputs stay unchanged.
+        uc_value_state = np.concatenate([observation, self.value_summaries[state.period_id]])
         generation = float(self.engine.profiles.der_kw[state.period_id])
         action = map_uc_controls(raw_controls, state, generation, self.config)
         consumer_observations = self.engine.apply_uc_action(action)
@@ -189,26 +196,31 @@ class MarketTrainingEnv:
         )
 
     def get_state(self) -> MarketSnapshot:
-        return MarketSnapshot(self.engine.profiles, self.engine.get_state())
+        return MarketSnapshot(self.engine.profiles, self.engine.get_state(),
+                              self.aggregate_history, self.value_summaries)
 
     def temporary_announcement(self):
         return self.engine.temporary_announcement()
 
     def branch_state(self):
-        return MarketSnapshot(self.engine.profiles, self.engine._branch_state())
+        return MarketSnapshot(self.engine.profiles, self.engine._branch_state(),
+                              self.aggregate_history, self.value_summaries)
 
     def restore_branch(self, snapshot):
         engine = EnergyMarketEngine(self.config, snapshot.profiles)
         engine._restore_branch(snapshot.engine)
         self.engine = engine
+        self.aggregate_history, self.value_summaries = snapshot.aggregate_history, snapshot.value_summaries
 
     def set_state(self, snapshot: MarketSnapshot) -> None:
         engine = EnergyMarketEngine(self.config, snapshot.profiles)
         engine.set_state(snapshot.engine)
         self.engine = engine
+        self.aggregate_history, self.value_summaries = snapshot.aggregate_history, snapshot.value_summaries
 
     def append_profiles(self, profiles: Profiles) -> np.ndarray:
         self.engine.append_profiles(profiles)
+        self.value_summaries = physical_summaries(self.engine.profiles, self.config.system, self.aggregate_history)
         return self.engine.uc_observation()
 
     @property

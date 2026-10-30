@@ -145,6 +145,14 @@ class TrainingTrace:
                 "samples": batch.count,
             }
             uc = batch["uc"]
+            # Separately expose first-month origins that lack a full week of readings.
+            cold = (uc["scenario_seed"] == algorithm.config.train_seeds[0]) & (uc["period_id"] < 336)
+            if cold.any():
+                error = uc["vf_preds"][cold] - uc["value_targets"][cold]
+                row["first_month_cold_start"] = {
+                    "samples": int(cold.sum()), "bootstrap_target_rmse": float(np.sqrt(np.mean(error**2))),
+                    "bias": float(error.mean()), "reward_mean": float(uc["rewards"][cold].mean()),
+                }
             horizons, zero_tails = np.empty(steps, dtype=int), np.empty(steps, dtype=bool)
             ends = np.empty(steps, dtype=int)
             length, closed, end = 0, False, steps - 1

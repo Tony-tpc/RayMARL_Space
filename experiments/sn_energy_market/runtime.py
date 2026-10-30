@@ -153,7 +153,8 @@ def configuration(output):
                    validation_seeds=SCREEN_SEEDS, test_seeds=())
         .debugging(seed=TRIAL_SEED)
         .rl_module(model_config={**model_settings(128), "online_popart": True,
-                                 "critic_hidden_dims": {"uc": 192}})
+                                 "critic_hidden_dims": {"uc": 192},
+                                 "critic_input_scales": {"uc": {0: 1488.0, 1: 1488.0}}})
         .multi_agent(algorithm_config_overrides_per_module={"uc": {"actor_lr": 1e-4}})
         .learners(num_learners=0, num_gpus_per_learner=1)
         .training(execution_workers=4, phase_sampling="all_streams",
@@ -172,9 +173,9 @@ def initialize_fresh(algorithm):
     np.random.seed(TRIAL_SEED)
     random.seed(TRIAL_SEED)
     module = algorithm.config.get_multi_rl_module_spec().build()
-    # Start with identical value functions with or without the new calendar information.
+    # Match the offline summary initialization: new features start with zero weights.
     with torch.no_grad():
-        module["uc"].value.encoder[0].weight[:, -12:].zero_()
+        module["uc"].value.encoder[0].weight[:, -8:].zero_()
     weights = module.get_state()
     for result in algorithm.learner_group.foreach_learner(
         lambda learner: learner.module.set_state(weights)
