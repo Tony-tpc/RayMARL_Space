@@ -96,6 +96,10 @@ def _worker(connection, config_blob, lane, cuda_seeds, deterministic):
                     result = batch, runner._sampling_metadata(), runner.lane_summary(), physical
                 finally:
                     runner._period = original
+            elif command == "mode_returns":
+                weights, steps, options, probe_seed = payload
+                runner.module.set_state(weights)
+                result = runner._mode_return_lane(steps, **options, seed=probe_seed)
             elif command == "save":
                 snapshots[payload] = runner._single_state(branch=True), runner.lane_steps.copy()
                 result = None
@@ -252,6 +256,13 @@ class ResidentExecution:
             }, total_steps)
         finally:
             restore_random_state(outside)
+
+    def mode_returns(self, steps, options, seed):
+        weights = self.runner.module.get_state()
+        return self.broadcast("mode_returns", [
+            (weights, steps, options, seed + lane * 1_000_000_007)
+            for lane in range(len(self.runner.config.train_seed_groups))
+        ])
 
     def snapshot(self):
         from .runner import random_state

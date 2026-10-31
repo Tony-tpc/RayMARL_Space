@@ -81,7 +81,12 @@ def main(base, rounds):
             "candidate_evaluation": "two_candidates_times_two_complete_months_every_round",
             "final_validation": "twelve_complete_months_times_three_action_seeds",
             "validation_periods": validation_periods,
-            "test_loaded": False, "mc_training_labels": 0,
+            "test_loaded": False, "validation_labels_used_for_training": 0,
+            "mode_credit": cfg.mode_credit,
+            "mode_head_update_calls": rounds,
+            "mode_probe_contexts_per_round": 24,
+            "mode_simulated_periods_upper_bound_per_round": 29184,
+            "uc_mode_head_Adam_updates": 0,
         })
         status("initializing", 0)
         algorithm = trace = None
@@ -141,6 +146,7 @@ def main(base, rounds):
                         "status": "completed", "completed_rounds": rounds, "checkpoint": checkpoint,
                         "checkpoint_replay_exact": True, "evaluation_state_unchanged": True,
                         "ppo_periods": algorithm.sampled_periods,
+                        "mode_simulated_periods": algorithm.mode_sampled_periods,
                         "committed_periods": algorithm.env_runner.trajectory_periods,
                         "optimizer_steps_executed": dict(trace.steps),
                         "validation": str(output / "validation/summary.json"),

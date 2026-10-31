@@ -56,6 +56,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
     def setup(self, config):
         super().setup(config)
         self.sampled_periods = self.evaluated_periods = self.completed_updates = self.outer_round = 0
+        self.mode_sampled_periods = 0
         self.last_round = None
         self.stable_rounds = 0
         self.uc_critic_replay = CriticReplay(self.config.uc_critic_replay_batches, self.config.seed)
@@ -172,10 +173,26 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
         self.sampled_periods += batch.count
         self.completed_updates += 1
         self._sync()
+        mode_credit = None
+        if "uc" in module_ids and self.config.mode_credit is not None:
+            settings = self.config.mode_credit
+            mode_batch, extra_periods = self.env_runner.collect_mode_returns(
+                batch.count, stride=settings["stride"], horizon=settings["horizon"],
+                replicates=settings["replicates"],
+                seed=int(self.config.seed) * 1_000_003 + self.completed_updates * 10_000_019,
+            )
+            self.mode_sampled_periods += extra_periods
+            updates = self.learner_group.foreach_learner(
+                lambda learner: learner.update_mode_head("uc", mode_batch, target_kl=settings["target_kl"])
+            )
+            mode_credit = next(iter(updates)).get()
+            mode_credit.update(extra_periods=extra_periods, sampled_periods_lifetime=self.mode_sampled_periods)
+            self._sync()
         after = self._batch_diagnostics(batch, module_ids)
         replay_after = self._batch_diagnostics(replay_view)["uc"]
         first = batch.policy_batches["uc"]
         self.batch_loss_log.record({
+            **({"mode_credit": mode_credit} if mode_credit is not None else {}),
             "outer_round": self.outer_round + 1,
             "completed_updates": self.completed_updates,
             "phase": phase, "candidate_index": candidate_index,
@@ -371,6 +388,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "evaluated_periods_lifetime": self.evaluated_periods,
             "updates_lifetime": self.completed_updates,
         }
+        if self.config.mode_credit is not None:
+            self.last_round["mode_sampled_periods_lifetime"] = self.mode_sampled_periods
         self.metrics.log_value(NUM_ENV_STEPS_SAMPLED_LIFETIME, self.sampled_periods, window=1)
         self.metrics.log_value("num_updates_lifetime", self.completed_updates, window=1)
         self.metrics.log_value("selected_candidate", selected, window=1)
@@ -393,6 +412,8 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             "last_round": copy.deepcopy(self.last_round),
             "stable_rounds": self.stable_rounds,
         }
+        if self.config.mode_credit is not None:
+            state["stackelberg_runtime"]["mode_sampled_periods"] = self.mode_sampled_periods
         return state
 
     def set_state(self, state):
@@ -400,6 +421,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             raise ValueError("Checkpoint learning contract differs from the configured model/scenarios")
         super().set_state(state)
         self.uc_critic_replay.set_state(state["uc_critic_replay"])
+        self.mode_sampled_periods = state["stackelberg_runtime"]["mode_sampled_periods"] if self.config.mode_credit is not None else 0
         for key, value in state["stackelberg_runtime"].items():
             setattr(self, key, copy.deepcopy(value))
         self._sync()

@@ -37,6 +37,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.gamma, self.lambda_gae = 0.99, 0.95
         self.critic_lambda = 1.0
         self.uc_critic_replay_batches = 0
+        self.mode_credit = None
         self.actor_lr, self.critic_lr = 3e-4, 1e-3
         self.clip_param, self.vf_loss_coeff, self.entropy_coeff = 0.2, 0.5, 0.0
         self.grad_clip = 0.5
@@ -82,6 +83,7 @@ class StackelbergConfig(AlgorithmConfig):
             "critic_lr",
             "critic_epochs",
             "uc_critic_replay_batches",
+            "mode_credit",
             "lambda_gae",
             "critic_lambda",
             "clip_param",
@@ -215,10 +217,23 @@ class StackelbergConfig(AlgorithmConfig):
             from .popart import POPART
 
             contract["value_normalization"] = dict(POPART)
+        if self.mode_credit is not None:
+            contract["mode_credit"] = dict(self.mode_credit)
+            contract["mode_update_protocol"] = "fresh_conditional_returns_natural_head_after_continuous_ppo"
         return json.loads(json.dumps(contract, sort_keys=True))
 
     def validate(self):
         super().validate()
+        if self.mode_credit is not None:
+            settings = self.mode_credit
+            if set(settings) != {"horizon", "replicates", "stride", "target_kl"}:
+                raise ValueError("mode_credit requires horizon, replicates, stride and target_kl")
+            if any(type(settings[key]) is not int or settings[key] < 1 for key in ("horizon", "replicates", "stride")):
+                raise ValueError("Mode sampling budgets must be positive integers")
+            if not math.isfinite(settings["target_kl"]) or settings["target_kl"] <= 0:
+                raise ValueError("Mode target_kl must be finite and positive")
+            if self.entropy_coeff != 0:
+                raise ValueError("Counterfactual mode credit requires entropy_coeff=0")
         if self.always_keep_candidate and self.uc_candidates != 1:
             raise ValueError("Always retention requires exactly one new UC candidate")
         if self.scenario_factory is None:

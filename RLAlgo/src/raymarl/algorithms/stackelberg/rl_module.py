@@ -377,6 +377,21 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             return self._draw_uc(features, bounds, deterministic, self.centered_soc(obs), actions_only=True)
         return self._draw_consumer(features, bounds, deterministic)[0]
 
+    def draw_conditional_mode(self, obs, bounds, base, mode):
+        """Sample native storage power after fixing a feasible base and mode."""
+        features = self._features(obs)
+        mode = torch.as_tensor(mode, dtype=torch.long, device=features.device).expand(len(obs))
+        _, valid = self._uc_mode(features, base, bounds, self.centered_soc(obs))
+        if not valid.gather(-1, mode[:, None]).all():
+            raise ValueError("Cannot intervene on an infeasible storage mode")
+        storage = self._gaussian(self._uc_storage_parameters(features, base, mode),
+                                 torch.ones_like(base, dtype=torch.bool)).sample()
+        controls = torch.stack((base[:, 0], base[:, 1], storage[:, 0], storage[:, 1],
+                                storage[:, 2], base[:, 2]), -1)
+        intervals = self._uc_intervals(bounds, controls, mode)
+        controls = torch.where(intervals[..., 1] > 0, controls, 0.)
+        return torch.cat((mode[:, None].to(controls.dtype), controls), -1)
+
     def draw(self, obs, bounds=None, deterministic=False):
         features = self._features(obs)
         if self.role == "uc":

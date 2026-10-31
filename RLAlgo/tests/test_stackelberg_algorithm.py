@@ -19,9 +19,8 @@ sys.path.insert(0, str(ROOT))
 
 
 def configuration(path, *, device="cpu"):
-    from snmarket import EnvironmentConfig
-
     from experiments.sn_energy_market.training_env import MarketEnvFactory
+    from snmarket import EnvironmentConfig
 
     cfg = EnvironmentConfig()
     cfg = replace(
@@ -114,6 +113,47 @@ def test_training_and_validation_allow_reserved_test_split(tmp_path):
     cfg.test_seeds = (21, 21)
     with pytest.raises(ValueError, match="distinct"):
         cfg.validate()
+
+
+def test_mode_credit_contract_is_explicit_and_default_preserves_old_contract(tmp_path):
+    cfg = configuration(tmp_path)
+    assert "mode_credit" not in cfg.learning_contract()
+    cfg.training(mode_credit={"horizon": 4, "replicates": 2, "stride": 2, "target_kl": .01})
+    cfg.validate()
+    assert cfg.learning_contract()["mode_credit"] == cfg.mode_credit
+    cfg.mode_credit["replicates"] = 0
+    with pytest.raises(ValueError, match="positive integers"):
+        cfg.validate()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("workers", [0, 2])
+def test_native_round_uses_fresh_mode_credit_and_checkpoint_resumes_it(ray_runtime, tmp_path, workers):
+    torch.set_num_threads(1)
+    cfg = configuration(tmp_path).training(
+        deviation_updates=0, always_keep_candidate=True,
+        phase_sampling="all_streams", execution_workers=workers,
+        mode_credit={"horizon": 4, "replicates": 2, "stride": 2, "target_kl": .01},
+    )
+    cfg.train_seed_groups = ((2,), (3,))
+    algo = cfg.build_algo()
+    try:
+        algo.train()
+        assert algo.mode_sampled_periods > 4
+        rows = [json.loads(line) for line in (Path(algo.logdir) / "batch_losses.jsonl").read_text().splitlines()]
+        rows = [row for row in rows if row.get("phase") == "uc_proposal" and "mode_credit" in row]
+        assert len(rows) == 1 and rows[0]["mode_credit"]["samples"] == 2
+        assert rows[0]["mode_credit"]["extra_periods"] == algo.mode_sampled_periods
+        checkpoint = algo.save_to_path(str(tmp_path / "mode-checkpoint"))
+        algo.train()
+        expected = algo.get_state()
+        algo.restore_from_path(checkpoint)
+        algo.train()
+        actual = algo.get_state()
+        assert_nested_equal(expected["learner_group"], actual["learner_group"])
+        assert expected["stackelberg_runtime"] == actual["stackelberg_runtime"]
+    finally:
+        algo.stop()
 
 
 @pytest.mark.parametrize("epochs", [0, -1, 1.5])

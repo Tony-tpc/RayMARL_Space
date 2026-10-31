@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pytest
 import torch
-from ray.rllib.policy.sample_batch import MultiAgentBatch
+from ray.rllib.policy.sample_batch import MultiAgentBatch, SampleBatch
 
 from raymarl.algorithms.stackelberg.learner import clipped_policy_loss
 from raymarl.algorithms.stackelberg.mode_diagnostics import flat_surrogate, mode_statistics
@@ -157,3 +157,118 @@ def test_passive_diagnostics_leave_adam_rng_and_gae_batch_identical(monkeypatch)
     assert_nested_equal(final_rng, random_state())
     assert_nested_equal(learner.get_state(), reference.get_state())
     assert_nested_equal(dict(original["uc"]), dict(batch["uc"]))
+
+
+
+
+def counterfactual_batch(module, count=32):
+    data = sample_batch(module, count)
+    with torch.no_grad():
+        output = module.evaluate_actions({key: torch.as_tensor(value) for key, value in data.items()})
+    return SampleBatch({
+        "obs": data["obs"], "bounds": data["bounds"],
+        "base_latents": data["raw_latents"][:, [0, 1, 5]],
+        "mode_mask": data["mode_mask"], "mode_old_probs": output["mode_probs"].numpy(),
+        "mode_q_values": np.tile([0., .5, -.2], (count, 1)),
+    })
+
+
+
+
+
+
+def test_natural_mode_update_changes_conditional_choices_and_roundtrips_native_state():
+    torch.set_num_threads(1)
+    learner = make_learner()
+    warm = MultiAgentBatch({key: sample_batch(module, 32) for key, module in learner.module.items()}, 32)
+    learner.update(batch=warm, num_epochs=1, minibatch_size=32)
+    data = counterfactual_batch(learner.module["uc"])
+    data["obs"][:16, 2], data["obs"][16:, 2] = 0., 10.
+    module = learner.module["uc"]
+    obs = torch.as_tensor(data["obs"])
+    base, bounds = torch.as_tensor(data["base_latents"]), torch.as_tensor(data["bounds"]).double()
+    with torch.no_grad():
+        distribution, _ = module._uc_mode(module._features(obs), base, bounds, module.centered_soc(obs))
+    data["mode_old_probs"] = distribution._dist.probs.numpy()
+    data["mode_q_values"][:16] = [0., 1., -.5]
+    data["mode_q_values"][16:] = [0., -.5, 1.]
+    before, rng, original = copy.deepcopy(learner.get_state()), random_state(), copy.deepcopy(data)
+    result = learner.update_mode_head("uc", data)
+    after = learner.get_state()
+    assert result["accepted"] and result["mode_q_gain"] > 0 and 0 < result["mode_kl"] <= .01
+    with torch.no_grad():
+        distribution, _ = module._uc_mode(module._features(obs), base, bounds, module.centered_soc(obs))
+        new = distribution._dist.probs.numpy()
+    assert new[:16, 1].mean() > data["mode_old_probs"][:16, 1].mean()
+    assert new[16:, 2].mean() > data["mode_old_probs"][16:, 2].mean()
+    assert_nested_equal(before["optimizer"], after["optimizer"])
+    assert_nested_equal(rng, random_state())
+    assert_nested_equal(dict(original), dict(data))
+    for key, values in before["rl_module"].items():
+        for name, value in values.items():
+            if key != "uc" or not name.startswith(("actor.mode.", "actor.mode_soc.")):
+                np.testing.assert_array_equal(value, after["rl_module"][key][name])
+    assert after["weights_seq_no"] == before["weights_seq_no"] + 1
+    restored = make_learner()
+    restored.set_state(after)
+    assert_nested_equal(after, restored.get_state())
+
+
+@pytest.mark.parametrize("fault", ["mask", "stale", "nan", "shape", "constant"])
+def test_natural_mode_update_rejects_invalid_or_uninformative_targets_without_mutation(fault):
+    learner = make_learner()
+    data = counterfactual_batch(learner.module["uc"])
+    if fault == "mask":
+        data["mode_mask"][:] = False
+    elif fault == "stale":
+        data["mode_old_probs"][:] = 0.
+    elif fault == "nan":
+        data["mode_q_values"][:, 0] = np.nan
+    elif fault == "shape":
+        data["mode_q_values"] = data["mode_q_values"][:, :1]
+    else:
+        data["mode_q_values"][:] = 3.
+    before, rng = copy.deepcopy(learner.get_state()), random_state()
+    if fault == "constant":
+        assert not learner.update_mode_head("uc", data)["accepted"]
+    else:
+        with pytest.raises(ValueError):
+            learner.update_mode_head("uc", data)
+    assert_nested_equal(before, learner.get_state())
+    assert_nested_equal(rng, random_state())
+
+
+def test_continuous_ppo_preserves_mode_parameters_and_warm_adam_when_mode_credit_is_separate():
+    torch.set_num_threads(1)
+    learner = make_learner()
+    data = MultiAgentBatch({"uc": sample_batch(learner.module["uc"], 32)}, 32)
+    learner.update(batch=data, update_phase="actor", num_epochs=1, minibatch_size=16)
+    learner.config.mode_credit = {"horizon": 4, "replicates": 2, "stride": 2, "target_kl": .01}
+    data = MultiAgentBatch({"uc": sample_batch(learner.module["uc"], 32)}, 32)
+    before = copy.deepcopy(learner.get_state())
+    learner.update(batch=data, update_phase="actor", num_epochs=2, minibatch_size=16)
+    after = learner.get_state()
+    names = list(dict(learner.module["uc"].actor.named_parameters()))
+    for index, name in enumerate(names):
+        if name.startswith(("mode.", "mode_soc.")):
+            np.testing.assert_array_equal(before["rl_module"]["uc"]["actor." + name], after["rl_module"]["uc"]["actor." + name])
+            assert_nested_equal(before["optimizer"]["uc_actor"]["state"]["state"][index], after["optimizer"]["uc_actor"]["state"]["state"][index])
+    assert any(not np.array_equal(before["rl_module"]["uc"]["actor." + name], after["rl_module"]["uc"]["actor." + name]) for name in names if name.startswith("encoder."))
+    assert all(p.requires_grad for p in learner.module["uc"].parameters())
+
+
+def test_conditional_storage_sampler_replays_native_draw_exactly():
+    module = make_learner().module["uc"]
+    obs = torch.randn(8, module.observation_space.shape[0])
+    bounds = torch.tensor([[10., 8., 5., 5., 4., 3.]] * 8, dtype=torch.float64)
+    with torch.no_grad():
+        torch.manual_seed(813)
+        feature = module._features(obs)
+        base = module._uc_base(feature, bounds).sample()
+        mode = module._uc_mode(feature, base, bounds, module.centered_soc(obs))[0].sample()
+        conditional_rng = torch.get_rng_state()
+        torch.manual_seed(813)
+        expected = module.draw_action(obs, bounds)
+        torch.set_rng_state(conditional_rng)
+        actual = module.draw_conditional_mode(obs, bounds, base, mode)
+        torch.testing.assert_close(expected, actual, atol=0, rtol=0)

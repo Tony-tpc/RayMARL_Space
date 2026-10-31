@@ -18,6 +18,8 @@ def clipped_policy_loss(new_logp, old_logp, advantages, clip_param):
     return -surrogate.mean(), ratio
 
 
+
+
 def value_fit_statistics(predictions, targets, scale):
     """Fit in fixed value units, while reporting errors in reward units."""
     error = predictions - targets
@@ -41,7 +43,16 @@ class StackelbergTorchLearner(TorchLearner):
             raise ValueError("update_phase must be joint, critic or actor")
         previous = getattr(self, "_update_phase", "joint")
         self._update_phase = update_phase
+        gradient_flags = []
         try:
+            if update_phase in {"actor", "joint"} and getattr(self.config, "mode_credit", None) is not None:
+                for module in self.module.values():
+                    module = module.unwrapped()
+                    if module.role == "uc":
+                        for name, parameter in module.named_parameters():
+                            if name.startswith(("actor.mode.", "actor.mode_soc.")):
+                                gradient_flags.append((parameter, parameter.requires_grad))
+                                parameter.requires_grad_(False)
             self._mode_diagnostics = {}
             self._pending_mode_diagnostics = {}
             if update_phase == "critic":
@@ -56,7 +67,7 @@ class StackelbergTorchLearner(TorchLearner):
                         if hasattr(value, "popart_scale"):
                             targets = (popart_targets or {}).get(key, data["value_targets"])
                             update_popart(value, targets)
-            if update_phase == "actor":
+            if update_phase == "actor" and getattr(self.config, "mode_credit", None) is None:
                 batch = kwargs.get("batch", args[0] if args else None)
                 # LearnerGroup wraps local batches in RLlib TrainingData before forwarding.
                 if batch is None:
@@ -71,6 +82,8 @@ class StackelbergTorchLearner(TorchLearner):
                             }
             return super().update(*args, **kwargs)
         finally:
+            for parameter, enabled in gradient_flags:
+                parameter.requires_grad_(enabled)
             self._update_phase = previous
 
     def configure_optimizers_for_module(self, module_id, config=None):
@@ -87,6 +100,82 @@ class StackelbergTorchLearner(TorchLearner):
                 params=parameters,
                 lr_or_lr_schedule=learning_rate,
             )
+
+    @torch.no_grad()
+    def update_mode_head(self, module_id, batch, *, target_kl=0.01, damping=0.001):
+        """One conditional-Q natural-gradient step on the linear mode head.
+
+        Enumerating the three modes gives its exact empirical Fisher. As in
+        TRPO, accept a step only when the sampled surrogate improves within
+        the KL limit. Inputs and Q must come from this current joint policy.
+        This stateless update leaves all Adam states and other weights intact;
+        the ordinary actor phase remains a separate caller-owned operation.
+        """
+        if not (np.isfinite(target_kl) and target_kl > 0 and np.isfinite(damping) and damping > 0):
+            raise ValueError("Mode KL limit and damping must be finite and positive")
+        module = self.module[module_id].unwrapped()
+        if module.role != "uc":
+            raise ValueError("A mode-head update requires a UC module")
+        data = {key: torch.as_tensor(value, device=self._device) for key, value in batch.items()}
+        obs, base = data["obs"], data["base_latents"]
+        features = module._features(obs)
+        distribution, valid = module._uc_mode(
+            features, base, data["bounds"].double(), module.centered_soc(obs),
+        )
+        p = distribution._dist.probs
+        if not len(p) or data["mode_q_values"].shape != p.shape or data["mode_old_probs"].shape != p.shape:
+            raise ValueError("Mode returns and probabilities require one row per state and three columns")
+        q = data["mode_q_values"].double().masked_fill(~valid, 0.0)
+        if not torch.equal(valid, data["mode_mask"]):
+            raise ValueError("Counterfactual mode feasibility changed")
+        if not torch.isfinite(q).all() or not torch.isfinite(data["mode_old_probs"]).all():
+            raise ValueError("Mode probabilities and Q values must be finite")
+        if not torch.allclose(p, data["mode_old_probs"].double(), atol=2e-7, rtol=0):
+            raise ValueError("Mode return batch is stale for the current policy")
+        head = module.actor["mode"]
+        parameters = [head.weight, head.bias]
+        columns = [features, base.clamp(0, 1).float(), torch.ones_like(p[:, :1])]
+        weights = [head.weight.double(), head.bias[:, None].double()]
+        if module.soc_input is not None:
+            parameters.append(module.actor["mode_soc"]["weight"])
+            columns.append(module.centered_soc(obs)[:, None])
+            weights.append(parameters[-1].double())
+        x, w = torch.cat(columns, -1).double(), torch.cat(weights, -1)
+        q = q - (p * q).sum(-1, keepdim=True)
+        gradient = torch.einsum("nc,nd->cd", p * q, x) / len(x)
+        covariance = torch.diag_embed(p) - p[:, :, None] * p[:, None, :]
+        fisher = torch.einsum("nac,nb,nd->abcd", covariance, x, x).reshape(w.numel(), w.numel()) / len(x)
+        direction = torch.linalg.solve(
+            fisher + damping * torch.eye(w.numel(), dtype=fisher.dtype, device=fisher.device),
+            gradient.flatten(),
+        )
+        curvature = float(direction @ fisher @ direction)
+        result = {"accepted": False, "samples": len(x), "mode_q_gain": 0.0, "mode_kl": 0.0}
+        if curvature <= 1e-20:
+            return result
+        step = (2 * target_kl / curvature) ** 0.5
+        originals = [parameter.clone() for parameter in parameters]
+        try:
+            for backtrack in range(20):
+                candidate = w + step * direction.reshape_as(w)
+                head.weight.copy_(candidate[:, :head.in_features])
+                head.bias.copy_(candidate[:, head.in_features])
+                if module.soc_input is not None:
+                    parameters[-1].copy_(candidate[:, -1:])
+                current, _ = module._uc_mode(features, base, data["bounds"].double(), module.centered_soc(obs))
+                new = current._dist.probs
+                kl = float((p * (p.clamp_min(1e-100).log() - new.clamp_min(1e-100).log())).sum(-1).mean())
+                gain = float(((new - p) * q).sum(-1).mean())
+                if np.isfinite(kl) and np.isfinite(gain) and kl <= target_kl and gain > 0:
+                    result.update(accepted=True, mode_q_gain=gain, mode_kl=kl, backtracks=backtrack)
+                    self._weights_seq_no += 1
+                    return result
+                step *= 0.8
+            return result
+        finally:
+            if not result["accepted"]:
+                for parameter, original in zip(parameters, originals, strict=True):
+                    parameter.copy_(original)
 
     def _convert_batch_type(self, batch, **kwargs):
         converted = super()._convert_batch_type(batch, **kwargs)
@@ -197,9 +286,13 @@ class StackelbergTorchLearner(TorchLearner):
                          entropy_coeff=config.entropy_coeff)
             diagnostics["minibatches"].append(entry)
             self._pending_mode_diagnostics[module_id] = entry
-        actor_loss, ratio = clipped_policy_loss(
-            fwd_out[Columns.ACTION_LOGP], batch[Columns.ACTION_LOGP].detach(), advantages, config.clip_param
-        )
+        logp = fwd_out[Columns.ACTION_LOGP]
+        if getattr(self.config, "mode_credit", None) is not None and self.module[module_id].unwrapped().role == "uc":
+            parts = fwd_out["logp_parts"]
+            # Preserve the joint importance ratio, but remove the unreliable
+            # mode GAE gradient, including its path through the shared encoder.
+            logp = parts[:, 0] + parts[:, 1].detach() + parts[:, 2]
+        actor_loss, ratio = clipped_policy_loss(logp, batch[Columns.ACTION_LOGP].detach(), advantages, config.clip_param)
         entropy = fwd_out["entropy"].mean()
         if config.entropy_coeff:
             entropy = self.module[module_id].unwrapped().policy_entropy(batch).mean()

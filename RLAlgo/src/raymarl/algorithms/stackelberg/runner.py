@@ -330,13 +330,14 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         return {key: self._value(key, inputs[key], inputs[key]) if key in inputs else 0.0
                 for key in self.agent_ids}
 
-    def _action_period(self, deterministic):
+    def _action_period(self, deterministic, controls=None):
         """Same action draws and RNG order; candidate scores need no value/logp."""
         with torch.no_grad():
-            controls = self.module["uc"].draw_action(
-                self._tensor("uc", self._observation),
-                self._tensor("uc", self.env.uc_bounds(), dtype=torch.float64), deterministic,
-            )[0].cpu().numpy()
+            if controls is None:
+                controls = self.module["uc"].draw_action(
+                    self._tensor("uc", self._observation),
+                    self._tensor("uc", self.env.uc_bounds(), dtype=torch.float64), deterministic,
+                )[0].cpu().numpy()
             decision = self.env.publish(controls)
             actions = {
                 key: self.module[key].draw_action(
@@ -353,11 +354,11 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
         self.lane_steps[self.active_lane] += 1
         return result
 
-    def _sample_period(self, *, deterministic=False, actions_only=False, with_values=True):
+    def _sample_period(self, *, deterministic=False, actions_only=False, with_values=True, controls=None):
         if self._data_exhausted:
             raise RuntimeError("Continuous data exhausted: append profiles before collecting another period")
         if actions_only:
-            samples, result = self._action_period(deterministic)
+            samples, result = self._action_period(deterministic, controls)
             self._observation = result.next_uc_observation
             self._terminated, self._data_exhausted = result.terminated, result.data_exhausted
             self.num_env_steps_sampled_lifetime += 1
@@ -474,6 +475,80 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             key: SampleBatch({name: np.concatenate([part[key][name] for part in parts])
                               for name in parts[0][key]}) for key in self.agent_ids
         }, total_steps)
+
+    @torch.no_grad()
+    def _mode_return_lane(self, steps, *, stride, horizon, replicates, seed):
+        """Probe this training lane and restore its physical/RNG cursor exactly."""
+        outside, saved = random_state(), self._single_state(branch=True)
+        lane_steps = self.lane_steps.copy()
+        rows, periods = [], 0
+        try:
+            for index in range(steps):
+                if self._terminated:
+                    self._start_next_episode()
+                if index % stride == 0:
+                    context = self._single_state(branch=True)
+                    obs, bounds = self._observation.copy(), self.env.uc_bounds().copy()
+                    observation = self._tensor("uc", obs)
+                    boundary = self._tensor("uc", bounds, dtype=torch.float64)
+                    module = self.module["uc"]
+                    feature = module._features(observation)
+                    stream_seed = int(seed) + index * (replicates + 1) * (horizon + 1)
+                    torch.manual_seed(stream_seed)
+                    base = module._uc_base(feature, boundary).sample()
+                    distribution, mask = module._uc_mode(feature, base, boundary, module.centered_soc(observation))
+                    probability, valid = distribution._dist.probs[0].cpu().numpy(), mask[0].cpu().numpy()
+                    returns = np.zeros((replicates, 3), dtype=np.float64)
+                    for replicate in range(replicates):
+                        for mode in np.flatnonzero(valid):
+                            self._load_single(context, branch=True)
+                            for offset in range(horizon):
+                                paired_seed = stream_seed + (replicate + 1) * (horizon + 1) + offset
+                                torch.manual_seed(paired_seed)
+                                np.random.seed(paired_seed % 2**32)
+                                random.seed(paired_seed)
+                                controls = (module.draw_conditional_mode(observation, boundary, base, int(mode))[0].cpu().numpy()
+                                            if offset == 0 else None)
+                                _, result = self._sample_period(actions_only=True, controls=controls)
+                                returns[replicate, mode] += self.config.gamma ** offset * result.rewards["uc"]
+                                periods += 1
+                                if result.terminated:
+                                    break
+                                if result.data_exhausted:
+                                    raise RuntimeError("Mode-return probe exhausted data before its finite horizon")
+                    rows.append({"obs": obs, "bounds": bounds, "base_latents": base[0].cpu().numpy(),
+                                 "mode_old_probs": probability, "mode_mask": valid,
+                                 "mode_q_values": returns.mean(0), "scenario_seed": context["scenario_seed"],
+                                 "probe_index": index})
+                    self._load_single(context, branch=True)
+                self._period(actions_only=True)
+                periods += 1
+            return SampleBatch({key: np.asarray([row[key] for row in rows]) for key in rows[0]}), periods
+        finally:
+            self._load_single(saved, preserve_learner_rng=True, branch=True)
+            self.lane_steps = lane_steps
+            restore_random_state(outside)
+
+    def collect_mode_returns(self, steps, *, stride, horizon, replicates, seed):
+        """Fresh paired conditional returns; extra sampling never advances training."""
+        count = len(self.config.train_seed_groups) if self.config.phase_sampling == "all_streams" else 1
+        if steps < count or steps % count:
+            raise ValueError("Mode probe steps must divide evenly across training streams")
+        options = {"stride": stride, "horizon": horizon, "replicates": replicates}
+        execution = self._start_execution() if self.config.phase_sampling == "all_streams" else None
+        if execution is not None:
+            results = execution.mode_returns(steps // count, options, seed)
+        else:
+            saved, outside = self.get_state(components="sampling"), random_state()
+            results = []
+            try:
+                for lane in (range(count) if count > 1 else (self.active_lane,)):
+                    self._switch_lane(lane)
+                    results.append(self._mode_return_lane(steps // count, **options, seed=seed + lane * 1_000_000_007))
+            finally:
+                self.set_state(saved)
+                restore_random_state(outside)
+        return SampleBatch({key: np.concatenate([batch[key] for batch, _ in results]) for key in results[0][0]}), sum(n for _, n in results)
 
     def sample(self, *, num_timesteps=None, **kwargs):
         return self.collect(num_timesteps or self.config.rollout_length)

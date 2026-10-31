@@ -5,13 +5,14 @@ import pickle
 from contextlib import contextmanager
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 import torch
-
 from experiments.sn_energy_market.training_audit import assert_same_state
-from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner, random_state, restore_random_state
 from RLAlgo.tests.test_stackelberg_algorithm import configuration
 from RLAlgo.tests.test_stackelberg_sampling import assert_batches_equal
+
+from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner, random_state, restore_random_state
 
 
 def mixed_config(path, workers=0, device="cpu"):
@@ -132,6 +133,59 @@ def test_execution_settings_do_not_change_learning_contract(tmp_path):
     parallel.execution_workers = 3
     with pytest.raises(ValueError, match="one worker per"):
         parallel.validate()
+
+
+def test_conditional_returns_match_resident_sampling_preserve_branches_and_ignore_values(tmp_path):
+    torch.set_num_threads(1)
+    serial = StackelbergEnvRunner(config=mixed_config(tmp_path / "serial"))
+    parallel = StackelbergEnvRunner(config=mixed_config(tmp_path / "parallel", 4))
+    try:
+        parallel.set_state(serial.get_state())
+        reference = serial.collect_phase(16)
+        assert_batches_equal(reference, parallel.collect_phase(16))
+        before, rng = serial.get_state(), random_state()
+        branch = parallel.branch_state()
+        options = {"stride": 2, "horizon": 4, "replicates": 2, "seed": 313}
+        expected, cost = serial.collect_mode_returns(16, **options)
+        assert_same_state(before, serial.get_state())
+        assert_same_state(rng, random_state())
+        actual, actual_cost = parallel.collect_mode_returns(16, **options)
+        assert_same_state(dict(expected), dict(actual))
+        assert cost == actual_cost and 16 < cost <= 16 + 8 * 2 * 3 * 4
+        assert len(actual["obs"]) == 8
+        assert_same_state(before, parallel.get_state())
+        # The earlier native candidate snapshot must still be usable.
+        parallel.set_state(branch)
+        assert_same_state(before, parallel.get_state())
+        for module in serial.module.values():
+            with torch.no_grad():
+                for parameter in module.value.parameters():
+                    parameter.add_(100.)
+        repeated, repeated_cost = serial.collect_mode_returns(16, **options)
+        assert_same_state(dict(expected), dict(repeated))
+        assert repeated_cost == cost
+        for mode in range(3):
+            assert np.isfinite(actual["mode_q_values"][:, mode]).all()
+    finally:
+        serial.stop()
+        parallel.stop()
+
+
+def test_failed_conditional_probe_restores_training_cursor_and_rng(tmp_path):
+    torch.set_num_threads(1)
+    runner = StackelbergEnvRunner(config=mixed_config(tmp_path))
+    try:
+        runner.collect_phase(8)
+        before, rng = runner.get_state(), random_state()
+        with (
+            patch.object(runner.module["uc"], "draw_conditional_mode", side_effect=RuntimeError("probe failed")),
+            pytest.raises(RuntimeError, match="probe failed"),
+        ):
+            runner.collect_mode_returns(8, stride=1, horizon=2, replicates=1, seed=9)
+        assert_same_state(before, runner.get_state())
+        assert_same_state(rng, random_state())
+    finally:
+        runner.stop()
 
 
 @pytest.mark.integration

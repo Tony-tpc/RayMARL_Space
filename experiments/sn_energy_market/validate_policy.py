@@ -5,11 +5,23 @@ from collections import defaultdict
 
 import numpy as np
 import torch
+from raymarl.algorithms.stackelberg.runner import (
+    StackelbergEnvRunner,
+    random_state,
+    restore_random_state,
+)
 
-from experiments.sn_energy_market.evaluation import error_statistics, stratified_statistics, terminal_returns
+from experiments.sn_energy_market.evaluation import (
+    error_statistics,
+    stratified_statistics,
+    terminal_returns,
+)
 from experiments.sn_energy_market.run_io import write_csv, write_json
-from experiments.sn_energy_market.runtime import EVALUATION_SEEDS, MONTH_SEEDS, digest_tree
-from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner, random_state, restore_random_state
+from experiments.sn_energy_market.runtime import (
+    EVALUATION_SEEDS,
+    MONTH_SEEDS,
+    digest_tree,
+)
 
 
 @torch.inference_mode()
@@ -163,7 +175,7 @@ def complete_mc(algorithm, target, progress=None):
                 for month in sorted(set(data["months"]))],
         } for key, data in per_consumer.items()},
         "training_state_unchanged": True,
-        "mc_training_labels": 0,
+        "evaluation_labels_used_for_training": 0,
         "bootstrap_used": False,
     }
     write_csv(target / "uc-trajectories.csv", rows)

@@ -77,3 +77,5 @@ git show 环境建模基线-20261018 --stat
 ```
 
 当前正式训练采用四季度各384步、γ=0.997、在线PopArt、minibatch32。UC Critic使用原68维观测＋8维因果物理摘要、192×192网络，时间前两列除以1488；其他网络128×128。UC Actor学习率1e-4，UC Critic均匀回放最近12个保留阶段批。没有月份独热或GRU，Actor观测与市场规则保持原样。从零72轮的入口、冷启动规则与预算见[训练协议](experiments/sn_energy_market/TRAINING.md)。全部运行产物写入D:/Codex，只提交算法实现分支，不合并main。
+
+当前能源训练使用48小时条件模式回报和KL受限自然梯度更新储能模式；连续控制与Consumer仍使用PPO/GAE。算法与预算见[训练说明](experiments/sn_energy_market/TRAINING.md)。模式头修改前基线为 `eec0044`；旧实验清理与保留路径见[维护说明](REPOSITORY.md)。

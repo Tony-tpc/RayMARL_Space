@@ -167,6 +167,7 @@ def configuration(output):
                   gamma=0.997, lambda_gae=0.97, critic_lambda=1.0, uc_critic_replay_batches=12,
                   rollout_length=384, inner_updates=4, response_updates=4,
                   uc_candidates=1, uc_updates_per_candidate=4, deviation_updates=0,
+                  mode_credit={"horizon": 96, "replicates": 4, "stride": 64, "target_kl": 0.01},
                   critic_epochs=2, num_epochs=1, minibatch_size=32,
                   always_keep_candidate=True, acceptance_z=1.0,
                   evaluation_steps=None, stopping_patience=0,
