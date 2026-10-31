@@ -18,12 +18,11 @@ RayMARL/
     sn_energy_market/   # v9 六维 UC / DER PAB 两阶段环境项目
   experiments/          # 实验配置与对照流程
   datasets/             # 本地数据集
-  outputs/              # 训练结果与 checkpoint
   README.md
   .gitignore
 ```
 
-虚拟环境及运行状态沿用主目录下的 `.venv*`、`.runtimes`、`.ray`、`.tmp`，避免已有运行环境的路径失效。数据集、输出、机器运行脚本和归档仍按原有规则排除在 Git 提交之外。
+Python 环境和工具链保留在 `.venv*`、`.runtimes`。实验输出、临时运行目录和历史归档统一写入 `D:/Codex`；数据集、环境和运行产物不纳入 Git。
 
 
 ## 安装与运行
@@ -59,7 +58,7 @@ RayMARL/
 可直接阅读[已渲染的 v9 HTML](environments/sn_energy_market/docs/v9/modeling_complete_zh.html)，全部公式已转换为 SVG，支持离线打开。
 
 ```powershell
-.\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/train.py --smoke
+.\.venv\Scripts\python.exe -B -X utf8 experiments/sn_energy_market/smoke_test.py --consumers 3 --horizon 48 --output D:/Codex/snmarket-validation
 ```
 
 

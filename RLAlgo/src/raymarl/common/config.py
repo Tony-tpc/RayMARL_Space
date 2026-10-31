@@ -1,7 +1,6 @@
 """Native RLlib configuration with explicit model and output ownership."""
 
 import math
-import warnings
 from pathlib import Path
 
 import gymnasium as gym
@@ -30,35 +29,12 @@ class ModelConfigMixin:
         self.keep_checkpoints = 2
         self.checkpoint_interval = 10
         self.detailed_outputs = False
-        self._legacy_hidden_dim = None
 
     def training(self, **kwargs):
-        if "hidden_dim" in kwargs:
-            hidden = kwargs.pop("hidden_dim")
-            if (
-                self._model_config
-                and "hidden_dim" in self._model_config
-                and self._model_config["hidden_dim"] != hidden
-            ):
-                raise ValueError("Conflicting training(hidden_dim) and rl_module(model_config)")
-            warnings.warn(
-                "Use .rl_module(model_config={'hidden_dim': ...})", DeprecationWarning, stacklevel=2
-            )
-            self._legacy_hidden_dim = hidden
-            self._model_config = {**(self._model_config or {}), "hidden_dim": hidden}
         for key in ("storage_path", "keep_checkpoints", "checkpoint_interval", "detailed_outputs"):
             if key in kwargs:
                 setattr(self, key, kwargs.pop(key))
         return super().training(**kwargs)
-
-    def rl_module(self, *, model_config=None, **kwargs):
-        if (
-            model_config is not None
-            and self._legacy_hidden_dim is not None
-            and model_config.get("hidden_dim", self._legacy_hidden_dim) != self._legacy_hidden_dim
-        ):
-            raise ValueError("Conflicting training(hidden_dim) and rl_module(model_config)")
-        return super().rl_module(model_config=model_config, **kwargs)
 
     def validate(self):
         super().validate()

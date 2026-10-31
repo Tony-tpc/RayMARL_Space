@@ -110,7 +110,6 @@ def validate_episode(factory, seed, split):
 def validate_sampling(factory, budget, splits):
     """Exercise the actual RLModule/EnvRunner path; weights remain untouched."""
     import torch
-
     from raymarl.algorithms.stackelberg import StackelbergConfig
     from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 
@@ -238,19 +237,25 @@ def validate(factory, budget, splits, output, *, sampling=True, workers=4):
 
 
 def main(argv=None):
-    from experiments.sn_energy_market import train
+    from experiments.sn_energy_market.profile_dataset import (
+        DatasetEnvFactory,
+        ProfileDataset,
+    )
+    from experiments.sn_energy_market.settings import inventory_valued_config
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "outputs/ausgrid-validation"
+        "--output", type=Path, default=Path("D:/Codex/ausgrid-validation")
     )
     parser.add_argument("--skip-sampling", action="store_true")
     parser.add_argument("--workers", type=int, default=4)
     args = parser.parse_args(argv)
-    training_args = train.arguments(["--dataset", str(args.dataset)])
-    config, budget, splits = train.experiment_settings(training_args)
-    factory = train.scenario_factory(training_args, config, splits)
+    dataset = ProfileDataset(args.dataset, splits=("train", "validation", "test"))
+    config = inventory_valued_config(dataset.environment_config())
+    factory = DatasetEnvFactory(dataset, config, seed=42)
+    splits = factory.seed_splits
+    budget = {"gamma": 0.997, "lambda_gae": 0.97}
     report = validate(
         factory,
         budget,

@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--profiles", type=Path)
     parser.add_argument("--config-dir", type=Path)
-    parser.add_argument("--output", type=Path, default=ROOT / "outputs/snmarket-validation")
+    parser.add_argument("--output", type=Path, default=Path("D:/Codex/snmarket-validation"))
     args = parser.parse_args()
     base = EnvironmentConfig.from_directory(args.config_dir) if args.config_dir else EnvironmentConfig()
     count = args.consumers if args.consumers is not None else base.system.num_consumers if args.config_dir else 3

@@ -10,12 +10,18 @@ from pathlib import Path
 
 import numpy as np
 import torch
-
-from experiments.sn_energy_market.profile_dataset import DatasetEnvFactory, ProfileDataset
-from experiments.sn_energy_market.train import inventory_valued_config, model_settings
 from raymarl.algorithms.stackelberg.algorithm import Stackelberg
 from raymarl.algorithms.stackelberg.config import StackelbergConfig
 from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
+
+from experiments.sn_energy_market.profile_dataset import (
+    DatasetEnvFactory,
+    ProfileDataset,
+)
+from experiments.sn_energy_market.settings import (
+    inventory_valued_config,
+    model_settings,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 TRIAL_SEED = 11

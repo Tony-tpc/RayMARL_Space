@@ -5,7 +5,7 @@
 ```text
 environments/
   energy_env.py       # 已有电池教学环境
-  sn_energy_market/   # v5 Stackelberg–Nash/PAB 独立环境项目
+  sn_energy_market/   # v9 Stackelberg–Nash/PAB 独立环境项目
   aaa.py              # 可选：用户自己的 aaa 环境类
   my_energy_market/   # 可选：完整环境项目，保留其内部目录和资源
 ```
@@ -23,8 +23,8 @@ config = MAPPOConfig().environment(MultiEnergyEnv, env_config={"households": 2})
 
 多智能体环境继承 RLlib `MultiAgentEnv`，定义固定的 `possible_agents`、每个智能体的观测和动作空间。`reset()` 返回 `(obs, infos)`；`step()` 返回 `(obs, rewards, terminateds, truncateds, infos)`，两个结束字典都包含 `__all__`。当前联合算法要求固定、同步行动的智能体。
 
-读取数据或资源时，建议以环境文件的 `Path(__file__).resolve()` 为基准定位，避免依赖训练入口所在的目录。公共数据放在工作区 `datasets/`，实验入口放在 `experiments/`，训练产物放在 `outputs/`。
+读取数据或资源时，建议以环境文件的 `Path(__file__).resolve()` 为基准定位，避免依赖训练入口所在的目录。公共数据放在工作区 `datasets/`，实验入口放在 `experiments/`，训练产物放在 `D:/Codex/`。
 
 `RLAlgo/examples/train_aaa.py` 是已有 MAPPO 入口，默认导入 `environments/aaa.py` 中的 `aaa` 类；该环境由调用方提供。
 
-[sn_energy_market](sn_energy_market/README.md) 提供 v5 的完整物理/市场环境内核和 UC→消费者两阶段 RLlib 接口。它的异步行动契约与已有同步教学环境不同；当前 `RLAlgo` 的集中 Value 包装器不能直接训练该环境，兼容改造属于下一阶段。
+[sn_energy_market](sn_energy_market/README.md) 提供 v9 物理与市场内核及 UC→消费者两阶段接口，由 `raymarl.algorithms.stackelberg` 原生双层算法训练。能源实验的唯一正式训练入口是 `experiments.sn_energy_market.run`。

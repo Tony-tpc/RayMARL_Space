@@ -187,7 +187,7 @@ def main():
         tasks = manifest["tasks"]
     else:
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        output = (args.output or ROOT / "outputs/snmarket-validation" / f"v9-{stamp}").resolve()
+        output = (args.output or Path("D:/Codex/snmarket-validation") / f"v9-{stamp}").resolve()
         output.mkdir(parents=True, exist_ok=False)
         (output / "batches").mkdir()
         (output / "failures").mkdir()

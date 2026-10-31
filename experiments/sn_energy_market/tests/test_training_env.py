@@ -45,7 +45,7 @@ def consumer_actions(env, values=(0.2, 0.4, 0.5, 0.6)):
 def test_full_episode_inventory_value_removes_free_initial_energy_gain():
     from snmarket import Profiles
 
-    from experiments.sn_energy_market.train import inventory_valued_config
+    from experiments.sn_energy_market.settings import inventory_valued_config
 
     base = EnvironmentConfig()
     cfg = inventory_valued_config(replace(

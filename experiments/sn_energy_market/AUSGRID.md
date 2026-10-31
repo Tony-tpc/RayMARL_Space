@@ -106,16 +106,10 @@ e4be46b3c9991c65735a9545319a2f1c33be8e639c75a17a88e0323a8e5098be
 .\.venv\Scripts\python.exe -B -m experiments.sn_energy_market.ausgrid --no-download
 ```
 
-只验证数据、配置和 36 个月场景构造，不导入训练运行时：
-
-```powershell
-.\.venv\Scripts\python.exe -B experiments/sn_energy_market/train.py --dataset datasets/ausgrid/processed/manifest.json --validate-data --output outputs/ausgrid-validation/interface
-```
-
 逐月执行真实环境，核对每期账目与物理约束，并测试未训练网络的采样接口：
 
 ```powershell
-.\.venv\Scripts\python.exe -B experiments/sn_energy_market/validate_dataset.py --dataset datasets/ausgrid/processed/manifest.json --output outputs/ausgrid-validation/full
+.\.venv\Scripts\python.exe -B experiments/sn_energy_market/validate_dataset.py --dataset datasets/ausgrid/processed/manifest.json --output D:/Codex/ausgrid-validation/full
 ```
 
 `validate_dataset.py` 不创建 Learner、不更新网络参数。它覆盖三年 36 个完整月场景，每期校验功率、SOC、队列、资金、奖励和观测，每日抽取时段与独立参考计算比较，并检查快照重放。另连续采样两个 64 步神经网络批次，检查概率、优势和价值目标有限且参数完全未变。

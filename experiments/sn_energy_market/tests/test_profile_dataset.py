@@ -10,11 +10,11 @@ import pytest
 from snmarket import EnvironmentConfig
 from snmarket.action import map_consumer_controls
 
-from experiments.sn_energy_market import train
 from experiments.sn_energy_market.profile_dataset import (
     DatasetEnvFactory,
     ProfileDataset,
 )
+from experiments.sn_energy_market.settings import inventory_valued_config
 
 
 def make_dataset(directory, *, holdout_multiplier=1.0):
@@ -261,39 +261,21 @@ def test_monthly_episode_preserves_state_at_midnight_and_snapshot(dataset_path):
     assert actual.metrics == expected.metrics
 
 
-def test_training_entry_uses_all_months_and_longer_learning_horizon(dataset_path):
-    args = train.arguments(["--dataset", str(dataset_path)])
-    config, budget, splits = train.experiment_settings(args)
-    assert len(splits["train"]) == 12
-    assert len(splits["validation"]) == len(splits["test"]) == 12
+def test_dataset_factory_keeps_complete_months_and_inventory_value(dataset_path):
+    dataset = ProfileDataset(dataset_path)
+    config = inventory_valued_config(dataset.environment_config())
+    factory = DatasetEnvFactory(dataset, config, seed=42)
+    assert all(len(seeds) == 12 for seeds in factory.seed_splits.values())
     assert config.system.num_consumers == 2
-    assert budget["gamma"] == pytest.approx(0.99)
     assert config.rewards.terminal_energy_value_per_kwh == pytest.approx(0.3135)
-    assert budget["lambda_gae"] == pytest.approx(0.97)
-    assert budget["critic_lambda"] == 1.0
-    assert budget["rollout_steps"] == 192
-    factory = train.scenario_factory(args, config, splits)
-    assert factory.seed_splits == splits
-    with pytest.raises(ValueError, match="complete calendar months"):
-        train.experiment_settings(
-            train.arguments(["--dataset", str(dataset_path), "--horizon", "48"])
-        )
-    with pytest.raises(ValueError, match="fixed household"):
-        train.experiment_settings(
-            train.arguments(["--dataset", str(dataset_path), "--consumers", "3"])
-        )
+    env = factory(factory.seed_splits["train"][0])
+    assert env.config.system.horizon_steps == 31 * 48
 
 
-def test_data_validation_never_imports_or_starts_ray(
-    dataset_path, tmp_path, monkeypatch
-):
+def test_profile_construction_never_imports_or_starts_ray(dataset_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "ray", None)
     monkeypatch.setitem(sys.modules, "torch", None)
-    output = tmp_path / "report"
-    report = train.main(
-        ["--dataset", str(dataset_path), "--validate-data", "--output", str(output)]
-    )
-    assert report["training_started"] is False
-    assert report["status"] == "data_contract_validated"
-    assert (output / "data_contract.json").exists()
-    assert len(report["splits"]["test"]) == 12
+    dataset = ProfileDataset(dataset_path)
+    factory = DatasetEnvFactory(dataset, inventory_valued_config(dataset.environment_config()), seed=42)
+    assert len(factory.seed_splits["test"]) == 12
+    assert factory.get_contract()["loaded_splits"] == ["train", "validation", "test"]

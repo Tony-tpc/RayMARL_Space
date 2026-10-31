@@ -81,7 +81,7 @@ MAAC 是 Ye 2021 的算法实现与明确修订，包含有界 Gaussian/Bernoull
 - 默认输出位于 `outputs/raymarl/<算法>-<唯一运行ID>`，保存精简指标，每 10 次训练自动保存 checkpoint，最多保留两个。用 `checkpoint_interval=0` 关闭自动保存；`detailed_outputs=True` 开启完整结果日志。
 - `save_to_path()` 使用受控保留策略；显式指定路径的 checkpoint 由调用方管理，库不会删除。
 - 新格式 checkpoint 包含模型、目标网络、注册优化器、联合回放、RNG 和计数。旧 v0.1 checkpoint 明确拒绝恢复。通用模拟器的内部状态没有统一序列化接口，恢复训练会重新开始环境回合，不保证复现未完成回合的逐步轨迹。
-- `from raymarl import ...Config` 保持有效；旧 `training(hidden_dim=...)` 发出弃用提示，与新模型参数冲突时拒绝构建。原有私有 `JointModule/update_joint/critic_mode` 接口已移除。
+- 网络宽度统一通过 `.rl_module(model_config={"hidden_dim": ...})` 设置。旧 `training(hidden_dim=...)` 别名及私有 `JointModule/update_joint/critic_mode` 接口已移除。
 - ActorBundle 导出包含局部 Actor 权重，不创建 Critic、Value 或环境。使用 `register_algorithms()` 显式注册具名 Tune 算法。
 
 本库不包含能源论文的原始交易环境，不宣称复现论文收益、300 户结果、纳什收敛或正式隐私保证。注意力压缩单个 Critic 的输入；全连接两两注意力的总计算仍随智能体数量呈二次增长。

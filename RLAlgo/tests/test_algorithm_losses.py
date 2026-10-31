@@ -156,13 +156,10 @@ def test_history_mask_hides_padding_and_empty_history():
     assert torch.equal(encoder(first), encoder(other))
 
 
-def test_model_parameter_alias_conflicts_and_legacy_checkpoint_rejection():
-    with pytest.warns(DeprecationWarning):
-        config = MAACConfig().training(hidden_dim=8)
-    with pytest.raises(ValueError, match="Conflicting"):
-        config.rl_module(model_config={"hidden_dim": 16})
+def test_model_configuration_has_one_entry_and_rejects_other_checkpoint_layouts():
     config = MAACConfig().rl_module(model_config={"hidden_dim": 8})
-    with pytest.raises(ValueError, match="Conflicting"):
+    assert config.model_config["hidden_dim"] == 8
+    with pytest.raises(TypeError, match="hidden_dim"):
         config.training(hidden_dim=16)
     maac, _ = make_learner(MAACConfig)
     masac, _ = make_learner(MASACConfig)
