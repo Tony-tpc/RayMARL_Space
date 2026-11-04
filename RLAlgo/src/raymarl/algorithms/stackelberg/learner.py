@@ -131,7 +131,21 @@ class StackelbergTorchLearner(TorchLearner):
         if not torch.isfinite(q).all() or not torch.isfinite(data["mode_old_probs"]).all():
             raise ValueError("Mode probabilities and Q values must be finite")
         if not torch.allclose(p, data["mode_old_probs"].double(), atol=2e-7, rtol=0):
-            raise ValueError("Mode return batch is stale for the current policy")
+            # Probes run one state at a time on CPU. Float32 batching and CUDA
+            # kernels can exceed this tolerance even with identical weights.
+            # Replay the sampling path before declaring the policy stale;
+            # keep the original tolerance and the learner's update arithmetic.
+            reference = copy.deepcopy(module).cpu()
+            cpu_obs, cpu_base = obs.cpu(), base.cpu()
+            cpu_bounds = data["bounds"].double().cpu()
+            replay = torch.cat([
+                reference._uc_mode(
+                    reference._features(cpu_obs[i:i+1]), cpu_base[i:i+1],
+                    cpu_bounds[i:i+1], reference.centered_soc(cpu_obs[i:i+1]),
+                )[0]._dist.probs for i in range(len(p))
+            ])
+            if not torch.allclose(replay, data["mode_old_probs"].double().cpu(), atol=2e-7, rtol=0):
+                raise ValueError("Mode return batch is stale for the current policy")
         head = module.actor["mode"]
         parameters = [head.weight, head.bias]
         columns = [features, base.clamp(0, 1).float(), torch.ones_like(p[:, :1])]

@@ -257,6 +257,41 @@ def test_continuous_ppo_preserves_mode_parameters_and_warm_adam_when_mode_credit
     assert all(p.requires_grad for p in learner.module["uc"].parameters())
 
 
+@pytest.mark.parametrize("stale", [False, True])
+def test_mode_return_scalar_cpu_probabilities_distinguish_roundoff_from_stale_weights(stale):
+    torch.manual_seed(11)
+    torch.set_num_threads(1)
+    learner = make_learner()
+    module = learner.module["uc"]
+    with torch.no_grad():
+        # Larger trained logits expose float32 scalar-vs-batch roundoff.
+        module.actor["mode"].weight.mul_(100)
+        data = counterfactual_batch(module, 64)
+        obs = torch.as_tensor(data["obs"])
+        base = torch.as_tensor(data["base_latents"])
+        bounds = torch.as_tensor(data["bounds"]).double()
+        scalar = torch.cat([
+            module._uc_mode(module._features(obs[i:i+1]), base[i:i+1], bounds[i:i+1],
+                            module.centered_soc(obs[i:i+1]))[0]._dist.probs
+            for i in range(len(obs))
+        ]).numpy()
+        data["mode_old_probs"] = scalar
+        if stale:
+            # A real, normalized policy change must still fail the guard.
+            module.actor["mode"].bias[1].add_(.01)
+    before, rng = copy.deepcopy(learner.get_state()), random_state()
+    if stale:
+        with pytest.raises(ValueError, match="stale"):
+            learner.update_mode_head("uc", data)
+        assert_nested_equal(before, learner.get_state())
+    else:
+        result = learner.update_mode_head("uc", data)
+        assert result["accepted"] and result["mode_q_gain"] > 0
+        assert 0 < result["mode_kl"] <= .01
+        assert_nested_equal(before["optimizer"], learner.get_state()["optimizer"])
+    assert_nested_equal(rng, random_state())
+
+
 def test_conditional_storage_sampler_replays_native_draw_exactly():
     module = make_learner().module["uc"]
     obs = torch.randn(8, module.observation_space.shape[0])
