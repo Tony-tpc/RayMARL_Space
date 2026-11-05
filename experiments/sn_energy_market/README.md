@@ -1,12 +1,14 @@
 # 能源市场训练
 
-模式头基线采用四季度同批，各384步，共1536步；γ=0.997、Actor λ=0.97、Critic λ=1；在线 PopArt、minibatch 32。UC Actor 使用原68维观测和128×128网络；UC Critic 使用额外8维因果物理摘要和192×192网络，Consumer 网络为128×128。模式与连续控制仍由 PPO/GAE 和 Adam 更新。
+冻结GAE分支采用四季度同批，各384步，共1536步；γ=0.997、Actor λ=0.97、Critic λ=1；在线 PopArt、minibatch 32。UC Actor 使用原68维观测和128×128网络；UC Critic 使用额外8维因果物理摘要和192×192网络，Consumer 网络为128×128。UC使用采样时冻结的估值，Consumer使用拟合后估值；模式与连续控制仍由联合PPO概率和同一GAE更新。
 
 ```powershell
-.\.venv\Scripts\python.exe -B -m experiments.sn_energy_market.run --output D:/Codex/运行目录 --rounds 72
+.\.venv\Scripts\python.exe -B -m experiments.sn_energy_market.run --output D:/Codex/运行目录 --rounds 72 --device cpu
 ```
 
 这是唯一正式训练入口，使用指定轮数从零训练。运行前要求输出目录的 `verification/ready.json` 与当前已提交的干净工作区一致；已有运行会拒绝重复启动。完整72轮基线结果保存在 `D:/Codex/2026-10-30/v9-physical-summary-72`。
+
+`--device` 显式选择 `cpu` 或 `cuda`，省略时保持原CUDA入口；CUDA不可用时直接报错，不静默改变设备。
 
 | 文件 | 职责 |
 |---|---|

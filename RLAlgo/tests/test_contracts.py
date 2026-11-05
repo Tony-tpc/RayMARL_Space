@@ -32,6 +32,28 @@ def test_composite_roundtrip(hybrid):
     assert layout.discrete_count == 6
 
 
+@pytest.mark.parametrize("bits", [30, 64, 80])
+def test_large_discrete_space_rejected_before_enumeration(bits, monkeypatch):
+    from raymarl import spaces
+
+    layout = ActionLayout(gym.spaces.MultiBinary(bits))
+    assert layout.discrete_count == 2**bits
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Oversized spaces must be rejected before product()")
+
+    monkeypatch.setattr(spaces.itertools, "product", forbidden)
+    with pytest.raises(ValueError, match="256"):
+        layout.discrete_choices()
+
+
+def test_discrete_count_integer_product_and_enumeration_boundary():
+    large = ActionLayout(gym.spaces.Tuple((gym.spaces.Discrete(2**32), gym.spaces.Discrete(2**32))))
+    assert large.discrete_count == 2**64
+    assert len(ActionLayout(gym.spaces.MultiBinary(8)).discrete_choices()) == 256
+    assert ActionLayout(gym.spaces.Box(-1, 1, (2,), np.float32)).discrete_choices() == [()]
+
+
 def test_hybrid_log_prob_and_saturation(hybrid):
     x = torch.zeros(4, ActionLayout(hybrid).param_dim, requires_grad=True)
     distribution = HybridDistribution(x, action_space=hybrid)

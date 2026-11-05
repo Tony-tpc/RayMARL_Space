@@ -76,4 +76,4 @@ git log --oneline --decorate -5
 git show 环境建模基线-20261018 --stat
 ```
 
-当前正式训练采用四季度各384步、γ=0.997、在线PopArt、minibatch32。UC Critic使用原68维观测＋8维因果物理摘要、192×192网络，时间前两列除以1488；其他网络128×128。UC Actor学习率1e-4，UC Critic均匀回放最近12个保留阶段批。没有月份独热或GRU，Actor观测与市场规则保持原样。从零72轮的入口、冷启动规则与预算见[训练协议](experiments/sn_energy_market/TRAINING.md)。全部运行产物写入D:/Codex，只提交算法实现分支，不合并main。
+当前 `冻结GAE训练` 分支基于 `eec0044`，UC Actor使用采样时冻结的估值计算GAE，Consumer仍使用拟合后估值。四季度各384步、γ=0.997、在线PopArt、minibatch32；UC Critic使用原68维观测＋8维因果物理摘要、192×192网络，时间前两列除以1488；其他网络128×128。UC Actor学习率1e-4，UC Critic均匀回放最近12个保留阶段批。Actor观测与市场规则保持原样。入口、预算及原审查报告各项取舍见[训练协议](experiments/sn_energy_market/TRAINING.md)。全部运行产物写入D:/Codex，不合并main。提交说明遵循[AGENTS.md](AGENTS.md)。

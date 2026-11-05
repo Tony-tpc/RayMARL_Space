@@ -207,10 +207,11 @@ def assert_nested_equal(left, right):
 
 
 @pytest.mark.integration
-def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path):
+@pytest.mark.parametrize("freeze_uc", [False, True])
+def test_native_round_freeze_deviation_and_exact_resume(ray_runtime, tmp_path, freeze_uc):
     torch.set_num_threads(1)
     cwd = Path.cwd()
-    algo = configuration(tmp_path).build_algo()
+    algo = configuration(tmp_path).training(uc_frozen_gae=freeze_uc).build_algo()
     try:
         assert Path.cwd() == cwd
         assert Path(algo.logdir).is_relative_to(tmp_path)

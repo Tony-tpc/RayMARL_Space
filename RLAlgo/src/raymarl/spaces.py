@@ -1,6 +1,7 @@
 """Space layouts; no environment-specific names or parameters."""
 
 import itertools
+import math
 from dataclasses import dataclass
 
 import gymnasium as gym
@@ -35,18 +36,18 @@ class ActionLayout:
                     visit(child, path + (key,))
             elif isinstance(s, gym.spaces.Box):
                 if not np.isfinite(s.low).all() or not np.isfinite(s.high).all():
-                    raise ValueError("v0.1 requires finite Box action bounds")
+                    raise ValueError("Box action bounds must be finite")
                 if not (s.high > s.low).all():
                     raise ValueError("Box action bounds must have positive width")
                 self.branches.append(
                     Branch(
-                        path, "box", int(np.prod(s.shape)), s.shape, 0, s.low.reshape(-1), s.high.reshape(-1)
+                        path, "box", math.prod(s.shape), s.shape, 0, s.low.reshape(-1), s.high.reshape(-1)
                     )
                 )
             elif isinstance(s, gym.spaces.Discrete):
                 self.branches.append(Branch(path, "categorical", int(s.n), (), int(s.start)))
             elif isinstance(s, gym.spaces.MultiBinary):
-                self.branches.append(Branch(path, "binary", int(np.prod(s.shape)), s.shape, 0))
+                self.branches.append(Branch(path, "binary", math.prod(s.shape), s.shape, 0))
             else:
                 raise TypeError(f"Unsupported action space: {s}")
 
@@ -54,8 +55,8 @@ class ActionLayout:
         self.param_dim = sum(2 * b.size if b.kind == "box" else b.size for b in self.branches)
         self.feature_dim = sum(b.size for b in self.branches)
         self.is_continuous = all(b.kind == "box" for b in self.branches)
-        self.discrete_count = int(
-            np.prod([2**b.size if b.kind == "binary" else b.size for b in self.branches if b.kind != "box"])
+        self.discrete_count = math.prod(
+            2**b.size if b.kind == "binary" else b.size for b in self.branches if b.kind != "box"
         )
 
     def unpack(self, values):
@@ -131,14 +132,14 @@ class ActionLayout:
         return self.unpack(values)
 
     def discrete_choices(self):
+        if self.discrete_count > 256:
+            raise ValueError("Exact discrete enumeration limited to 256 combinations")
         sets = []
         for b in self.branches:
             if b.kind == "categorical":
                 sets.append(list(range(b.size)))
             elif b.kind == "binary":
                 sets.append(list(itertools.product((0, 1), repeat=b.size)))
-        if self.discrete_count > 256:
-            raise ValueError("Exact discrete enumeration limited to 256 combinations")
         return list(itertools.product(*sets))
 
 

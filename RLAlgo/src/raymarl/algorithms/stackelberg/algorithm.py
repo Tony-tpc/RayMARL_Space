@@ -275,25 +275,13 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             self.env_runner.release_branches()
 
     def _training_step(self):
-        """
-        训练一轮 Stackelberg 迭代。每轮迭代包括：
-        1. 适应消费者策略（inner loop）。
-        2. 搜索偏差（可选）。
-        3. 评估候选策略。
-        4. 选择候选策略。
-        5. 更新日志和指标。
-        """
-
-        # 给配置起一个简短的名字 cfg。开始新一轮日志，清空上一轮尚待标记的候选日志列表。保存轮初网络权重，供最后计算“这一轮 Actor 改变了多少”。这里还没有训练。
+        """Adapt consumers, propose UC policies, then select a paired response."""
         cfg = self.config
         self.env_runner.begin_round(self.outer_round)
         self.batch_loss_log.begin_round()
         starting_weights = copy.deepcopy(self.learner_group.get_weights())
         # Only a true episode boundary rotates the main training scenario.
-        self._adapt(self.consumer_ids, # 本阶段允许更新 Actor 的智能体是全部消费者
-                    cfg.inner_updates, # 做多少批“重新采样＋学习”
-                    phase="consumer_adaptation" # 给日志标记这个阶段的名字
-                    )
+        self._adapt(self.consumer_ids, cfg.inner_updates, phase="consumer_adaptation")
         deviations = self.search_deviations()
         reference = self._snapshot()
         candidates = [reference]

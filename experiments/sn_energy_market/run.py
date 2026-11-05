@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 
-def main(base, rounds):
+def main(base, rounds, *, device="cuda"):
     base = Path(base).resolve()
     if rounds < 1:
         raise ValueError("rounds must be positive")
@@ -51,9 +51,9 @@ def main(base, rounds):
         if (output / "status.json").exists():
             raise FileExistsError("This run already exists; do not overwrite or restart it")
         ready = read_json(base / "verification/ready.json")
-        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-        dirty = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip()
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, encoding="utf-8").strip()
+        branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, encoding="utf-8").strip()
+        dirty = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, encoding="utf-8").strip()
         if not ready["passed"] or commit != ready["git_commit"] or branch != ready["branch"] or dirty:
             raise RuntimeError("Training requires the validated clean algorithm-implementation commit")
         manifest = source_manifest()
@@ -63,13 +63,13 @@ def main(base, rounds):
             target = output / "sources" / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
-        cfg = configuration(output)
+        cfg = configuration(output, device=device)
         windows = cfg.scenario_factory.get_contract()["seed_windows"]
         validation_periods = sum(
             windows[str(seed)]["stop"] - windows[str(seed)]["start"] for seed in MONTH_SEEDS
         ) * len(EVALUATION_SEEDS)
         write_json(output / "protocol.json", {
-            "git_commit": commit, "branch": branch, "source_sha256": manifest,
+            "git_commit": commit, "branch": branch, "source_sha256": manifest, "device": device,
             "learning_contract": cfg.learning_contract(), "outer_rounds": rounds,
             "initialization": "seed11_random_weights_empty_Adam_zero_PopArt_history_month_start",
             "phase_samples": 1536, "samples_per_quarter": 384, "phases_per_round": 4,
@@ -86,7 +86,7 @@ def main(base, rounds):
         status("initializing", 0)
         algorithm = trace = None
         try:
-            with ray_session(runtime):
+            with ray_session(runtime, device=device):
                 try:
                     algorithm = cfg.build_algo()
                     weights_hash = initialize_fresh(algorithm)
@@ -161,5 +161,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--rounds", type=int, required=True)
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cuda")
     args = parser.parse_args()
-    main(args.output, args.rounds)
+    main(args.output, args.rounds, device=args.device)

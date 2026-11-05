@@ -143,7 +143,6 @@ class OffPolicyAlgorithm(NativeAlgorithmMixin, Algorithm):
         self.replay = JointReplay(self.config.replay_capacity, self.config.seed)
         self.sampled_steps = 0
         self.completed_updates = 0
-        self._episode_lengths = {}
 
     def training_step(self):
         previous = self.sampled_steps

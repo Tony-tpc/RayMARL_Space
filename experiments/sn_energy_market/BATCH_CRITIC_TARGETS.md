@@ -4,7 +4,7 @@
 
 在线PopArt仅改变拟合坐标。阶段开始用完整目标批更新一次统计并补偿输出层；损失为原单位误差除以当前标准差后的半均方误差。原单位RMSE仍按原奖励单位报告。统计变化会改变loss尺度，因此比较拟合前后时应同时查看RMSE及各自尺度。
 
-Critic更新后，在no_grad下重算Actor GAE。输入为本批保存的当前/下一状态，保留原终止和流边界。重算不抽动作、不改变环境、原logp或Critic目标；每个Actor整批归一化一次后固定用于PPO更新。
+Critic更新后，在no_grad下构造Actor GAE。启用 `uc_frozen_gae` 时，UC使用本批采样时保存的当前/下一估值；Consumer仍用保存的当前/下一状态输入重新估值。关闭该开关时，两类Actor均用拟合后估值。计算保留原终止和流边界，不抽动作、不改变环境、原logp或Critic目标；每个Actor整批归一化一次后固定用于PPO更新。
 
 `batch_losses.jsonl`每阶段记录样本数、四流数量、月份、片段结束、真实终止、收集/拟合/Actor耗时及各模块指标。Critic记录固定目标上的loss、RMSE、预测/目标/奖励回报/尾值分布、PopArt统计、梯度范数与隐藏层饱和比例；参与更新的Actor记录同批policy loss，UC另记录模式概率、SOC分组优势、裁剪及实际Adam参数变化。
 

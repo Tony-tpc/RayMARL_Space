@@ -31,7 +31,7 @@ EVALUATION_SEEDS = (110001, 110002, 110003)
 
 
 @contextmanager
-def ray_session(directory):
+def ray_session(directory, *, device="cuda"):
     import ray
 
     directory = Path(directory).resolve()
@@ -45,12 +45,13 @@ def ray_session(directory):
     os.environ["RAY_AUTH_MODE"] = "token"
     os.environ["RAY_AUTH_TOKEN_PATH"] = str(token)
     torch.set_num_threads(1)
-    if not torch.cuda.is_available():
+    num_gpus = {"cpu": 0, "cuda": 1}[device]
+    if num_gpus and not torch.cuda.is_available():
         raise RuntimeError("This experiment requires CUDA")
     torch.use_deterministic_algorithms(True)
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
-    ray.init(num_cpus=2, num_gpus=1, include_dashboard=False,
+    ray.init(num_cpus=2, num_gpus=num_gpus, include_dashboard=False,
              _node_ip_address="127.0.0.1", _temp_dir=str(directory / "ray"), log_to_driver=False)
     try:
         yield
@@ -149,7 +150,7 @@ class TrainingConfig(StackelbergConfig):
         self.env_runner_cls = TrainingRunner
 
 
-def configuration(output):
+def configuration(output, *, device="cuda"):
     dataset = ProfileDataset(ROOT / "datasets/ausgrid/processed/manifest.json",
                              splits=("train", "validation"))
     factory = DatasetEnvFactory(dataset, inventory_valued_config(dataset.environment_config()), seed=42)
@@ -162,7 +163,7 @@ def configuration(output):
                                  "critic_hidden_dims": {"uc": 192},
                                  "critic_input_scales": {"uc": {0: 1488.0, 1: 1488.0}}})
         .multi_agent(algorithm_config_overrides_per_module={"uc": {"actor_lr": 1e-4}})
-        .learners(num_learners=0, num_gpus_per_learner=1)
+        .learners(num_learners=0, num_gpus_per_learner={"cpu": 0, "cuda": 1}[device])
         .training(execution_workers=4, phase_sampling="all_streams",
                   gamma=0.997, lambda_gae=0.97, critic_lambda=1.0, uc_frozen_gae=True,
                   uc_critic_replay_batches=12,

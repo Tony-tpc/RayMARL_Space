@@ -30,18 +30,18 @@ class PhasedTorchLearner(TorchLearner):
             self.register_optimizer(
                 module_id=module_id,
                 optimizer_name="actor",
-                optimizer=self.optimizer_type(actor_params, lr=self.config.actor_lr),
+                optimizer=self.optimizer_type(actor_params, lr=config.actor_lr),
                 params=actor_params,
-                lr_or_lr_schedule=self.config.actor_lr,
+                lr_or_lr_schedule=config.actor_lr,
             )
         critic_params = list(module.critic.parameters()) if hasattr(module, "critic") else []
         if critic_params:
             self.register_optimizer(
                 module_id=module_id,
                 optimizer_name="critic",
-                optimizer=self.optimizer_type(critic_params, lr=self.config.critic_lr),
+                optimizer=self.optimizer_type(critic_params, lr=config.critic_lr),
                 params=critic_params,
-                lr_or_lr_schedule=self.config.critic_lr,
+                lr_or_lr_schedule=config.critic_lr,
             )
 
     def _uncompiled_update(self, batch, **kwargs):

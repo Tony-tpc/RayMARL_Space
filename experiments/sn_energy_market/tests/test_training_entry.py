@@ -35,3 +35,22 @@ def test_existing_run_preserves_evidence_without_starting_ray(tmp_path, monkeypa
         run.main(tmp_path, 72)
     for name, content in evidence.items():
         assert (output / name).read_text(encoding="utf-8") == content
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_explicit_device_controls_ray_resources(tmp_path, monkeypatch, device):
+    import ray
+    import torch
+
+    from experiments.sn_energy_market.runtime import ray_session
+
+    for name in ("TMP", "TEMP", "CUBLAS_WORKSPACE_CONFIG", "RAY_USAGE_STATS_ENABLED",
+                 "RAY_AUTH_MODE", "RAY_AUTH_TOKEN_PATH"):
+        monkeypatch.setenv(name, os.environ.get(name, ""))
+    calls = []
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: device == "cuda")
+    monkeypatch.setattr(ray, "init", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(ray, "shutdown", lambda: calls.append("shutdown"))
+    with ray_session(tmp_path, device=device):
+        assert calls[0]["num_gpus"] == int(device == "cuda")
+    assert calls[-1] == "shutdown"

@@ -50,7 +50,7 @@ Learner、Adam、PopArt、四流物理状态、动作RNG、回放池和RNG均进
 
 ## 启动与评价
 
-入口：`python -B -m experiments.sn_energy_market.run --output D:/Codex/运行目录 --rounds 72`。
+入口：`python -B -m experiments.sn_energy_market.run --output D:/Codex/运行目录 --rounds 72 --device cpu`。`--device cuda` 使用GPU；省略参数保持原CUDA设置，不作设备自动回退。
 
 运行前要求verification/ready.json证明测试通过、Git分支和提交正确、工作区干净、源码哈希一致。锁和已有状态检查阻止重复启动。每轮完整checkpoint保留最近两份；结束导出Actor并验证磁盘恢复精确回放。
 
@@ -63,3 +63,17 @@ Learner、Adam、PopArt、四流物理状态、动作RNG、回放池和RNG均进
 ## 模式头基线
 
 本版固定在分支长期回报和自然梯度修改之前。已完成物理摘要72轮训练及完整月份评价，基线产物为 `D:/Codex/2026-10-30/v9-physical-summary-72`。Critic误差降低不等于模式头学会有效充放电；后续模式修改应从这份代码与检查点进行对照。
+
+## 原审查报告的取舍
+
+| 报告项目 | 本分支处理 | 原因与后续 |
+|---|---|---|
+| 联合return-to-go、冻结baseline、同次更新 | 仅移植已做对照的UC冻结GAE；保留原联合PPO比率 | 完整回报与互补stop-gradient是另一算法，后续独立对照；不能用λ=1消项结论解释λ=.97 |
+| 各module学习率 | 修复公共Learner的optimizer和scheduler配置来源 | 属于确定性工程错误；Stackelberg本来已读取module config，不是此前收益差的来源 |
+| 大离散空间 | 精确整数计数，枚举前检查256上限 | 防止溢出和指数级内存分配；不改变当前能源动作路径 |
+| 文件锁、设备和输出 | 保留Windows锁及已有显式output，增加CPU/CUDA选择 | 当前在Windows运行；Linux锁后续随Linux运行需求验证，不引入未使用的平台分支 |
+| 变长episode计数与末轮标签 | 保持固定长度采样和现有实际batch.count计数 | 不引入完整月采样，阶段日志在outer_round递增前记当前轮；变长协议须单独核算预算 |
+| 验证入口、oracle、测试、文档 | 扩充当前回归和协议，保留现有pytest与验证证书契约 | oracle和完整回报工具暂不进入生产库；本次不引入整套新的验证框架 |
+| Consumer批推理 | 后续性能实验 | 会改变RNG消耗顺序，需验证更新、恢复、动作分布及端到端耗时 |
+
+优先补充的算法实验是多训练种子验证、Critic回放目标新鲜度，以及固定状态/固定目标下的Critic误差；随后才是联合完整回报。收益、现金、两种缺供、消费者总成本和实际充放电同时评价。训练轨迹上的RMSE和收益同时改善不足以证明Critic拟合是独立原因。

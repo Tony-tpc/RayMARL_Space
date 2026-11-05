@@ -15,6 +15,29 @@ CONFIGS = [MAACConfig, MASACConfig, MADDPGConfig, ISACConfig]
 
 
 @pytest.mark.parametrize("config_cls", CONFIGS)
+def test_module_learning_rates_survive_native_scheduler_update(config_cls):
+    learner, episodes = make_learner(
+        config_cls, hybrid=config_cls != MADDPGConfig,
+        module_overrides={
+            "a": {"actor_lr": 0.0123, "critic_lr": 0.0456},
+            CRITIC_ID: {"critic_lr": 0.0678},
+        },
+    )
+    for updated in (False, True):
+        if updated:
+            learner.update(episodes=episodes)
+        for name, optimizer in learner._named_optimizers.items():
+            module_id = learner._optimizer_name_to_module[name]
+            role = "actor" if name.endswith("actor") else "critic"
+            expected = (
+                (0.0123 if role == "actor" else 0.0456) if module_id == "a"
+                else 0.0678 if module_id == CRITIC_ID
+                else 0.0003 if role == "actor" else 0.001
+            )
+            assert all(group["lr"] == pytest.approx(expected) for group in optimizer.param_groups)
+
+
+@pytest.mark.parametrize("config_cls", CONFIGS)
 def test_native_update_optimizer_ownership_and_restore(config_cls):
     learner, episodes = make_learner(config_cls, hybrid=config_cls != MADDPGConfig)
     groups = [

@@ -158,7 +158,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
                 "steps": self.lane_steps[self.active_lane]}
 
     def _start_execution(self):
-        if self._execution is None and getattr(self.config, "execution_workers", 0):
+        if self._execution is None and self.config.execution_workers:
             from .resident import ResidentExecution
 
             self._execution = ResidentExecution(self, self.get_state(components="sampling")["sampling"])

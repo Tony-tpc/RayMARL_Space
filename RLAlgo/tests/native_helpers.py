@@ -32,13 +32,15 @@ class HistoryGame(InterfaceGame):
         }
 
 
-def make_learner(config_cls, *, hybrid=True, history=False, gpu=0):
+def make_learner(config_cls, *, hybrid=True, history=False, gpu=0, module_overrides=None):
     config = config_cls().environment(
         HistoryGame if history else InterfaceGame, env_config={"hybrid": hybrid}
     )
     config.rl_module(model_config={"hidden_dim": 8})
     config.learners(num_learners=0, num_gpus_per_learner=gpu)
     config.training(batch_size=4, warmup_steps=4)
+    if module_overrides is not None:
+        config.multi_agent(algorithm_config_overrides_per_module=module_overrides)
     if hasattr(config, "baseline_samples"):
         config.training(baseline_samples=2)
     config.prepare_policies()

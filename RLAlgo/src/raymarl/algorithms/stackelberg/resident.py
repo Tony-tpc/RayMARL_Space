@@ -228,7 +228,7 @@ class ResidentExecution:
         if total_steps < count or total_steps % count:
             raise ValueError("Phase samples must divide evenly across streams")
         steps, outside = total_steps // count, random_state()
-        observer = getattr(runner, "sample_observer", None)
+        observer = runner.sample_observer
         observer = cloudpickle.dumps(observer) if observer is not None else None
         weights = runner.module.get_state()
         try:
