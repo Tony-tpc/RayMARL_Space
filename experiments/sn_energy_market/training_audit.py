@@ -276,6 +276,10 @@ class TrainingAudit:
             before = copy.deepcopy(group.get_weights())
             for key in selected:
                 for name, value in before[key].items():
+                    # Refitted values stay on the learner until the Actor update
+                    # ends; no sampling occurs between these two updates.
+                    if update_phase == "actor" and not name.startswith("actor."):
+                        continue
                     np.testing.assert_array_equal(
                         value,
                         runner.module[key].state_dict()[name].detach().cpu().numpy(),

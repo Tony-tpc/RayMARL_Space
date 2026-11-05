@@ -287,6 +287,14 @@ class ResidentExecution:
         return saved
 
     def evaluate(self, policies, seeds, steps, deterministic, actions_only):
+        # Complete action-only episodes terminate with zero bootstrap. Their
+        # workers need actors only; truncated evaluation still receives critics.
+        if actions_only and steps is None:
+            policies = [
+                {key: {name: value for name, value in state.items() if name.startswith("actor.")}
+                 for key, state in weights.items()}
+                for weights in policies
+            ]
         jobs = [(weights, seed, steps, deterministic, actions_only) for weights in policies for seed in seeds]
         rows, count = [], len(self.connections)
         for start in range(0, len(jobs), count):

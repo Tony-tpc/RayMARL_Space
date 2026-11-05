@@ -82,7 +82,7 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
     def _restore(self, snapshot):
         self.learner_group.set_state(snapshot["learner"])
         self.env_runner.set_state(snapshot["runner"])
-        self._sync()
+        # The snapshot already contains the matching runner weights and sequence.
         restore_random_state(snapshot["rng"])
         self.uc_critic_replay.set_state(snapshot["uc_critic_replay"])
 
@@ -122,7 +122,6 @@ class Stackelberg(NativeAlgorithmMixin, Algorithm):
             shuffle_batch_per_epoch=True,
             timesteps={NUM_ENV_STEPS_SAMPLED_LIFETIME: self.sampled_periods + batch.count},
         )
-        self._sync()
         selected = MultiAgentBatch({key: batch.policy_batches[key] for key in module_ids}, batch.count)
         critic_and_sync_seconds = time.perf_counter() - update_started
         gae_started = time.perf_counter()

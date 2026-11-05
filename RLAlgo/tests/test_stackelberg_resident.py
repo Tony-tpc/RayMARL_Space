@@ -104,6 +104,15 @@ def test_resident_batches_rng_branches_checkpoint_and_all_candidate_months(tmp_p
         assert len(observed) == 2 and all(len(rows) == 2 for rows in observed)
         assert all(row["physical_periods"] == 6 for rows in observed for row in rows)
         assert_same_state(checkpoint, parallel.get_state())
+        for module in policies[1].values():
+            for key, value in module.items():
+                if key.startswith("value."):
+                    module[key] = value + 0.01
+        expected = serial.evaluate_candidates(policies, (11, 12), steps=3)
+        observed = parallel.evaluate_candidates(policies, (11, 12), steps=3)
+        assert_same_state(expected, observed)
+        assert all(row["bootstrap_used"] for rows in observed for row in rows)
+        assert_same_state(checkpoint, parallel.get_state())
         parallel.release_branches()
         expected = parallel.collect_phase(16)
         processes = parallel._execution.processes.copy()

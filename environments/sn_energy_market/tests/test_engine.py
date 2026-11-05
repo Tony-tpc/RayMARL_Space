@@ -132,6 +132,33 @@ def test_snapshot_restore_both_phases_and_public_objects_do_not_alias(make_engin
     assert engine.records[0].consumer_actions
 
 
+def test_scalar_copy_keeps_public_records_detached(make_engine):
+    engine = make_engine([[4], [4]])
+    engine.reset()
+    record = engine.run_period(
+        U(grid_import_offer_kw=4, der_planned_curtailment_kw=0, der_to_ess_kw=0,
+          grid_to_ess_kw=0, ess_discharge_offer_kw=0, dr_procurement_cap_kw=0),
+        actions(engine),
+    )
+    before = engine.get_state()
+    scalars = (
+        record.uc_action, record.consumer_actions["consumer_0"],
+        ShiftTask(0, 1, 0.5), record.local_bounds["consumer_0"],
+        record.market.allocations["consumer_0"].necessary,
+        record.physical, record.dr.consumers["consumer_0"],
+        record.ledger.consumers["consumer_0"],
+    )
+    for item in scalars:
+        cloned = copy.deepcopy(item)
+        assert cloned == item and cloned is not item
+        field = next(iter(vars(item)))
+        original = getattr(item, field)
+        # Even bypassing frozen dataclass assignment must not corrupt the source.
+        object.__setattr__(cloned, field, None)
+        assert getattr(item, field) == original
+    assert engine.get_state() == before
+
+
 @pytest.mark.parametrize("kind", ["soc", "phase", "offer", "payments", "history", "feedback", "initial_energy"])
 def test_snapshot_corruption_rejected_without_mutation(make_engine, kind):
     engine = make_engine([[4], [4]])

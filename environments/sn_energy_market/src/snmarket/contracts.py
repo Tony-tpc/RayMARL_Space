@@ -11,8 +11,18 @@ class Phase(StrEnum):
     TERMINATED = "TERMINATED"
 
 
+class _ScalarRecord:
+    """Detach scalar-only records without recursively visiting immutable fields."""
+
+    def __deepcopy__(self, memo):
+        result = type(self).__new__(type(self))
+        memo[id(self)] = result
+        result.__dict__.update(self.__dict__)
+        return result
+
+
 @dataclass(frozen=True, kw_only=True)
-class UCAction:
+class UCAction(_ScalarRecord):
     grid_import_offer_kw: float
     der_planned_curtailment_kw: float
     der_to_ess_kw: float
@@ -26,7 +36,7 @@ class UCAction:
 
 
 @dataclass(frozen=True, kw_only=True)
-class ConsumerAction:
+class ConsumerAction(_ScalarRecord):
     curtail_kw: float
     signed_shift_kw: float
     der_preference_fraction: float
@@ -34,7 +44,7 @@ class ConsumerAction:
 
 
 @dataclass(frozen=True)
-class ShiftTask:
+class ShiftTask(_ScalarRecord):
     source_period: int
     deadline_period: int
     remaining_kwh: float
@@ -81,7 +91,7 @@ class PublicOffer:
         return self.action.dr_procurement_cap_kw
 
 @dataclass(frozen=True)
-class LocalBounds:
+class LocalBounds(_ScalarRecord):
     cut_max_kw: float
     due_kw: float
     due_kwh: float
@@ -131,7 +141,7 @@ class MarketOrder:
 
 
 @dataclass(frozen=True)
-class LayerAllocation:
+class LayerAllocation(_ScalarRecord):
     request_kw: float
     der_first_kw: float
     uc_kw: float
@@ -176,7 +186,7 @@ class MarketResult:
 
 
 @dataclass(frozen=True)
-class PhysicalExecution:
+class PhysicalExecution(_ScalarRecord):
     grid_buy_kw: float
     der_generation_kw: float
     der_planned_curtailment_kw: float
@@ -213,7 +223,7 @@ class LoadService:
 
 
 @dataclass(frozen=True)
-class DRIncentive:
+class DRIncentive(_ScalarRecord):
     consumer_id: str
     event_id: str
     signed_dr_kw: float
@@ -233,7 +243,7 @@ class DRResult:
 
 
 @dataclass(frozen=True)
-class ConsumerLedger:
+class ConsumerLedger(_ScalarRecord):
     energy_payment: float
     der_payment: float
     uc_payment: float

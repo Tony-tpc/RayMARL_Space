@@ -347,6 +347,7 @@ class StackelbergEnvRunner(EnvRunner, Checkpointable):
             }
         return {}, self.env.step(actions)
 
+    @torch.inference_mode()
     def _period(self, *, deterministic=False, actions_only=False, with_values=True):
         with self.action_stream():
             result = self._sample_period(deterministic=deterministic, actions_only=actions_only, with_values=with_values)

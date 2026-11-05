@@ -34,6 +34,24 @@ def test_action_only_preserves_draw_and_rng(role, deterministic):
     assert_same_state(expected_rng, random_state())
 
 
+@pytest.mark.parametrize("role", ["uc", "consumer"])
+@pytest.mark.parametrize("deterministic", [False, True])
+def test_reused_sampling_distributions_match_ppo_likelihood_exactly(role, deterministic):
+    module = module_spec(role).build()
+    obs = torch.randn(32, 7)
+    bounds = (torch.tensor([[10., 8., 5., 5., 4., 3.]] * 32, dtype=torch.float64)
+              if role == "uc" else bounds_tensor(legal_bounds(), 32))
+    bounds[:8, 0] = 0
+    if role == "uc":
+        bounds[:8, 2:5] = 0
+    with torch.no_grad():
+        sampled = module.draw(obs, bounds, deterministic)
+        rng = random_state()
+        evaluated = module.evaluate_actions({"obs": obs, "bounds": bounds, **sampled})
+    torch.testing.assert_close(sampled["action_logp"], evaluated["action_logp"], atol=0, rtol=0)
+    assert_same_state(rng, random_state())
+
+
 @pytest.mark.parametrize("deterministic", [False, True])
 def test_complete_evaluation_and_snapshot_isolation(tmp_path, deterministic):
     config = configuration(tmp_path)

@@ -218,7 +218,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
     def _beta(parameters):
         # Concentrations above one keep the bounded density finite at both ends.
         alpha, beta = (F.softplus(parameters) + 1.0).unbind(-1)
-        return Beta(alpha, beta)
+        return Beta(alpha, beta, validate_args=False)
 
     @staticmethod
     def _gaussian(parameters, active):
@@ -272,7 +272,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         bounds = bounds.double()
         base_dist = self._uc_base(features, bounds)
         base = base_dist.loc if deterministic else base_dist.sample()
-        mode_dist, _ = self._uc_mode(features, base, bounds, soc)
+        mode_dist, mask = self._uc_mode(features, base, bounds, soc)
         mode = mode_dist.to_deterministic().sample() if deterministic else mode_dist.sample()
         storage_dist = self._gaussian(self._uc_storage_parameters(features, base, mode),
                                       torch.ones_like(base, dtype=torch.bool))
@@ -283,7 +283,9 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             intervals = self._uc_intervals(bounds, controls, mode)
             controls = torch.where(intervals[..., 1] > 0, controls, 0.0)
             return torch.cat((mode[..., None].to(controls.dtype), controls), -1)
-        distribution, intervals, mask = self._uc_distribution(features, controls, bounds, mode, soc)
+        intervals = self._uc_intervals(bounds, controls, mode)
+        storage = ActiveDiagGaussian(storage_dist.loc, storage_dist._dist.scale, intervals[..., [2, 3, 4], 1] > 0)
+        distribution = TorchMultiDistribution((base_dist, mode_dist, storage))
         active = intervals[..., 1] > 0
         controls = torch.where(active, controls, 0.0)
         logp = distribution.logp((controls[..., [0, 1, 5]], mode, controls[..., [2, 3, 4]]))
@@ -346,10 +348,11 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         lows = torch.cat((zero[..., None], low[..., None], market_low), -1)
         highs = torch.cat((cut_max[..., None], high[..., None], market_high), -1)
         intervals = torch.stack((lows, highs), -1)
-        return actions, controls, intervals
+        return actions, controls, intervals, (cut_dist, shift_dist, market_dist)
 
-    def _consumer_logp_entropy(self, features, controls, intervals):
-        first, second, market = self._consumer_distributions(features, controls)
+    @staticmethod
+    def _consumer_logp(distributions, controls, intervals):
+        first, second, market = distributions
         widths = intervals[..., 1] - intervals[..., 0]
         active = widths > 0.0
         # Zero-width coordinates are point masses. Evaluate their unused Beta
@@ -363,12 +366,18 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             ),
             -1,
         )
+        log_width = torch.where(active, widths, 1.0).log()
+        return torch.where(active, logp - log_width, 0.0).sum(-1)
+
+    def _consumer_logp_entropy(self, features, controls, intervals):
+        distributions = self._consumer_distributions(features, controls)
+        logp = self._consumer_logp(distributions, controls, intervals)
+        first, second, market = distributions
+        widths = intervals[..., 1] - intervals[..., 0]
+        active = widths > 0.0
         entropy = torch.cat((first.entropy()[..., None], second.entropy()[..., None], market.entropy()), -1)
         log_width = torch.where(active, widths, 1.0).log()
-        return (
-            torch.where(active, logp - log_width, 0.0).sum(-1),
-            torch.where(active, entropy + log_width, 0.0).sum(-1),
-        )
+        return logp, torch.where(active, entropy + log_width, 0.0).sum(-1)
 
     def draw_action(self, obs, bounds, deterministic=False):
         """Action-only evaluation with identical conditional sampling order."""
@@ -381,8 +390,10 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
         features = self._features(obs)
         if self.role == "uc":
             return self._draw_uc(features, bounds, deterministic, self.centered_soc(obs))
-        actions, controls, intervals = self._draw_consumer(features, bounds, deterministic)
-        logp, _ = self._consumer_logp_entropy(features, controls, intervals)
+        actions, controls, intervals, distributions = self._draw_consumer(features, bounds, deterministic)
+        # Reuse the sampled conditionals; collection needs no entropy or second
+        # pass through the three heads. The draw order and RNG stay identical.
+        logp = self._consumer_logp(distributions, controls, intervals)
         return {
             Columns.ACTIONS: actions,
             "raw_latents": controls,
@@ -420,7 +431,7 @@ class StackelbergRLModule(TorchRLModule, InferenceOnlyAPI, ValueFunctionAPI):
             logp = self.evaluate_actions({Columns.OBS: batch[Columns.OBS], **sample})[Columns.ACTION_LOGP]
             surrogate = -(logp.detach() + 1) * logp
             return -logp.detach() + surrogate - surrogate.detach()
-        _, controls, intervals = self._draw_consumer(features, batch["bounds"], reparameterize=True)
+        _, controls, intervals, _ = self._draw_consumer(features, batch["bounds"], reparameterize=True)
         return self._consumer_logp_entropy(features, controls, intervals)[1]
 
     def compute_values(self, batch, embeddings=None):
