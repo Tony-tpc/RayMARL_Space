@@ -22,3 +22,4 @@ ray_results/
 .env.*
 !.env.example
 !.env.template
+AGENTS.md
