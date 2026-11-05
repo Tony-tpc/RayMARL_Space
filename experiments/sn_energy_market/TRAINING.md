@@ -1,6 +1,6 @@
 # V9 always 混合物理摘要 Critic 训练协议
 
-实现维护在 `算法实现/双层训练与接口复用`，不合并main。市场、奖励、Actor观测及Consumer隐私边界保持原样。
+本分支 `冻结GAE训练` 从 `eec004423ce381f43034ade19330e03c56fdfc70` 建立。市场、奖励、Actor观测及Consumer隐私边界保持原样。
 
 ## 模型与输入
 
@@ -28,7 +28,9 @@ UC Critic在最近12个保留阶段批均匀无放回选1536条，每个epoch原
 
 Critic目标在采样时固定并以原奖励单位保存。384步片段末端使用下一状态估值bootstrap，真实月末尾值为零、不跨月bootstrap。**离线筛选使用完整月MC及冻结PopArt；此次在线仍用384步bootstrap和在线PopArt，不能将离线成绩视为72轮结果。**
 
-各Critic独立PopArt，β=.99999、标准差下限.1；UC统计只计本阶段1536条新目标，不重复计回放。补偿输出层保持原奖励单位估值；保留Adam参数对象、动量与步数。拟合Critic后用当前批保存的当前/下一输入重算Actor GAE，整批归一化一次后固定。
+各Critic独立PopArt，β=.99999、标准差下限.1；UC统计只计本阶段1536条新目标，不重复计回放。补偿输出层保持原奖励单位估值；保留Adam参数对象、动量与步数。UC Actor使用采样时保存的 `vf_preds/next_vf_preds` 计算GAE，后续Critic拟合不改变该baseline；Consumer仍使用拟合后的估值重算GAE。整批归一化一次后固定。
+
+生产配置启用 `uc_frozen_gae=True`；设为 `False` 可对照原始拟合后GAE。该开关进入学习契约，恢复时不能混用。冻结的是UC优势所用的估值，不是Critic参数；Critic仍正常训练。这与独立seed 11、24轮实验的算法差异一致，不包含联合return-to-go、完整月采样或独立模式头更新。单种子结果只提供方向性证据。
 
 ## 预算与恢复
 

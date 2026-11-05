@@ -98,35 +98,44 @@ def test_value_units_preserve_gae_and_normalized_loss_gradients():
 
 @pytest.mark.parametrize("terminal_at", [191, 383, None])
 @pytest.mark.parametrize("segment_cut", [False, True])
-def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at, segment_cut):
-    from experiments.sn_energy_market.training_audit import reference_refreshed_advantages
+@pytest.mark.parametrize("freeze_uc", [False, True])
+def test_gae_value_source_boundaries_and_no_rng(terminal_at, segment_cut, freeze_uc):
+    from experiments.sn_energy_market.training_audit import (
+        reference_advantages,
+        reference_refreshed_advantages,
+    )
 
     torch.set_num_threads(1)
     torch.manual_seed(72)
     learner = make_learner()
     learner.config.gamma, learner.config.lambda_gae = 0.99, 0.97
+    learner.config.uc_frozen_gae = freeze_uc
     batch = MultiAgentBatch({key: sample_batch(learner.module[key], 384) for key in ("uc", "consumer")}, 384)
     for key, data in batch.policy_batches.items():
         data["next_value_obs"] = np.roll(data["critic_obs"], -1, axis=0).copy()
         data["rewards"] = np.linspace(-0.2, 0.3, 384, dtype=np.float64)
         data["terminateds"] = np.zeros(384, dtype=bool)
         data["segment_end"] = np.zeros(384, dtype=bool)
+        data["next_vf_preds"] = np.roll(data["vf_preds"], -1).copy()
         if segment_cut:
             data["segment_end"][191] = True
         if terminal_at is not None:
             data["terminateds"][terminal_at] = True
+            data["next_vf_preds"][terminal_at] = 0.0
     original = copy.deepcopy(dict(batch.policy_batches))
     old = learner.recompute_advantages(batch)
     learner.update(batch=batch, update_phase="critic", num_epochs=4, minibatch_size=32)
     fitted, rng = copy.deepcopy(learner.get_state()), random_state()
     fresh = learner.recompute_advantages(batch)
     expected = reference_refreshed_advantages(learner, batch)
+    if freeze_uc:
+        expected["uc"] = reference_advantages(batch["uc"], 0.99, 0.97)
     assert_nested_equal(fitted, learner.get_state())
     assert_nested_equal(rng, random_state())
     assert_nested_equal(original, dict(batch.policy_batches))
     for key in fresh:
         np.testing.assert_allclose(fresh[key], expected[key], atol=1e-12, rtol=1e-12)
-        assert not np.allclose(old[key], fresh[key])
+        assert np.allclose(old[key], fresh[key]) == (freeze_uc and key == "uc")
     # A later reward may cross an ordinary sampling unit, but cannot cross
     # a true terminal or a boundary between independent streams.
     for data in batch.policy_batches.values():
@@ -144,7 +153,9 @@ def test_refreshed_gae_uses_fitted_values_original_inputs_and_no_rng(terminal_at
         data["next_value_obs"][-1] += 3
     tail_changed = learner.recompute_advantages(batch)
     for key in fresh:
-        assert (tail_changed[key][-1] == again[key][-1]) == (terminal_at == 383)
+        assert (tail_changed[key][-1] == again[key][-1]) == (
+            terminal_at == 383 or (freeze_uc and key == "uc")
+        )
 
 
 @pytest.mark.parametrize("active_actor", ["uc", "consumer"])

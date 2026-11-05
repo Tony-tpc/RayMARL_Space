@@ -173,6 +173,10 @@ def test_learning_contract_tracks_targets_and_scenarios_not_output_path(tmp_path
     right.critic_lambda = 0.8
     assert left.learning_contract() != right.learning_contract()
     right.critic_lambda = left.critic_lambda
+    right.training(uc_frozen_gae=True)
+    assert left.learning_contract() != right.learning_contract()
+    assert right.learning_contract()["uc_frozen_gae"] is True
+    right.uc_frozen_gae = left.uc_frozen_gae
     right.train_seeds = (4, 5)
     assert left.learning_contract() != right.learning_contract()
 

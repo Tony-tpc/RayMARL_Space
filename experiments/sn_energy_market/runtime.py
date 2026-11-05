@@ -10,9 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from raymarl.algorithms.stackelberg.algorithm import Stackelberg
-from raymarl.algorithms.stackelberg.config import StackelbergConfig
-from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 
 from experiments.sn_energy_market.profile_dataset import (
     DatasetEnvFactory,
@@ -22,6 +19,9 @@ from experiments.sn_energy_market.settings import (
     inventory_valued_config,
     model_settings,
 )
+from raymarl.algorithms.stackelberg.algorithm import Stackelberg
+from raymarl.algorithms.stackelberg.config import StackelbergConfig
+from raymarl.algorithms.stackelberg.runner import StackelbergEnvRunner
 
 ROOT = Path(__file__).resolve().parents[2]
 TRIAL_SEED = 11
@@ -164,7 +164,8 @@ def configuration(output):
         .multi_agent(algorithm_config_overrides_per_module={"uc": {"actor_lr": 1e-4}})
         .learners(num_learners=0, num_gpus_per_learner=1)
         .training(execution_workers=4, phase_sampling="all_streams",
-                  gamma=0.997, lambda_gae=0.97, critic_lambda=1.0, uc_critic_replay_batches=12,
+                  gamma=0.997, lambda_gae=0.97, critic_lambda=1.0, uc_frozen_gae=True,
+                  uc_critic_replay_batches=12,
                   rollout_length=384, inner_updates=4, response_updates=4,
                   uc_candidates=1, uc_updates_per_candidate=4, deviation_updates=0,
                   critic_epochs=2, num_epochs=1, minibatch_size=32,

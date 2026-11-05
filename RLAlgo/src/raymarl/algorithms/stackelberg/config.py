@@ -36,6 +36,7 @@ class StackelbergConfig(AlgorithmConfig):
         self.test_seeds = tuple(range(2000, 2032))
         self.gamma, self.lambda_gae = 0.99, 0.95
         self.critic_lambda = 1.0
+        self.uc_frozen_gae = False
         self.uc_critic_replay_batches = 0
         self.actor_lr, self.critic_lr = 3e-4, 1e-3
         self.clip_param, self.vf_loss_coeff, self.entropy_coeff = 0.2, 0.5, 0.0
@@ -84,6 +85,7 @@ class StackelbergConfig(AlgorithmConfig):
             "uc_critic_replay_batches",
             "lambda_gae",
             "critic_lambda",
+            "uc_frozen_gae",
             "clip_param",
             "vf_loss_coeff",
             "entropy_coeff",
@@ -160,6 +162,7 @@ class StackelbergConfig(AlgorithmConfig):
             "gamma",
             "lambda_gae",
             "critic_lambda",
+            "uc_frozen_gae",
             "uc_critic_replay_batches",
             "actor_lr",
             "critic_lr",
@@ -208,7 +211,9 @@ class StackelbergConfig(AlgorithmConfig):
             sampling_protocol=("phase_all_streams_private_rng_segment_boundaries_v1"
                                if self.phase_sampling == "all_streams" else
                                "round_robin_continuous_streams_private_rng_selected_branch_v2"),
-            update_protocol="phase_batch_fixed_targets_refreshed_gae_common_consumer_state_v2",
+            update_protocol=("phase_batch_uc_rollout_gae_consumer_refreshed_gae_v1"
+                             if self.uc_frozen_gae else
+                             "phase_batch_fixed_targets_refreshed_gae_common_consumer_state_v2"),
             value_architecture="layernorm_tanh",
         )
         if self.model_config.get("online_popart", False):
@@ -219,6 +224,8 @@ class StackelbergConfig(AlgorithmConfig):
 
     def validate(self):
         super().validate()
+        if type(self.uc_frozen_gae) is not bool:
+            raise ValueError("uc_frozen_gae must be a boolean")
         if self.always_keep_candidate and self.uc_candidates != 1:
             raise ValueError("Always retention requires exactly one new UC candidate")
         if self.scenario_factory is None:

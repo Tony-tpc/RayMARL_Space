@@ -82,6 +82,7 @@ def sample_batch(module, count=16):
 
 def make_learner():
     config = AlgorithmConfig().learners(num_learners=0, num_gpus_per_learner=0)
+    config.uc_frozen_gae = False
     config.actor_lr, config.critic_lr = 0.001, 0.002
     config.clip_param, config.vf_loss_coeff, config.entropy_coeff, config.grad_clip = 0.2, 0.5, 0.0, 0.5
     learner = StackelbergTorchLearner(

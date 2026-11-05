@@ -100,19 +100,22 @@ class StackelbergTorchLearner(TorchLearner):
 
     @torch.no_grad()
     def recompute_advantages(self, batch):
-        """Refresh GAE once after value fitting, using the original next inputs.
+        """Build Actor GAE, retaining rollout values for the frozen UC baseline.
 
-        This only evaluates values: no action sampling, RNG use, optimizer steps,
-        or changes to the fixed Critic targets and PPO behavior probabilities.
+        Consumers use fitted values. Critic targets and behavior probabilities
+        stay fixed; this calculation consumes no RNG or optimizer steps.
         """
         converted = self._convert_batch_type(batch)
         advantages = {}
         for key, data in converted.policy_batches.items():
             module = self.module[key].unwrapped()
-            values = module.compute_values(data).cpu().numpy()
-            inputs = data["next_value_obs"]
-            next_values = module.compute_values({"obs": inputs, "critic_obs": inputs}).cpu().numpy()
             original = batch.policy_batches[key]
+            if self.config.uc_frozen_gae and module.role == "uc":
+                values, next_values = original["vf_preds"], original["next_vf_preds"]
+            else:
+                values = module.compute_values(data).cpu().numpy()
+                inputs = data["next_value_obs"]
+                next_values = module.compute_values({"obs": inputs, "critic_obs": inputs}).cpu().numpy()
             advantages[key], _ = generalized_advantages(
                 original["rewards"], values, next_values, original["terminateds"],
                 self.config.gamma, self.config.lambda_gae,

@@ -263,11 +263,16 @@ class TrainingAudit:
             if update_phase == "actor":
                 checked = group.foreach_learner(lambda learner: reference_refreshed_advantages(learner, batch))
                 for key, expected in next(iter(checked)).get().items():
+                    frozen = key == "uc" and self.algorithm.config.uc_frozen_gae
+                    if frozen:
+                        expected = reference_advantages(
+                            batch[key], self.algorithm.config.gamma, self.algorithm.config.lambda_gae
+                        )
                     np.testing.assert_allclose(batch[key]["advantages_raw"], expected, atol=1e-9, rtol=1e-10)
                     if self.algorithm.config.normalize_advantages:
                         expected = (expected - expected.mean()) / max(expected.std(), 1e-8)
                     np.testing.assert_allclose(batch[key]["advantages"], expected, atol=1e-9, rtol=1e-10)
-                    self.coverage["refreshed_gae_checks"] += 1
+                    self.coverage["frozen_gae_checks" if frozen else "refreshed_gae_checks"] += 1
             before = copy.deepcopy(group.get_weights())
             for key in selected:
                 for name, value in before[key].items():
